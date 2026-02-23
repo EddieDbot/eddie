@@ -231,3 +231,69 @@ export async function getOutputSize(jobId: string): Promise<number> {
     return 0;
   }
 }
+
+/**
+ * Zombie detection: walk the process tree rooted at the tmux pane and check
+ * whether any descendant is in a stopped state (T* in ps stat).
+ *
+ * This catches SIGTTOU and other stop signals — e.g. the `timeout` without
+ * `--foreground` bug where claude receives SIGTTOU and halts silently.
+ * Unlike the old size-based check this works regardless of output format or
+ * buffering behaviour, and won't false-positive on slow but healthy jobs.
+ *
+ * Returns the first stopped process found, or { zombie: false } if none.
+ */
+export async function detectZombieProcess(sessionName: string): Promise<{
+  zombie: boolean;
+  pid?: number;
+  state?: string;
+}> {
+  // Step 1: get the tmux pane PID
+  const paneProc = Bun.spawn(
+    [config.TMUX_PATH, "list-panes", "-t", sessionName, "-F", "#{pane_pid}"],
+    { stdout: "pipe", stderr: "ignore" },
+  );
+  const paneOut = await new Response(paneProc.stdout).text();
+  const panePid = parseInt(paneOut.trim(), 10);
+  if (isNaN(panePid)) return { zombie: false };
+
+  // Step 2: snapshot all processes with pid, ppid, stat in one shot
+  const psProc = Bun.spawn(["ps", "-eo", "pid,ppid,stat", "--no-headers"], {
+    stdout: "pipe",
+    stderr: "ignore",
+  });
+  const psOut = await new Response(psProc.stdout).text();
+
+  const processes = new Map<number, { ppid: number; stat: string }>();
+  for (const line of psOut.trim().split("\n")) {
+    const parts = line.trim().split(/\s+/);
+    if (parts.length < 3) continue;
+    const pid = parseInt(parts[0]!, 10);
+    const ppid = parseInt(parts[1]!, 10);
+    const stat = parts[2]!;
+    if (!isNaN(pid) && !isNaN(ppid)) processes.set(pid, { ppid, stat });
+  }
+
+  // Step 3: BFS from panePid, return on first T* (stopped) descendant
+  const visited = new Set<number>();
+  const queue = [panePid];
+  while (queue.length > 0) {
+    const pid = queue.shift()!;
+    if (visited.has(pid)) continue;
+    visited.add(pid);
+
+    const info = processes.get(pid);
+    if (!info) continue;
+
+    // T = stopped by signal, Tl = stopped multi-threaded (SIGTTOU victim)
+    if (info.stat.startsWith("T"))
+      return { zombie: true, pid, state: info.stat };
+
+    for (const [childPid, childInfo] of processes) {
+      if (childInfo.ppid === pid && !visited.has(childPid))
+        queue.push(childPid);
+    }
+  }
+
+  return { zombie: false };
+}

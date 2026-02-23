@@ -12,6 +12,7 @@ import {
   killSession,
   readOutput,
   getOutputSize,
+  detectZombieProcess,
   JOBS_DIR,
 } from "./tmux.ts";
 import { memoryEnabled } from "../memory/client.ts";
@@ -176,12 +177,20 @@ async function pollJobs(bot: Bot): Promise<void> {
       }
     }
 
-    // Zombie detection: running > 5min with 0 bytes output = dead process
+    // Zombie detection: check the process tree for any stopped (T*) descendant.
+    // A T/Tl state means the process received a stop signal (e.g. SIGTTOU).
+    // This is output-format agnostic — works regardless of buffering behaviour.
+    // 2-minute grace period allows for slow startups before we check.
     const elapsed = Date.now() - new Date(job.startedAt).getTime();
-    if (elapsed > ZOMBIE_THRESHOLD_MS) {
-      const outputSize = await getOutputSize(job.id);
-      if (outputSize === 0) {
-        logger.warn("jobs:zombie-detected", { id: job.id, elapsedMs: elapsed });
+    if (elapsed > 2 * 60_000) {
+      const { zombie, pid, state } = await detectZombieProcess(job.tmuxSession);
+      if (zombie) {
+        logger.warn("jobs:zombie-detected", {
+          id: job.id,
+          pid,
+          state,
+          elapsedMs: elapsed,
+        });
         await killSession(job.tmuxSession);
         await timeoutJob(bot, job.id, elapsed);
         continue;
@@ -397,21 +406,27 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
     if (isHealJob(job.tmuxSession)) {
       resolveHeal(jobId, summary || outcome).catch(() => {});
     } else if (outcome === "failed") {
-      triggerSelfHeal(
-        {
-          source: "job",
-          name:
-            (job.prompt.split("\n")[0] ?? "")
-              .replace(/^#+\s*/, "")
-              .trim()
-              .slice(0, 60) || jobId,
-          error: summary || "job failed",
-          timestamp: Date.now(),
-          jobId,
-          outputTail: output.slice(-2000),
-        },
-        bot,
-      ).catch(() => {});
+      // Don't trigger self-heal for "No output produced" — this indicates environmental failure
+      // (resource pressure, OOM kill, process killed) rather than a code bug.
+      // Self-healing environmental failures just adds more load.
+      const isEnvFailure = summary === "No output produced";
+      if (!isEnvFailure) {
+        triggerSelfHeal(
+          {
+            source: "job",
+            name:
+              (job.prompt.split("\n")[0] ?? "")
+                .replace(/^#+\s*/, "")
+                .trim()
+                .slice(0, 60) || jobId,
+            error: summary || "job failed",
+            timestamp: Date.now(),
+            jobId,
+            outputTail: output.slice(-2000),
+          },
+          bot,
+        ).catch(() => {});
+      }
     }
   }
 
