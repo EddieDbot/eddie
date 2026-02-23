@@ -90,6 +90,7 @@ const envSchema = z.object({
   COMMS_IMESSAGE_RELAY_KEY: z.string().optional(),
   COMMS_SLACK_BOT_TOKEN: z.string().optional(),
   COMMS_SLACK_WATCH_CHANNELS: z.string().optional(), // comma-separated channel IDs
+  SLACK_OWNER_USER_ID: z.string().optional(), // Nicholas's Slack user ID for @mention detection
   COMMS_WHATSAPP_BRIDGE_URL: z.string().optional(),
   COMMS_WHATSAPP_TOKEN: z.string().optional(),
   ICLOUD_EMAIL: z.string().optional(),

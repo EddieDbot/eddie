@@ -161,9 +161,17 @@ If this fails (credentials not set up), log the failure and continue — do not 
 
 ## Step 3: Deep Extraction + Routing
 
-Now run the transcript-ingester agent again on the raw file at ${rawPath} (pass the file path, not the URL — transcript is already saved locally).
+Check the file size of ${rawPath} in kilobytes.
 
-The agent will:
+**If < 50KB:** Run transcript-ingester agent on ${rawPath} directly (single agent).
+
+**If ≥ 50KB:** Split the work — spawn TWO agents in parallel using the Task tool:
+- Agent A: Run transcript-ingester on ${rawPath} for extraction + routing
+- Agent B: Begin reading eddie-current.md and EDDIE-UPGRADE-REPORT.md to prepare for comparison (Step 4)
+
+Wait for both agents to finish before proceeding.
+
+The transcript-ingester agent will:
 - Extract deep insights using standard + role-forge extraction modes
 - Score against all project manifests in Brain Vault
 - Route the pre-digested extraction to the best-matching project staging folder
@@ -285,26 +293,30 @@ export async function checkPlaylists(): Promise<{
     const items = await fetchPlaylistItems(playlistId);
     const newItems = items.filter((item) => !processed.has(item.videoId));
 
-    for (const item of newItems) {
-      logger.info("playlist:new-video", {
-        title: item.title,
-        videoId: item.videoId,
-        playlist: playlist.name,
-      });
+    // Mark all processed immediately before spawning — prevents double-spawn
+    await Promise.all(
+      newItems.map((item) => markProcessed(item.videoId, item.title)),
+    );
 
-      // Mark processed immediately — prevents double-spawn if job fails partway
-      await markProcessed(item.videoId, item.title);
-
-      const prompt = buildJobPrompt(
-        item.videoId,
-        item.title,
-        playlist.name,
-        playlist.url,
-      );
-      const job = await createJob("claude", prompt);
-      await spawnJob(job);
-      spawned++;
-    }
+    // Spawn all jobs concurrently
+    await Promise.all(
+      newItems.map(async (item) => {
+        logger.info("playlist:new-video", {
+          title: item.title,
+          videoId: item.videoId,
+          playlist: playlist.name,
+        });
+        const prompt = buildJobPrompt(
+          item.videoId,
+          item.title,
+          playlist.name,
+          playlist.url,
+        );
+        const job = await createJob("claude", prompt);
+        await spawnJob(job);
+        spawned++;
+      }),
+    );
 
     logger.info("playlist:checked", {
       name: playlist.name,

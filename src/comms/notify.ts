@@ -26,14 +26,25 @@ export function initNotifier(bot: Bot): void {
 
 export function queueNotification(items: InboxItem[]): void {
   if (!config.COMMS_NOTIFY_ENABLED) return;
-  // Filter out non-urgent emails (gmail channel only, skip routine notifications)
+  const ownerSlackId = config.SLACK_OWNER_USER_ID;
   const filtered = items.filter((item) => {
-    if (item.channel !== "gmail") return true; // Keep all non-gmail
-    // Skip gmail unless it has urgent keywords
-    const text = (item.subject + " " + item.preview).toLowerCase();
-    return /urgent|asap|important|action required|immediate|critical/i.test(
-      text,
-    );
+    if (item.channel === "gmail") {
+      // Only ping for urgent emails
+      const text = (item.subject + " " + item.preview).toLowerCase();
+      return /urgent|asap|important|action required|immediate|critical/i.test(
+        text,
+      );
+    }
+    if (item.channel === "slack") {
+      // Only ping for DMs or direct @mentions
+      const isDm = (
+        item.metadata as Record<string, string> | undefined
+      )?.channelId?.startsWith("D");
+      const isMentioned =
+        ownerSlackId && item.preview.includes(`<@${ownerSlackId}>`);
+      return isDm || !!isMentioned;
+    }
+    return true;
   });
   if (filtered.length === 0) return;
   pendingItems.push(...filtered);
