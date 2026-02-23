@@ -75,9 +75,9 @@ export function startDashboard(): void {
       } else if (config.DASHBOARD_TOKEN) {
         // Basic Auth gate on everything else
         const auth = req.headers.get("authorization") ?? "";
-        const encoded = Buffer.from(`eddie:${config.DASHBOARD_TOKEN}`).toString(
-          "base64",
-        );
+        const encoded = Buffer.from(
+          `${config.DASHBOARD_USER}:${config.DASHBOARD_TOKEN}`,
+        ).toString("base64");
         if (auth !== `Basic ${encoded}`) {
           return new Response("Unauthorized", {
             status: 401,

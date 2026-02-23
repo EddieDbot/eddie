@@ -52,6 +52,7 @@ const envSchema = z.object({
   EMBED_MODEL: z.string().default("nomic-embed-text"),
   // Dashboard auth (W5)
   DASHBOARD_TOKEN: z.string().optional(),
+  DASHBOARD_USER: z.string().default("eddie"),
   DASHBOARD_HOST: z.string().default("127.0.0.1"),
   // Job time limits (W6)
   JOBS_DEFAULT_TIMEOUT_MS: z.coerce.number().default(7_200_000),
