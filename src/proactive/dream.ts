@@ -220,6 +220,7 @@ export async function runDreamCycle(): Promise<void> {
   if (insights.length === 0) {
     logger.info("dream:no-insights");
     await cleanStaleHourlyFacts();
+    await rotateArchives();
     return;
   }
 

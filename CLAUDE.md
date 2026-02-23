@@ -39,7 +39,24 @@ When asked about past decisions, projects, or context, search Brain Vault first.
 You can read and write files in Brain Vault directly.
 
 ## Brain Vault Conventions
-When creating Brain Vault notes that reference other existing files, use `[[WikiLinks]]` to cross-reference. Example: `[[execution-roadmap]]` links to `Plans/execution-roadmap.md`.
+
+### WikiLinks
+When creating Brain Vault notes that reference other existing files, use `[[WikiLinks]]` to cross-reference:
+- **Format:** `[[filename]]` (without .md extension)
+- **Examples:**
+  - `[[execution-roadmap]]` links to `Plans/execution-roadmap.md`
+  - `[[learning-async-patterns]]` links to `90 - Agent Memory/Learnings/learning-async-patterns.md`
+  - `[[project-status]]` links to `90 - Agent Memory/State/project-status.md`
+- **Best practices:**
+  - Use descriptive file names that hint at content (e.g., `learning-`, `decision-`, `project-`)
+  - Keep links contextual — link only when the reference adds value
+  - Links work bi-directionally in Obsidian, creating a knowledge graph
+
+### File Naming
+- **Learnings:** `YYYY-MM-DD-descriptor.md` or `learning-descriptor.md`
+- **Decisions:** `decision-descriptor.md`
+- **State snapshots:** `YYYY-MM-DD-descriptor.md`
+- **Project archives:** Move completed/stale items to `_archive/` after 90 days
 
 ## Your Persistent Memory
 
