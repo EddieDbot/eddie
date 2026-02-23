@@ -55,7 +55,7 @@ async function getProjectStates(): Promise<string> {
 }
 
 type HeartbeatDecision = {
-  action: "ok" | "message" | "call" | "task";
+  action: "ok" | "message" | "call" | "task" | "personal";
   text?: string;
   callReason?: string;
   taskGoal?: string;
@@ -309,6 +309,12 @@ export function parseResponse(text: string): HeartbeatDecision {
       callReason: trimmed.slice("HEARTBEAT_CALL:".length).trim(),
     };
   }
+  if (trimmed.startsWith("HEARTBEAT_PERSONAL:")) {
+    return {
+      action: "personal",
+      text: trimmed.slice("HEARTBEAT_PERSONAL:".length).trim(),
+    };
+  }
   if (trimmed.startsWith("HEARTBEAT_TASK:")) {
     try {
       const payload = JSON.parse(
@@ -427,6 +433,28 @@ async function tick(bot: Bot): Promise<void> {
       usageSnapshot,
     );
     return;
+  }
+
+  if (decision.action === "personal" && decision.text) {
+    const msg = `🧑 YOUR REPLY NEEDED: ${decision.text}`;
+    await bot.api.sendMessage({ chat_id: config.OWNER_TELEGRAM_ID, text: msg });
+    await logProactiveSend(
+      `[heartbeat:personal] ${decision.text.slice(0, 100)}`,
+    );
+    if (memoryEnabled) {
+      await logCommunication(
+        "proactive",
+        "outbound",
+        `[heartbeat:personal] ${decision.text.slice(0, 100)}`,
+      );
+    }
+    await logHeartbeat(
+      "personal",
+      decision.text.slice(0, 200),
+      msg,
+      durationMs,
+      usageSnapshot,
+    );
   }
 
   if (decision.action === "message" && decision.text) {

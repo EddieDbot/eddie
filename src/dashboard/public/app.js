@@ -527,6 +527,7 @@ async function refreshHealthIndicators() {
       `<div class="stat"><span class="stat-value">${data.selfHealRate ?? "?"}/100</span><span class="stat-label">Heal Rate</span></div>`,
       `<div class="stat"><span class="stat-value">${data.selfHealSuccessRate ?? "?"}%</span><span class="stat-label">Heal Success</span></div>`,
       `<div class="stat"><span class="stat-value">${data.avgJobDurationMs ? Math.round(data.avgJobDurationMs / 60000) + "m" : "?"}</span><span class="stat-label">Avg Duration</span></div>`,
+      `<div class="stat"><span class="stat-value">${data.maxJobDurationMs ? Math.round(data.maxJobDurationMs / 60000) + "m" : "?"}</span><span class="stat-label">Max Duration</span></div>`,
       `<div class="stat"><span class="stat-value">${data.escalationCount7d ?? 0}</span><span class="stat-label">Escalations</span></div>`,
     ].join("");
   } catch (e) {

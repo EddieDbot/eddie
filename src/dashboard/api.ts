@@ -393,6 +393,7 @@ async function getHealthIndicators() {
               durations.length,
           )
         : 0;
+    const maxJobDurationMs = durations.length > 0 ? Math.max(...durations) : 0;
 
     return {
       jobSuccessRate,
@@ -400,6 +401,7 @@ async function getHealthIndicators() {
       selfHealRate,
       selfHealSuccessRate,
       avgJobDurationMs,
+      maxJobDurationMs,
       escalationCount7d: escalations,
     };
   } catch {
@@ -409,6 +411,7 @@ async function getHealthIndicators() {
       selfHealRate: 0,
       selfHealSuccessRate: 0,
       avgJobDurationMs: 0,
+      maxJobDurationMs: 0,
       escalationCount7d: 0,
     };
   }

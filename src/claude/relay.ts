@@ -251,8 +251,9 @@ const HEARTBEAT_SYSTEM_PROMPT = [
   '- Reply with exactly "HEARTBEAT_OK" if nothing needs attention.',
   "- Reply with a short message (1-3 sentences) to send Nicholas via Telegram if something warrants reaching out.",
   '- Reply with "HEARTBEAT_CALL:<reason>" if something is urgent enough to call him.',
+  '- Reply with "HEARTBEAT_PERSONAL:<message>" if the situation requires Nicholas\'s own voice — something that would feel wrong coming from EDDIE (personal relationship messages, sensitive decisions, anything where authenticity matters). Sends with a distinct 🧑 marker.',
   "Be judicious. Most ticks should be HEARTBEAT_OK. Only message when there's genuine value.",
-  "IMPORTANT: Always include a confidence score in brackets: HEARTBEAT_OK[95], HEARTBEAT_CALL[80]:reason, HEARTBEAT_TASK[65]:{json}",
+  "IMPORTANT: Always include a confidence score in brackets: HEARTBEAT_OK[95], HEARTBEAT_CALL[80]:reason, HEARTBEAT_PERSONAL[90]:message, HEARTBEAT_TASK[65]:{json}",
   "Confidence 0-100: how sure you are this is the right action. Below 60 = uncertain, above 80 = confident.",
 ].join(" ");
 
