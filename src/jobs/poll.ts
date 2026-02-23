@@ -33,6 +33,17 @@ async function assessOutcome(
   prompt: string,
   output: string,
 ): Promise<{ outcome: string; summary: string }> {
+  // Fast path: detect playlist job success via PLAYLIST_REPORT marker
+  const playlistMatch = output.match(/^PLAYLIST_REPORT:\s*(.+)$/m);
+  if (playlistMatch) {
+    return {
+      outcome: "success",
+      summary: playlistMatch[1]!.trim().slice(0, 200),
+    };
+  }
+  // No output = failed
+  if (!output.trim())
+    return { outcome: "failed", summary: "No output produced" };
   if (!config.ANTHROPIC_API_KEY) return { outcome: "unknown", summary: "" };
   try {
     const snippet = output.slice(-3000);
@@ -356,7 +367,9 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
       ? "✓"
       : outcome === "partial"
         ? "⚠ partial"
-        : "✗ failed";
+        : outcome === "failed"
+          ? "✗ failed"
+          : "•";
 
   // Extract job name from prompt — strip markdown heading markers, take first 60 chars
   const prompt = job?.prompt ?? "";
