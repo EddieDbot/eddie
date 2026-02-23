@@ -18,6 +18,7 @@ import {
   handleJobs,
   handleKill,
   handleConsolidate,
+  handleDeploy,
   handleMode,
   handleAgents,
   handleWheel,
@@ -56,6 +57,7 @@ export function createBot(): Bot {
   bot.command("jobs", (context) => handleJobs(context));
   bot.command("kill", (context) => handleKill(context));
   bot.command("consolidate", (context) => handleConsolidate(context));
+  bot.command("deploy", (context) => handleDeploy(context));
   bot.command("mode", (context) => handleMode(context));
   bot.command("agents", (context) => handleAgents(context));
   bot.command("wheel", (context) => handleWheel(context));

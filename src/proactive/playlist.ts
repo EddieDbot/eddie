@@ -9,7 +9,10 @@ const HOME = homedir();
 const BRAIN_VAULT = `${HOME}/brain-vault`;
 const PLAYLISTS_CONFIG = `${BRAIN_VAULT}/00 - Inbox/transcripts/playlists.json`;
 const PROCESSED_LOG = `${BRAIN_VAULT}/00 - Inbox/transcripts/processed-videos.txt`;
+const RAW_BUCKET = `${BRAIN_VAULT}/00 - Inbox/transcripts/_raw`;
+const UNUSED_DIR = `${BRAIN_VAULT}/00 - Inbox/transcripts/_unused`;
 const PLANS_DIR = `${BRAIN_VAULT}/90 - Agent Memory/Plans`;
+const PLAYLIST_MANAGER = `${HOME}/.claude/scripts/playlist-manager.py`;
 
 export type PlaylistEntry = {
   name: string;
@@ -25,6 +28,14 @@ type PlaylistsConfig = {
 function extractPlaylistId(url: string): string | null {
   const match = url.match(/[?&]list=([^&]+)/);
   return match ? match[1]! : null;
+}
+
+function slugify(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60);
 }
 
 async function loadProcessed(): Promise<Set<string>> {
@@ -44,9 +55,7 @@ async function loadProcessed(): Promise<Set<string>> {
 
 async function markProcessed(videoId: string, title: string): Promise<void> {
   const entry = `${videoId}|${title}|${new Date().toISOString()}\n`;
-  const existing = await Bun.file(PROCESSED_LOG)
-    .text()
-    .catch(() => "");
+  const existing = await Bun.file(PROCESSED_LOG).text().catch(() => "");
   await Bun.write(PROCESSED_LOG, existing + entry);
 }
 
@@ -101,93 +110,122 @@ function buildJobPrompt(
   videoId: string,
   title: string,
   playlistName: string,
+  playlistUrl: string,
 ): string {
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
   const date = new Date().toISOString().split("T")[0];
+  const slug = slugify(title);
+  const rawPath = `${RAW_BUCKET}/${date}-${videoId}-${slug}.md`;
   const reportPath = `${PLANS_DIR}/playlist-${date}-${videoId}.md`;
 
   return `## Playlist Ingestion: ${title}
 
 **Video:** ${videoUrl}
 **Playlist:** ${playlistName}
+**Raw bucket:** ${rawPath}
 **Report path:** ${reportPath}
 
-## Step 1: Ingest Transcript
+---
 
-Use the transcript-ingester agent to process this URL: ${videoUrl}
+## Step 1: Fetch Transcript → Save to Bucket
 
-The agent will fetch the transcript, extract deep insights, match against project manifests, and route the pre-digested file to the correct Brain Vault project folder.
+Use the transcript-ingester agent to fetch the transcript for: ${videoUrl}
 
-## Step 2: Find the Extraction File
+After the agent fetches the transcript, save the RAW transcript text (unprocessed, full verbatim content) to:
+${rawPath}
 
-After the transcript-ingester completes, locate the file it wrote. Check:
-- ~/brain-vault/10 - Projects/EDDIE-Upgrades/notes/transcripts/_staging/
-- ~/brain-vault/10 - Projects/eddie/notes/transcripts/_staging/
-- ~/brain-vault/10 - Projects/*/notes/transcripts/_staging/
+Format the raw file as:
+\`\`\`markdown
+# ${title}
+**Video:** ${videoUrl}
+**Fetched:** ${date}
+**Playlist:** ${playlistName}
 
-Find the most recently modified .md file — that's the extraction output.
+---
 
-## Step 3: Comparison Analysis
+[full transcript text here]
+\`\`\`
 
-Read the extraction file fully. Then read both reference documents:
+## Step 2: Remove from Playlist
+
+Once the raw transcript is saved to the bucket, immediately remove the video from the playlist.
+
+Run:
+\`\`\`bash
+python3 ${PLAYLIST_MANAGER} remove "${playlistUrl}" "${videoId}"
+\`\`\`
+
+If this fails (credentials not set up), log the failure and continue — do not abort.
+
+## Step 3: Deep Extraction + Routing
+
+Now run the transcript-ingester agent again on the raw file at ${rawPath} (pass the file path, not the URL — transcript is already saved locally).
+
+The agent will:
+- Extract deep insights using standard + role-forge extraction modes
+- Score against all project manifests in Brain Vault
+- Route the pre-digested extraction to the best-matching project staging folder
+
+## Step 4: Comparison Analysis
+
+Read the extraction file the agent just wrote. Then read both reference documents:
 1. ~/brain-vault/90 - Agent Memory/State/eddie-current.md — EDDIE's current implemented state
-2. ~/brain-vault/10 - Projects/EDDIE-Upgrades/EDDIE-UPGRADE-REPORT.md — the existing analyzed backlog
+2. ~/brain-vault/10 - Projects/EDDIE-Upgrades/EDDIE-UPGRADE-REPORT.md — existing analyzed backlog
 
-For EACH distinct technique, pattern, tool, or feature idea in the extraction, assign one verdict:
+For EACH distinct technique, pattern, tool, or feature idea, assign one verdict:
 
 - **HAVE_IT** — Already implemented in EDDIE. Cite exactly where/how.
-- **IN_BACKLOG** — Already analyzed in the upgrade report. Cite the section and current priority.
-- **IMPROVE** — We have something similar but this suggests a specific, concrete enhancement. State exactly what to change and why.
-- **NET_NEW** — Genuinely new idea. Not in the system, not in the backlog. Describe a realistic implementation path with specific files/modules.
-- **SKIP** — Objectively worse than what we have, not applicable to our stack, or violates our TypeScript/functional/homelab principles. State the reason concisely.
+- **IN_BACKLOG** — Already in upgrade report. Cite section + priority.
+- **IMPROVE** — We have something similar, this suggests a specific enhancement. State what to change.
+- **NET_NEW** — Genuinely new. Describe implementation path with specific files/modules.
+- **SKIP** — Objectively worse, not applicable, or violates our stack/principles. State why.
 
-Be rigorous:
-- Do NOT mark something NET_NEW if it's already in the upgrade backlog.
-- Do NOT mark something HAVE_IT unless it's actually implemented, not just planned.
-- Do NOT mark something IMPROVE if we'd be better off with a full NET_NEW implementation.
-- If something is covered by an existing SKIP decision, mark SKIP and reference it.
+Rules:
+- Do NOT mark NET_NEW if already in backlog.
+- Do NOT mark HAVE_IT unless actually implemented, not just planned.
+- Do NOT mark IMPROVE if a full NET_NEW replacement is better.
 
-## Step 4: Write Report
+## Step 5: Write Comparison Report
 
-Write the full comparison report to: ${reportPath}
-
-Use this exact format:
+Write to: ${reportPath}
 
 \`\`\`markdown
 # Playlist Ingestion: ${title}
 **Date:** ${date}
 **Source:** ${playlistName}
 **Video:** ${videoUrl}
+**Raw transcript:** ${rawPath}
+**Routed to:** [project name(s) the transcript-ingester chose]
 
 ## Verdicts
 
-### NET_NEW (N ideas)
-- **[Idea name]** — Description + implementation path (files, approach)
-...
+### NET_NEW (N)
+- **[Idea]** — Description + implementation path
 
-### IMPROVE (N ideas)
-- **[Feature name]** — What we have now → what to change and why
-...
+### IMPROVE (N)
+- **[Feature]** — Current state → what to change + why
 
-### IN_BACKLOG (N ideas)
-- **[Idea name]** — Already in EDDIE-UPGRADE-REPORT.md § [section], priority [X]
-...
+### IN_BACKLOG (N)
+- **[Idea]** — EDDIE-UPGRADE-REPORT.md § [section]
 
-### HAVE_IT (N ideas)
-- **[Feature name]** — Implemented in [file/module]
-...
+### HAVE_IT (N)
+- **[Feature]** — [file/module]
 
-### SKIP (N ideas)
-- **[Idea name]** — [Reason: worse than X / not applicable / stack mismatch]
-...
+### SKIP (N)
+- **[Idea]** — [reason]
+
+## Routing Suggestion
+Where the transcript-ingester routed this (project + confidence score).
+If Nicholas approves: transcript stays in that project's folder.
+If Nicholas archives: move ${rawPath} to ${UNUSED_DIR}/
 
 ## Summary
-Overall assessment of this video's value. Top 1–2 actionable picks from NET_NEW or IMPROVE, with a one-sentence rationale for each.
+Overall value of this video. Top 1–2 actionable picks.
 \`\`\`
 
-## Step 5: Final Output
+## Step 6: Final Output
 
-End your response with this exact line (fill in the counts):
+End your response with this exact line:
 PLAYLIST_REPORT: ${title} | net_new=N | improve=N | in_backlog=N | have_it=N | skip=N | ${reportPath}
 `;
 }
@@ -218,10 +256,7 @@ export async function checkPlaylists(): Promise<{
   for (const playlist of enabled) {
     const playlistId = extractPlaylistId(playlist.url);
     if (!playlistId) {
-      logger.warn("playlist:invalid-url", {
-        name: playlist.name,
-        url: playlist.url,
-      });
+      logger.warn("playlist:invalid-url", { name: playlist.name, url: playlist.url });
       continue;
     }
 
@@ -235,10 +270,10 @@ export async function checkPlaylists(): Promise<{
         playlist: playlist.name,
       });
 
-      // Mark processed immediately — avoids double-spawn if job fails partway
+      // Mark processed immediately — prevents double-spawn if job fails partway
       await markProcessed(item.videoId, item.title);
 
-      const prompt = buildJobPrompt(item.videoId, item.title, playlist.name);
+      const prompt = buildJobPrompt(item.videoId, item.title, playlist.name, playlist.url);
       const job = await createJob("claude", prompt);
       await spawnJob(job);
       spawned++;
@@ -254,6 +289,69 @@ export async function checkPlaylists(): Promise<{
   return { spawned, checked: enabled.length };
 }
 
+// Move raw transcript from bucket to a project folder (Nicholas approves routing)
+export async function routeTranscript(
+  videoId: string,
+  projectSlug: string,
+): Promise<{ ok: boolean; from: string; to: string } | { ok: false; error: string }> {
+  try {
+    const { readdir } = await import("node:fs/promises");
+    const { rename, mkdir } = await import("node:fs/promises");
+
+    const files = await readdir(RAW_BUCKET);
+    const match = files.find((f) => f.includes(videoId));
+    if (!match) return { ok: false, error: `No raw transcript found for ${videoId}` };
+
+    const from = `${RAW_BUCKET}/${match}`;
+    const destDir = `${BRAIN_VAULT}/10 - Projects/${projectSlug}/notes/transcripts`;
+    await mkdir(destDir, { recursive: true });
+    const to = `${destDir}/${match}`;
+    await rename(from, to);
+    return { ok: true, from, to };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
+}
+
+// Move raw transcript to unused archive
+export async function archiveTranscript(
+  videoId: string,
+): Promise<{ ok: boolean; path: string } | { ok: false; error: string }> {
+  try {
+    const { readdir, rename, mkdir } = await import("node:fs/promises");
+
+    const files = await readdir(RAW_BUCKET);
+    const match = files.find((f) => f.includes(videoId));
+    if (!match) return { ok: false, error: `No raw transcript found for ${videoId}` };
+
+    await mkdir(UNUSED_DIR, { recursive: true });
+    const from = `${RAW_BUCKET}/${match}`;
+    const to = `${UNUSED_DIR}/${match}`;
+    await (await import("node:fs/promises")).rename(from, to);
+    return { ok: true, path: to };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
+}
+
+export async function listBucket(): Promise<Array<{ videoId: string; filename: string }>> {
+  try {
+    const { readdir } = await import("node:fs/promises");
+    const files = await readdir(RAW_BUCKET);
+    return files
+      .filter((f) => f.endsWith(".md"))
+      .map((f) => {
+        // filename: YYYY-MM-DD-{videoId}-{slug}.md
+        const parts = f.replace(/\.md$/, "").split("-");
+        // date is parts 0-2, videoId is parts 3
+        const videoId = parts[3] ?? f;
+        return { videoId, filename: f };
+      });
+  } catch {
+    return [];
+  }
+}
+
 export async function loadPlaylistsConfig(): Promise<PlaylistsConfig> {
   try {
     return await Bun.file(PLAYLISTS_CONFIG).json();
@@ -262,9 +360,7 @@ export async function loadPlaylistsConfig(): Promise<PlaylistsConfig> {
   }
 }
 
-export async function savePlaylistsConfig(
-  data: PlaylistsConfig,
-): Promise<void> {
+export async function savePlaylistsConfig(data: PlaylistsConfig): Promise<void> {
   await Bun.write(PLAYLISTS_CONFIG, JSON.stringify(data, null, 2));
 }
 
@@ -283,13 +379,9 @@ export async function getRecentReports(
     const reports: Array<{ name: string; path: string; summary: string }> = [];
     for (const file of playlistFiles) {
       const path = `${PLANS_DIR}/${file}`;
-      const content = await Bun.file(path)
-        .text()
-        .catch(() => "");
-      // Extract title from first heading
+      const content = await Bun.file(path).text().catch(() => "");
       const titleMatch = content.match(/^# Playlist Ingestion: (.+)$/m);
       const title = titleMatch ? titleMatch[1]! : file;
-      // Extract summary section
       const summaryMatch = content.match(/## Summary\n([\s\S]+?)(?:\n##|$)/);
       const summary = summaryMatch ? summaryMatch[1]!.trim().slice(0, 200) : "";
       reports.push({ name: title, path, summary });
@@ -319,9 +411,7 @@ export function startPlaylistWatcher(bot: Bot): void {
   setTimeout(() => {
     checkPlaylists().catch((err) => logger.error("playlist:check-error", err));
     setInterval(() => {
-      checkPlaylists().catch((err) =>
-        logger.error("playlist:check-error", err),
-      );
+      checkPlaylists().catch((err) => logger.error("playlist:check-error", err));
     }, 3_600_000);
   }, msUntilNextHour);
 }

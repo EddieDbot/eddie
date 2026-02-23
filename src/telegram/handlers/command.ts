@@ -510,6 +510,22 @@ export async function handleConsolidate(
   }
 }
 
+export async function handleDeploy(context: MessageContext): Promise<void> {
+  await context.send("Pulling latest from GitHub...");
+  const { spawnSync } = await import("bun");
+  const pull = spawnSync(["bash", "/home/na/eddie/scripts/git-pull.sh"], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const output =
+    (pull.stdout?.toString() ?? "") + (pull.stderr?.toString() ?? "");
+  const lines = output.trim().split("\n").filter(Boolean);
+  const summary = lines.at(-1) ?? "no output";
+  await context.send(`${summary}\n\nRestarting...`);
+  // Restart via systemd — process will be replaced
+  spawnSync(["systemctl", "--user", "restart", "eddie"]);
+}
+
 /**
  * /collab-log <project-slug> <summary>
  * Logs a COLLAB activity entry for the current session to both Brain Vault locations.
@@ -783,6 +799,86 @@ export async function handlePlaylist(context: MessageContext): Promise<void> {
       await context.send(
         `Watched playlists (${cfg.playlists.length}):\n\n${lines.join("\n\n")}`,
       );
+    } catch (err) {
+      await context.send(
+        `Error: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    return;
+  }
+
+  // /playlist bucket — list transcripts waiting in the raw bucket
+  if (args === "bucket") {
+    try {
+      const { listBucket } = await import("../../proactive/playlist.ts");
+      const items = await listBucket();
+      if (items.length === 0) {
+        await context.send("Bucket is empty. Nothing waiting for routing.");
+        return;
+      }
+      const lines = items.map(
+        (item, i) =>
+          `${i + 1}. ${item.filename}\n   ID: ${item.videoId}\n   Route: /playlist route ${item.videoId} <project>\n   Archive: /playlist archive ${item.videoId}`,
+      );
+      await context.send(
+        `Bucket (${items.length} waiting):\n\n${lines.join("\n\n")}`,
+      );
+    } catch (err) {
+      await context.send(
+        `Error: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    return;
+  }
+
+  // /playlist route <videoId> <project-slug> — move from bucket to project
+  if (args.startsWith("route ")) {
+    const parts = args.slice(6).trim().split(/\s+/);
+    const videoId = parts[0];
+    const projectSlug = parts[1];
+    if (!videoId || !projectSlug) {
+      await context.send(
+        "Usage: /playlist route <videoId> <project-slug>\nExample: /playlist route vfLQTrS-gRc eddie",
+      );
+      return;
+    }
+    try {
+      const { routeTranscript } = await import("../../proactive/playlist.ts");
+      const result = await routeTranscript(videoId, projectSlug);
+      if (result.ok) {
+        await context.send(
+          `Routed to ${projectSlug}.\n${result.from}\n→ ${result.to}`,
+        );
+      } else {
+        await context.send(
+          `Failed: ${"error" in result ? result.error : "unknown"}`,
+        );
+      }
+    } catch (err) {
+      await context.send(
+        `Error: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    return;
+  }
+
+  // /playlist archive <videoId> — move from bucket to unused
+  if (args.startsWith("archive ")) {
+    const videoId = args.slice(8).trim();
+    if (!videoId) {
+      await context.send("Usage: /playlist archive <videoId>");
+      return;
+    }
+    try {
+      const { archiveTranscript } = await import("../../proactive/playlist.ts");
+      const result = await archiveTranscript(videoId);
+      if (result.ok) {
+        await context.send(`Archived to _unused/\n${result.path}`);
+      } else {
+        await context.send(
+          `Failed: ${"error" in result ? result.error : "unknown"}`,
+        );
+      }
     } catch (err) {
       await context.send(
         `Error: ${err instanceof Error ? err.message : String(err)}`,
