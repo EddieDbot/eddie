@@ -238,6 +238,28 @@ export async function ensureMigrations(): Promise<void> {
     });
   }
 
+  // Self-heal log table
+  try {
+    await runSQL(`
+      CREATE TABLE IF NOT EXISTS self_heal_log (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        source text NOT NULL,
+        name text NOT NULL,
+        error text NOT NULL,
+        heal_job_id text,
+        status text NOT NULL DEFAULT 'triggered',
+        outcome text,
+        created_at timestamptz DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_self_heal_log_created ON self_heal_log (created_at DESC);
+    `);
+    logger.info("db:migrate:self-heal-log");
+  } catch (err) {
+    logger.warn("db:migrate:self-heal-log-skip", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   logger.info("db:migrate:done");
 }
 

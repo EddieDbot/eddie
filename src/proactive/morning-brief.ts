@@ -1,7 +1,6 @@
 import type { Bot } from "gramio";
 import { config } from "../config.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
-import { getUsageSummary } from "../memory/usage.ts";
 import { logger } from "../utils/logger.ts";
 
 function parseTime(timeStr: string): { hour: number; minute: number } {
@@ -49,6 +48,57 @@ async function getYesterdayActivity(): Promise<string> {
     return data.map((c) => `- ${c.summary}`).join("\n");
   } catch {
     return "Could not fetch activity.";
+  }
+}
+
+type DailyActivity = {
+  date: string;
+  messageCount: number;
+  sessionCount: number;
+  toolCallCount: number;
+};
+type DailyModelTokens = { date: string; tokensByModel: Record<string, number> };
+type StatsCache = {
+  dailyActivity?: DailyActivity[];
+  dailyModelTokens?: DailyModelTokens[];
+};
+
+async function getYesterdayUsageStats(): Promise<string> {
+  const tz = config.TIMEZONE;
+  const localNow = new Date(
+    new Date().toLocaleString("en-US", { timeZone: tz }),
+  );
+  const yesterday = new Date(localNow);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const dateStr = yesterday.toISOString().slice(0, 10);
+
+  try {
+    const statsPath = `${process.env.HOME}/.claude/stats-cache.json`;
+    const raw = await Bun.file(statsPath).text();
+    const stats = JSON.parse(raw) as StatsCache;
+
+    const day = stats.dailyActivity?.find((d) => d.date === dateStr);
+    if (!day) return "";
+
+    const tokenDay = stats.dailyModelTokens?.find((d) => d.date === dateStr);
+    const byModel = tokenDay
+      ? Object.entries(tokenDay.tokensByModel)
+          .sort(([, a], [, b]) => b - a)
+          .map(
+            ([m, c]) =>
+              `${m.replace(/claude-|-\d{8,}$/g, "").replace(/-4-\d+$/, "")}: ${c}`,
+          )
+          .join(", ")
+      : "";
+
+    return [
+      `${day.messageCount} messages, ${day.sessionCount} sessions, ${day.toolCallCount} tool calls`,
+      byModel ? `By model: ${byModel}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  } catch {
+    return "";
   }
 }
 
@@ -119,17 +169,13 @@ export async function runMorningBrief(bot: Bot): Promise<void> {
     day: "numeric",
   });
 
-  const [goals, activity, crons, usage, inbox] = await Promise.all([
+  const [goals, activity, crons, usageStats, inbox] = await Promise.all([
     getActiveGoals(),
     getYesterdayActivity(),
     getUpcomingCrons(),
-    getUsageSummary(1).catch(() => null),
+    getYesterdayUsageStats().catch(() => ""),
     getInboxSummary(),
   ]);
-
-  const costLine = usage
-    ? `Yesterday's AI cost: $${usage.totalCostUsd.toFixed(4)}`
-    : "";
 
   const context = [
     `Good morning! It's ${now}.`,
@@ -143,7 +189,7 @@ export async function runMorningBrief(bot: Bot): Promise<void> {
     "## Scheduled Jobs",
     crons,
     inbox ? `\n## Inbox\n${inbox}` : "",
-    costLine ? `\n## Cost\n${costLine}` : "",
+    usageStats ? `\n## Claude Usage (Yesterday)\n${usageStats}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -163,19 +209,29 @@ export function startMorningBrief(bot: Bot, time = "08:00"): void {
   const delay = msUntilTime(hour, minute, config.TIMEZONE);
   logger.info("morning-brief:scheduled", { time, delayMs: delay });
 
+  const handleBriefError = (err: unknown): void => {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.error("morning-brief:error", { error: errorMsg });
+    import("../jobs/self-heal.ts")
+      .then(({ triggerSelfHeal }) =>
+        triggerSelfHeal(
+          {
+            source: "morning-brief",
+            name: "run",
+            error: errorMsg,
+            timestamp: Date.now(),
+          },
+          bot,
+        ),
+      )
+      .catch(() => {});
+  };
+
   setTimeout(() => {
-    runMorningBrief(bot).catch((err) =>
-      logger.error("morning-brief:error", {
-        error: err instanceof Error ? err.message : String(err),
-      }),
-    );
+    runMorningBrief(bot).catch(handleBriefError);
     setInterval(
       () => {
-        runMorningBrief(bot).catch((err) =>
-          logger.error("morning-brief:error", {
-            error: err instanceof Error ? err.message : String(err),
-          }),
-        );
+        runMorningBrief(bot).catch(handleBriefError);
       },
       24 * 60 * 60 * 1000,
     );

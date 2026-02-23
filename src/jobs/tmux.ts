@@ -141,14 +141,25 @@ export async function spawnJob(job: Job): Promise<void> {
   const timeoutSec = Math.floor(timeoutMs / 1000);
   const envUnset = getJobEnvUnsetArgs();
 
-  let cmd: string;
+  const runnerFile = resolve(JOBS_DIR, `job-${job.id}-runner.sh`);
+
+  let runnerScript: string;
   if (job.model === "kimi") {
-    cmd = `timeout ${timeoutSec}s env ${envUnset} ${config.KIMI_PATH} "$(cat ${promptFile})" 2>&1 | tee ${outputFile}`;
+    runnerScript = `#!/bin/bash
+PROMPT=$(cat "${promptFile}")
+env ${envUnset} ${config.KIMI_PATH} "$PROMPT" 2>&1 | tee "${outputFile}"
+`;
   } else {
     const systemPrompt = await buildJobSystemPrompt(job.prompt);
     await Bun.write(systemFile, systemPrompt);
-    cmd = `timeout ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$(cat ${promptFile})" --output-format stream-json --verbose --model claude-sonnet-4-6 --dangerously-skip-permissions --append-system-prompt "$(cat ${systemFile})" 2>&1 | tee ${outputFile}`;
+    runnerScript = `#!/bin/bash
+PROMPT=$(cat "${promptFile}")
+SYSTEM=$(cat "${systemFile}")
+timeout ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$PROMPT" --output-format stream-json --verbose --model claude-sonnet-4-6 --dangerously-skip-permissions --append-system-prompt "$SYSTEM" 2>&1 | tee "${outputFile}"
+`;
   }
+
+  await Bun.write(runnerFile, runnerScript);
 
   const proc = Bun.spawn([
     config.TMUX_PATH,
@@ -158,7 +169,7 @@ export async function spawnJob(job: Job): Promise<void> {
     job.tmuxSession,
     "-c",
     PROJECT_ROOT,
-    cmd,
+    `bash "${runnerFile}"`,
   ]);
   await proc.exited;
 }

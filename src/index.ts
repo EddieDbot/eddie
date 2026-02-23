@@ -41,7 +41,7 @@ if (config.HEARTBEAT_ENABLED) {
 
 if (config.DREAM_ENABLED) {
   const { startDreamCycle } = await import("./proactive/dream.ts");
-  startDreamCycle(config.DREAM_TIME);
+  startDreamCycle(bot, config.DREAM_TIME);
 }
 
 if (config.MORNING_BRIEF_ENABLED) {
@@ -64,3 +64,10 @@ if (config.YOUTUBE_API_KEY && config.PLAYLIST_ENABLED) {
   const { startPlaylistWatcher } = await import("./proactive/playlist.ts");
   startPlaylistWatcher(bot);
 }
+
+bot.api
+  .sendMessage({
+    chat_id: config.OWNER_TELEGRAM_ID,
+    text: "back online.",
+  })
+  .catch(() => {});

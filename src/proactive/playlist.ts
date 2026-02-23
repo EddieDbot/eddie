@@ -278,6 +278,7 @@ export async function checkPlaylists(): Promise<{
   if (enabled.length === 0) return { spawned: 0, checked: enabled.length };
 
   const processed = await loadProcessed();
+  const spawning = new Set<string>(); // in-memory guard against double-spawn in same run
   let spawned = 0;
 
   for (const playlist of enabled) {
@@ -291,32 +292,35 @@ export async function checkPlaylists(): Promise<{
     }
 
     const items = await fetchPlaylistItems(playlistId);
-    const newItems = items.filter((item) => !processed.has(item.videoId));
-
-    // Mark all processed immediately before spawning — prevents double-spawn
-    await Promise.all(
-      newItems.map((item) => markProcessed(item.videoId, item.title)),
+    const newItems = items.filter(
+      (item) => !processed.has(item.videoId) && !spawning.has(item.videoId),
     );
 
-    // Spawn all jobs concurrently
-    await Promise.all(
-      newItems.map(async (item) => {
-        logger.info("playlist:new-video", {
-          title: item.title,
-          videoId: item.videoId,
-          playlist: playlist.name,
-        });
-        const prompt = buildJobPrompt(
-          item.videoId,
-          item.title,
-          playlist.name,
-          playlist.url,
-        );
-        const job = await createJob("claude", prompt);
-        await spawnJob(job);
-        spawned++;
-      }),
-    );
+    // Spawn with concurrency cap of 3 — mark processed only after successful spawn
+    const CONCURRENCY = 3;
+    for (let i = 0; i < newItems.length; i += CONCURRENCY) {
+      const batch = newItems.slice(i, i + CONCURRENCY);
+      await Promise.all(
+        batch.map(async (item) => {
+          spawning.add(item.videoId);
+          logger.info("playlist:new-video", {
+            title: item.title,
+            videoId: item.videoId,
+            playlist: playlist.name,
+          });
+          const prompt = buildJobPrompt(
+            item.videoId,
+            item.title,
+            playlist.name,
+            playlist.url,
+          );
+          const job = await createJob("claude", prompt);
+          await spawnJob(job);
+          await markProcessed(item.videoId, item.title);
+          spawned++;
+        }),
+      );
+    }
 
     logger.info("playlist:checked", {
       name: playlist.name,
@@ -457,12 +461,28 @@ export function startPlaylistWatcher(bot: Bot): void {
     nextCheckIn: `${Math.round(msUntilNextHour / 60_000)}min`,
   });
 
+  const handlePlaylistError = (err: unknown): void => {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.error("playlist:check-error", { error: errorMsg });
+    import("../jobs/self-heal.ts")
+      .then(({ triggerSelfHeal }) =>
+        triggerSelfHeal(
+          {
+            source: "playlist",
+            name: "check",
+            error: errorMsg,
+            timestamp: Date.now(),
+          },
+          bot,
+        ),
+      )
+      .catch(() => {});
+  };
+
   setTimeout(() => {
-    checkPlaylists().catch((err) => logger.error("playlist:check-error", err));
+    checkPlaylists().catch(handlePlaylistError);
     setInterval(() => {
-      checkPlaylists().catch((err) =>
-        logger.error("playlist:check-error", err),
-      );
+      checkPlaylists().catch(handlePlaylistError);
     }, 3_600_000);
   }, msUntilNextHour);
 }

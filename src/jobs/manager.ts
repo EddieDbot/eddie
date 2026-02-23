@@ -27,7 +27,9 @@ function rowToJob(row: Record<string, unknown>): Job {
 }
 
 // Map Job camelCase → Supabase snake_case insert/update object
-function jobToRow(job: Partial<Job> & { id?: string }): Record<string, unknown> {
+function jobToRow(
+  job: Partial<Job> & { id?: string },
+): Record<string, unknown> {
   const row: Record<string, unknown> = {};
   if (job.id !== undefined) row.id = job.id;
   if (job.model !== undefined) row.model = job.model;
@@ -41,7 +43,8 @@ function jobToRow(job: Partial<Job> & { id?: string }): Record<string, unknown> 
   if (job.error !== undefined) row.error = job.error;
   if (job.timeoutMs !== undefined) row.timeout_ms = job.timeoutMs;
   if (job.outcome !== undefined) row.outcome = job.outcome;
-  if (job.outcomeSummary !== undefined) row.outcome_summary = job.outcomeSummary;
+  if (job.outcomeSummary !== undefined)
+    row.outcome_summary = job.outcomeSummary;
   return row;
 }
 
@@ -60,15 +63,21 @@ async function saveJobsFile(jobs: Job[]): Promise<void> {
   await Bun.write(JOBS_FILE, JSON.stringify(jobs, null, 2));
 }
 
-export async function createJob(model: ModelId, prompt: string): Promise<Job> {
+export async function createJob(
+  model: ModelId,
+  prompt: string,
+  opts?: { tmuxPrefix?: string; timeoutMs?: number },
+): Promise<Job> {
   const id = crypto.randomUUID().slice(0, 8);
+  const prefix = opts?.tmuxPrefix ?? "job";
   const job: Job = {
     id,
     model,
     prompt,
     status: "running",
-    tmuxSession: `job-${id}`,
+    tmuxSession: `${prefix}-${id}`,
     startedAt: new Date().toISOString(),
+    ...(opts?.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
   };
 
   if (memoryEnabled) {
@@ -89,7 +98,10 @@ export async function createJob(model: ModelId, prompt: string): Promise<Job> {
   return job;
 }
 
-export async function updateJob(id: string, patch: Partial<Job>): Promise<Job | null> {
+export async function updateJob(
+  id: string,
+  patch: Partial<Job>,
+): Promise<Job | null> {
   if (memoryEnabled) {
     const row = jobToRow(patch);
     const { data, error } = await getSupabase()

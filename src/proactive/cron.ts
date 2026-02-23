@@ -29,15 +29,20 @@ const MIN_INTERVAL_MS = 5 * 60_000;
 
 function parseInterval(value: string): number {
   const match = value.match(/^(\d+)(m|h)$/);
-  if (!match) throw new Error(`Invalid interval: ${value}. Use format like "30m" or "2h".`);
+  if (!match)
+    throw new Error(
+      `Invalid interval: ${value}. Use format like "30m" or "2h".`,
+    );
   const [, num, unit] = match;
   const ms = unit === "h" ? Number(num!) * 3_600_000 : Number(num!) * 60_000;
-  if (ms < MIN_INTERVAL_MS) throw new Error(`Interval too short (min 5m): ${value}`);
+  if (ms < MIN_INTERVAL_MS)
+    throw new Error(`Interval too short (min 5m): ${value}`);
   return ms;
 }
 
 function parseTime(value: string): { hours: number; minutes: number } {
-  if (!/^\d{1,2}:\d{2}$/.test(value)) throw new Error(`Invalid time format: ${value}. Use HH:MM.`);
+  if (!/^\d{1,2}:\d{2}$/.test(value))
+    throw new Error(`Invalid time format: ${value}. Use HH:MM.`);
   const [h, m] = value.split(":");
   const hours = Number(h);
   const minutes = Number(m);
@@ -102,7 +107,11 @@ export async function createCronJob(
   scheduleValue: string,
   prompt: string,
 ): Promise<CronJob> {
-  const nextRunAt = computeNextRun(scheduleType, scheduleValue, config.TIMEZONE);
+  const nextRunAt = computeNextRun(
+    scheduleType,
+    scheduleValue,
+    config.TIMEZONE,
+  );
   const { data, error } = await getSupabase()
     .from("cron_jobs")
     .insert({
@@ -145,7 +154,10 @@ export async function deleteCronJob(name: string): Promise<boolean> {
   return true;
 }
 
-export async function toggleCronJob(name: string, enabled: boolean): Promise<boolean> {
+export async function toggleCronJob(
+  name: string,
+  enabled: boolean,
+): Promise<boolean> {
   const { error } = await getSupabase()
     .from("cron_jobs")
     .update({ enabled })
@@ -173,9 +185,18 @@ export async function getDueCronJobs(): Promise<CronJob[]> {
   return (data ?? []) as CronJob[];
 }
 
-async function markCronJobRun(name: string, scheduleType: CronJob["schedule_type"], scheduleValue: string): Promise<void> {
+async function markCronJobRun(
+  name: string,
+  scheduleType: CronJob["schedule_type"],
+  scheduleValue: string,
+): Promise<void> {
   const now = new Date();
-  const nextRunAt = computeNextRun(scheduleType, scheduleValue, config.TIMEZONE, now);
+  const nextRunAt = computeNextRun(
+    scheduleType,
+    scheduleValue,
+    config.TIMEZONE,
+    now,
+  );
   const { error } = await getSupabase()
     .from("cron_jobs")
     .update({
@@ -188,7 +209,10 @@ async function markCronJobRun(name: string, scheduleType: CronJob["schedule_type
 }
 
 export async function executeCronJob(job: CronJob, bot: Bot): Promise<void> {
-  logger.info("cron:execute", { name: job.name, prompt: job.prompt.slice(0, 80) });
+  logger.info("cron:execute", {
+    name: job.name,
+    prompt: job.prompt.slice(0, 80),
+  });
 
   try {
     const result = await relayHeartbeat(job.prompt);
@@ -198,12 +222,27 @@ export async function executeCronJob(job: CronJob, bot: Bot): Promise<void> {
         text: `[cron: ${job.name}]\n${result.text}`,
       });
       if (memoryEnabled) {
-        await logCommunication("proactive", "outbound", `[cron:${job.name}] ${result.text.slice(0, 100)}`);
+        await logCommunication(
+          "proactive",
+          "outbound",
+          `[cron:${job.name}] ${result.text.slice(0, 100)}`,
+        );
       }
     }
     await markCronJobRun(job.name, job.schedule_type, job.schedule_value);
   } catch (err) {
-    logger.error("cron:execute-error", { name: job.name, error: err instanceof Error ? err.message : String(err) });
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.error("cron:execute-error", { name: job.name, error: errorMsg });
     await markCronJobRun(job.name, job.schedule_type, job.schedule_value);
+    const { triggerSelfHeal } = await import("../jobs/self-heal.ts");
+    triggerSelfHeal(
+      {
+        source: "cron",
+        name: job.name,
+        error: errorMsg,
+        timestamp: Date.now(),
+      },
+      bot,
+    ).catch(() => {});
   }
 }

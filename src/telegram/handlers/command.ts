@@ -510,19 +510,9 @@ export async function handleConsolidate(
   }
 }
 
-export async function handleDeploy(context: MessageContext): Promise<void> {
-  await context.send("Pulling latest from GitHub...");
+export async function handleRestart(context: MessageContext): Promise<void> {
+  await context.send("Restarting...");
   const { spawnSync } = await import("bun");
-  const pull = spawnSync(["bash", "/home/na/eddie/scripts/git-pull.sh"], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const output =
-    (pull.stdout?.toString() ?? "") + (pull.stderr?.toString() ?? "");
-  const lines = output.trim().split("\n").filter(Boolean);
-  const summary = lines.at(-1) ?? "no output";
-  await context.send(`${summary}\n\nRestarting...`);
-  // Restart via systemd — process will be replaced
   spawnSync(["systemctl", "--user", "restart", "eddie"]);
 }
 

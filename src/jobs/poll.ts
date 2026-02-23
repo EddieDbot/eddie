@@ -200,9 +200,12 @@ async function timeoutJob(
   logger.info("jobs:timed-out", { id: jobId, elapsedMin });
   emitEvent("job:timed-out", { id: jobId, elapsedMin });
 
-  // Extract job name from prompt
   const jobName =
-    (job?.prompt ?? "").split("\n")[0].slice(0, 50).trim() || "unnamed";
+    (job?.prompt ?? "")
+      .split("\n")[0]!
+      .replace(/^#+\s*/, "")
+      .trim()
+      .slice(0, 60) || "unnamed";
 
   try {
     await bot.api.sendMessage({
@@ -214,6 +217,27 @@ async function timeoutJob(
       id: jobId,
       error: err instanceof Error ? err.message : String(err),
     });
+  }
+
+  // Self-heal on timeout
+  if (job) {
+    const { isHealJob, triggerSelfHeal } = await import("./self-heal.ts");
+    if (!isHealJob(job.tmuxSession)) {
+      triggerSelfHeal(
+        {
+          source: "job",
+          name:
+            (job.prompt.split("\n")[0] ?? "")
+              .replace(/^#+\s*/, "")
+              .trim()
+              .slice(0, 60) || jobId,
+          error: `Timeout after ${elapsedMin}m`,
+          timestamp: Date.now(),
+          jobId,
+        },
+        bot,
+      ).catch(() => {});
+    }
   }
 }
 
@@ -293,9 +317,14 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
         ? "⚠ partial"
         : "✗ failed";
 
-  // Extract job name from prompt (first 50 chars or until newline)
+  // Extract job name from prompt — strip markdown heading markers, take first 60 chars
   const prompt = job?.prompt ?? "";
-  const jobName = prompt.split("\n")[0].slice(0, 50).trim() || "unnamed";
+  const jobName =
+    prompt
+      .split("\n")[0]!
+      .replace(/^#+\s*/, "")
+      .trim()
+      .slice(0, 60) || "unnamed";
 
   const text = `#${jobName} done (${durationSec}s) ${outcomeTag}${summary ? `\n${summary}` : ""}`;
   try {
@@ -305,6 +334,31 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
       id: jobId,
       error: err instanceof Error ? err.message : String(err),
     });
+  }
+
+  // Self-heal on failure
+  if (job) {
+    const { isHealJob, triggerSelfHeal, resolveHeal } =
+      await import("./self-heal.ts");
+    if (isHealJob(job.tmuxSession)) {
+      resolveHeal(jobId, summary || outcome).catch(() => {});
+    } else if (outcome === "failed") {
+      triggerSelfHeal(
+        {
+          source: "job",
+          name:
+            (job.prompt.split("\n")[0] ?? "")
+              .replace(/^#+\s*/, "")
+              .trim()
+              .slice(0, 60) || jobId,
+          error: summary || "job failed",
+          timestamp: Date.now(),
+          jobId,
+          outputTail: output.slice(-2000),
+        },
+        bot,
+      ).catch(() => {});
+    }
   }
 
   // Cleanup temp files

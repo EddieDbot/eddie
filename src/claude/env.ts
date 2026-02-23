@@ -26,7 +26,6 @@ const SENSITIVE_VARS = [
   "SUPABASE_PAT",
   "OPENAI_API_KEY",
   "ELEVENLABS_API_KEY",
-  "ANTHROPIC_API_KEY",
   "DASHBOARD_TOKEN",
   "GOOGLE_SERVICE_ACCOUNT_PATH",
   "COMMS_SLACK_BOT_TOKEN",
@@ -44,6 +43,15 @@ export function getRelayEnv(): Record<string, string> {
   return env;
 }
 
+const SESSION_VARS = [
+  "CLAUDECODE",
+  "CLAUDE_CODE_ENTRYPOINT",
+  "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS",
+  "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE",
+];
+
 export function getJobEnvUnsetArgs(): string {
-  return SENSITIVE_VARS.map((v) => `--unset=${v}`).join(" ");
+  return [...SENSITIVE_VARS, ...SESSION_VARS]
+    .map((v) => `--unset=${v}`)
+    .join(" ");
 }

@@ -553,9 +553,18 @@ export function startHeartbeat(bot: Bot): void {
       try {
         await tick(bot);
       } catch (err) {
-        logger.error("heartbeat:tick-error", {
-          error: err instanceof Error ? err.message : String(err),
-        });
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        logger.error("heartbeat:tick-error", { error: errorMsg });
+        const { triggerSelfHeal } = await import("../jobs/self-heal.ts");
+        triggerSelfHeal(
+          {
+            source: "heartbeat",
+            name: "tick",
+            error: errorMsg,
+            timestamp: Date.now(),
+          },
+          bot,
+        ).catch(() => {});
       }
       scheduleTick();
     }, intervalMs);
@@ -563,11 +572,23 @@ export function startHeartbeat(bot: Bot): void {
 
   // First tick after 10s, then dynamic cadence
   setTimeout(() => {
-    tick(bot).catch((err) =>
-      logger.error("heartbeat:tick-error", {
-        error: err instanceof Error ? err.message : String(err),
-      }),
-    );
+    tick(bot).catch((err) => {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      logger.error("heartbeat:tick-error", { error: errorMsg });
+      import("../jobs/self-heal.ts")
+        .then(({ triggerSelfHeal }) =>
+          triggerSelfHeal(
+            {
+              source: "heartbeat",
+              name: "tick",
+              error: errorMsg,
+              timestamp: Date.now(),
+            },
+            bot,
+          ),
+        )
+        .catch(() => {});
+    });
     scheduleTick();
   }, 10_000);
 }

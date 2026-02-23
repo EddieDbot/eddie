@@ -100,6 +100,9 @@ const envSchema = z.object({
   PLAYLIST_ENABLED: z
     .preprocess((v) => String(v ?? "true") !== "false", z.boolean())
     .default(true),
+  SELF_HEAL_ENABLED: z
+    .preprocess((v) => String(v ?? "false") === "true", z.boolean())
+    .default(false),
 });
 
 export type Config = z.infer<typeof envSchema>;

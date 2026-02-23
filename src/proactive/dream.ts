@@ -15,7 +15,9 @@ function parseTime(timeStr: string): { hour: number; minute: number } {
 
 function msUntilTime(hour: number, minute: number, timezone: string): number {
   const now = new Date();
-  const nowLocal = new Date(now.toLocaleString("en-US", { timeZone: timezone }));
+  const nowLocal = new Date(
+    now.toLocaleString("en-US", { timeZone: timezone }),
+  );
   const target = new Date(nowLocal);
   target.setHours(hour, minute, 0, 0);
   if (target <= nowLocal) target.setDate(target.getDate() + 1);
@@ -32,8 +34,11 @@ async function getYesterdayConversations(limit = 200): Promise<string> {
       .gte("created_at", since)
       .order("created_at", { ascending: true })
       .limit(limit);
-    if (!data || data.length === 0) return "No conversations in the past 24 hours.";
-    return data.map((c) => `[${c.role}]: ${c.content.slice(0, 300)}`).join("\n");
+    if (!data || data.length === 0)
+      return "No conversations in the past 24 hours.";
+    return data
+      .map((c) => `[${c.role}]: ${c.content.slice(0, 300)}`)
+      .join("\n");
   } catch {
     return "Could not fetch conversations.";
   }
@@ -64,13 +69,17 @@ If there are no valuable insights, return [].`;
         model: "claude-haiku-4-5-20251001",
         max_tokens: 1024,
         system,
-        messages: [{ role: "user", content: `Today's conversations:\n${conversations}` }],
+        messages: [
+          { role: "user", content: `Today's conversations:\n${conversations}` },
+        ],
       }),
       signal: AbortSignal.timeout(30_000),
     });
 
     if (!res.ok) return [];
-    const data = (await res.json()) as { content: { type: string; text: string }[] };
+    const data = (await res.json()) as {
+      content: { type: string; text: string }[];
+    };
     const text = data.content.find((c) => c.type === "text")?.text ?? "[]";
     return JSON.parse(text.trim()) as string[];
   } catch {
@@ -87,7 +96,9 @@ async function deduplicateInsights(insights: string[]): Promise<string[]> {
       if (results.length === 0) {
         novel.push(insight);
       } else {
-        logger.debug("dream:duplicate-skipped", { insight: insight.slice(0, 50) });
+        logger.debug("dream:duplicate-skipped", {
+          insight: insight.slice(0, 50),
+        });
       }
     } catch {
       novel.push(insight);
@@ -99,18 +110,27 @@ async function deduplicateInsights(insights: string[]): Promise<string[]> {
 async function cleanStaleHourlyFacts(): Promise<void> {
   if (!memoryEnabled) return;
   try {
-    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const cutoff = new Date(
+      Date.now() - 90 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     await getSupabase()
       .from("facts")
       .update({ active: false })
       .eq("source", "hourly-state")
       .lt("created_at", cutoff);
   } catch (err) {
-    logger.warn("dream:stale-cleanup-failed", { error: err instanceof Error ? err.message : String(err) });
+    logger.warn("dream:stale-cleanup-failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
-async function writeJournal(date: string, conversations: string, insights: string[], stored: string[]): Promise<void> {
+async function writeJournal(
+  date: string,
+  conversations: string,
+  insights: string[],
+  stored: string[],
+): Promise<void> {
   const dir = resolve(BRAIN_VAULT, "90 - Agent Memory/Learnings");
   const path = resolve(dir, `${date}-eddie-journal.md`);
   const content = [
@@ -124,14 +144,18 @@ async function writeJournal(date: string, conversations: string, insights: strin
     ...insights.map((i, n) => `${n + 1}. ${i}`),
     "",
     "## Stored to Memory",
-    stored.length > 0 ? stored.map((i) => `- ${i}`).join("\n") : "_All insights were duplicates_",
+    stored.length > 0
+      ? stored.map((i) => `- ${i}`).join("\n")
+      : "_All insights were duplicates_",
   ].join("\n");
 
   try {
     await Bun.write(path, content);
     logger.info("dream:journal-written", { path });
   } catch (err) {
-    logger.error("dream:journal-write-failed", { error: err instanceof Error ? err.message : String(err) });
+    logger.error("dream:journal-write-failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
@@ -156,22 +180,45 @@ export async function runDreamCycle(): Promise<void> {
   await writeJournal(date, conversations, insights, novel);
   await cleanStaleHourlyFacts();
 
-  logger.info("dream:cycle-done", { total: insights.length, stored: novel.length });
+  logger.info("dream:cycle-done", {
+    total: insights.length,
+    stored: novel.length,
+  });
 }
 
-export function startDreamCycle(time = "02:00"): void {
+export function startDreamCycle(
+  bot: import("gramio").Bot,
+  time = "02:00",
+): void {
   const { hour, minute } = parseTime(time);
   const delay = msUntilTime(hour, minute, config.TIMEZONE);
   logger.info("dream:scheduled", { time, delayMs: delay });
 
+  const handleDreamError = (err: unknown): void => {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.error("dream:cycle-error", { error: errorMsg });
+    import("../jobs/self-heal.ts")
+      .then(({ triggerSelfHeal }) =>
+        triggerSelfHeal(
+          {
+            source: "dream",
+            name: "cycle",
+            error: errorMsg,
+            timestamp: Date.now(),
+          },
+          bot,
+        ),
+      )
+      .catch(() => {});
+  };
+
   setTimeout(() => {
-    runDreamCycle().catch((err) =>
-      logger.error("dream:cycle-error", { error: err instanceof Error ? err.message : String(err) }),
+    runDreamCycle().catch(handleDreamError);
+    setInterval(
+      () => {
+        runDreamCycle().catch(handleDreamError);
+      },
+      24 * 60 * 60 * 1000,
     );
-    setInterval(() => {
-      runDreamCycle().catch((err) =>
-        logger.error("dream:cycle-error", { error: err instanceof Error ? err.message : String(err) }),
-      );
-    }, 24 * 60 * 60 * 1000);
   }, delay);
 }
