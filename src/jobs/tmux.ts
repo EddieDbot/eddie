@@ -166,7 +166,7 @@ env ${envUnset} ${config.KIMI_PATH} "$PROMPT" 2>&1 | tee "${outputFile}"
 PROMPT='${escapedPrompt}'
 SYSTEM='${escapedSystem}'
 export ANTHROPIC_API_KEY='${apiKey}'
-timeout ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$PROMPT" --output-format stream-json --verbose --model claude-sonnet-4-6 --dangerously-skip-permissions --append-system-prompt "$SYSTEM" 2>&1 | tee "${outputFile}"
+timeout ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$PROMPT" --output-format text --model claude-sonnet-4-6 --dangerously-skip-permissions --append-system-prompt "$SYSTEM" 2>&1 | tee "${outputFile}"
 `;
   }
 
@@ -215,5 +215,16 @@ export async function readOutput(jobId: string): Promise<string> {
     return text.length > 10_000 ? text.slice(-10_000) : text;
   } catch {
     return "";
+  }
+}
+
+export async function getOutputSize(jobId: string): Promise<number> {
+  const outputFile = resolve(JOBS_DIR, `job-${jobId}-output.txt`);
+  try {
+    const file = Bun.file(outputFile);
+    if (!(await file.exists())) return 0;
+    return file.size;
+  } catch {
+    return 0;
   }
 }

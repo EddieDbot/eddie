@@ -1,14 +1,28 @@
 import type { Bot } from "gramio";
 import { unlink } from "node:fs/promises";
 import { config } from "../config.ts";
-import { getRunningJobs, updateJob } from "./manager.ts";
-import { isSessionAlive, killSession, readOutput, JOBS_DIR } from "./tmux.ts";
+import {
+  getRunningJobs,
+  updateJob,
+  loadFlatFileRunningJobs,
+  markFlatFileJobFailed,
+} from "./manager.ts";
+import {
+  isSessionAlive,
+  killSession,
+  readOutput,
+  getOutputSize,
+  JOBS_DIR,
+} from "./tmux.ts";
+import { memoryEnabled } from "../memory/client.ts";
 import { emitEvent } from "../dashboard/server.ts";
 import { logger } from "../utils/logger.ts";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
 import { parseStreamJson } from "../claude/parser.ts";
 import { logUsage } from "../memory/usage.ts";
+
+const ZOMBIE_THRESHOLD_MS = 5 * 60_000; // 5 minutes with 0 bytes output = dead
 
 const PERF_LOG = resolve(
   homedir(),
@@ -151,6 +165,18 @@ async function pollJobs(bot: Bot): Promise<void> {
       }
     }
 
+    // Zombie detection: running > 5min with 0 bytes output = dead process
+    const elapsed = Date.now() - new Date(job.startedAt).getTime();
+    if (elapsed > ZOMBIE_THRESHOLD_MS) {
+      const outputSize = await getOutputSize(job.id);
+      if (outputSize === 0) {
+        logger.warn("jobs:zombie-detected", { id: job.id, elapsedMs: elapsed });
+        await killSession(job.tmuxSession);
+        await timeoutJob(bot, job.id, elapsed);
+        continue;
+      }
+    }
+
     const alive = await isSessionAlive(job.tmuxSession);
     if (!alive) {
       await completeJob(bot, job.id);
@@ -159,12 +185,27 @@ async function pollJobs(bot: Bot): Promise<void> {
 }
 
 async function reconcileJobs(bot: Bot): Promise<void> {
-  const running = await getRunningJobs();
-  for (const job of running) {
+  // Primary source (Supabase or flat file via getRunningJobs)
+  const primaryRunning = await getRunningJobs();
+  for (const job of primaryRunning) {
     const alive = await isSessionAlive(job.tmuxSession);
     if (!alive) {
-      logger.info("jobs:reconcile-complete", { id: job.id });
+      logger.info("jobs:reconcile-complete", { id: job.id, source: "primary" });
       await completeJob(bot, job.id);
+    }
+  }
+
+  // Also check flat file when Supabase is primary — catch fallback orphans
+  if (memoryEnabled) {
+    const primaryIds = new Set(primaryRunning.map((j) => j.id));
+    const flatRunning = await loadFlatFileRunningJobs();
+    for (const job of flatRunning) {
+      if (primaryIds.has(job.id)) continue; // already handled above
+      const alive = await isSessionAlive(job.tmuxSession);
+      if (!alive) {
+        logger.info("jobs:reconcile-flatfile", { id: job.id });
+        await markFlatFileJobFailed(job.id);
+      }
     }
   }
 }

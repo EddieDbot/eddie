@@ -49,7 +49,7 @@ function jobToRow(
 }
 
 // Flat-file fallback (used when Supabase not configured)
-async function loadJobsFile(): Promise<Job[]> {
+export async function loadJobsFile(): Promise<Job[]> {
   try {
     const file = Bun.file(JOBS_FILE);
     if (!(await file.exists())) return [];
@@ -59,8 +59,26 @@ async function loadJobsFile(): Promise<Job[]> {
   }
 }
 
-async function saveJobsFile(jobs: Job[]): Promise<void> {
+export async function saveJobsFile(jobs: Job[]): Promise<void> {
   await Bun.write(JOBS_FILE, JSON.stringify(jobs, null, 2));
+}
+
+export async function loadFlatFileRunningJobs(): Promise<Job[]> {
+  const jobs = await loadJobsFile();
+  return jobs.filter((j) => j.status === "running");
+}
+
+export async function markFlatFileJobFailed(id: string): Promise<void> {
+  const jobs = await loadJobsFile();
+  const index = jobs.findIndex((j) => j.id === id);
+  if (index === -1) return;
+  jobs[index] = {
+    ...jobs[index]!,
+    status: "failed",
+    completedAt: new Date().toISOString(),
+    error: "Orphaned — reconciled on boot",
+  };
+  await saveJobsFile(jobs);
 }
 
 export async function createJob(
@@ -68,6 +86,17 @@ export async function createJob(
   prompt: string,
   opts?: { tmuxPrefix?: string; timeoutMs?: number },
 ): Promise<Job> {
+  const running = await getRunningJobs();
+  if (running.length >= config.MAX_CONCURRENT_JOBS) {
+    logger.warn("jobs:cap-reached", {
+      running: running.length,
+      max: config.MAX_CONCURRENT_JOBS,
+    });
+    throw new Error(
+      `Job cap reached: ${running.length}/${config.MAX_CONCURRENT_JOBS} running`,
+    );
+  }
+
   const id = crypto.randomUUID().slice(0, 8);
   const prefix = opts?.tmuxPrefix ?? "job";
   const job: Job = {

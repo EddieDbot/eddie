@@ -55,6 +55,7 @@ const envSchema = z.object({
   DASHBOARD_HOST: z.string().default("127.0.0.1"),
   // Job time limits (W6)
   JOBS_DEFAULT_TIMEOUT_MS: z.coerce.number().default(7_200_000),
+  MAX_CONCURRENT_JOBS: z.coerce.number().default(4),
   // Cost tracking (W8)
   COST_TRACKING_ENABLED: z
     .preprocess((v) => String(v ?? "true") !== "false", z.boolean())
