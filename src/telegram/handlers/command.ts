@@ -28,6 +28,11 @@ import { listAgents } from "../../agents/registry.ts";
 import { startWheel, stopWheel, isWheelActive } from "../../proactive/wheel.ts";
 import { runMorningBrief } from "../../proactive/morning-brief.ts";
 import { logProjectActivity } from "../../memory/activity.ts";
+import {
+  addRevenueEntry,
+  getRevenueSummary,
+  formatRevenueSummary,
+} from "../../proactive/revenue.ts";
 
 type MessageContext = ContextType<BotLike, "message">;
 
@@ -100,26 +105,37 @@ export async function handleForget(context: MessageContext): Promise<void> {
 }
 
 export async function handleGoals(context: MessageContext): Promise<void> {
-  if (!memoryEnabled) {
-    await context.send("Memory not configured.");
-    return;
+  const args = context.text?.split(" ").slice(1) ?? [];
+  const subcommand = args[0];
+
+  try {
+    const { listGoals, addGoal, completeGoal, formatGoalsMessage } =
+      await import("../../proactive/goals.ts");
+
+    if (subcommand === "add") {
+      const title = args.slice(1).join(" ");
+      if (!title) {
+        await context.send("Usage: /goals add <goal title>");
+        return;
+      }
+      await addGoal(title);
+      await context.send(`Goal added: "${title}"`);
+    } else if (subcommand === "done") {
+      const id = args[1];
+      if (!id) {
+        await context.send("Usage: /goals done <goal-id>");
+        return;
+      }
+      await completeGoal(id);
+      await context.send("Goal marked complete.");
+    } else {
+      const goals = await listGoals("active");
+      const msg = formatGoalsMessage(goals);
+      await context.send(`Active Goals\n\n${msg}`);
+    }
+  } catch (e) {
+    await context.send(`Error: ${e instanceof Error ? e.message : String(e)}`);
   }
-  const { data, error } = await getSupabase()
-    .from("facts")
-    .select("content, created_at")
-    .eq("category", "goal")
-    .eq("active", true)
-    .order("created_at", { ascending: false });
-  if (error) {
-    await context.send(`Error: ${error.message}`);
-    return;
-  }
-  if (!data || data.length === 0) {
-    await context.send("No active goals.");
-    return;
-  }
-  const list = data.map((f, i) => `${i + 1}. ${f.content}`).join("\n");
-  await context.send(`Active goals:\n${list}`);
 }
 
 const voiceReplyState = new Map<number, boolean>();
@@ -1177,4 +1193,88 @@ export async function handleSlack(context: MessageContext): Promise<void> {
       `Slack error: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
+}
+
+// ── Revenue ───────────────────────────────────────────────────────────
+export async function handleRevenue(context: MessageContext): Promise<void> {
+  const args = context.text?.split(" ").slice(1) ?? [];
+  const subcommand = args[0];
+
+  try {
+    if (subcommand === "add") {
+      const amount = parseFloat(args[1] ?? "");
+      const source = args[2];
+      const description = args.slice(3).join(" ") || undefined;
+
+      if (isNaN(amount) || !source) {
+        await context.send(
+          "Usage: /revenue add <amount> <source> [description]\nExample: /revenue add 500 freelance Website project",
+        );
+        return;
+      }
+      await addRevenueEntry(amount, source, description);
+      await context.send(`Revenue logged: $${amount} from ${source}`);
+    } else {
+      const summary = await getRevenueSummary();
+      await context.send(formatRevenueSummary(summary), {
+        parse_mode: "Markdown",
+      });
+    }
+  } catch (e) {
+    await context.send(`Error: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+// ── YouTube ───────────────────────────────────────────────────────────
+export async function handleYoutube(context: MessageContext): Promise<void> {
+  const channelId = config.YOUTUBE_CHANNEL_ID;
+  if (!channelId) {
+    await context.send(
+      "YOUTUBE_CHANNEL_ID not set. Add it to .env to enable this command.",
+    );
+    return;
+  }
+  await context.send("Fetching YouTube stats...");
+  const { getChannelStats, getRecentVideos } =
+    await import("../../comms/youtube.ts");
+  const [stats, videos] = await Promise.all([
+    getChannelStats(channelId),
+    getRecentVideos(channelId, 5),
+  ]);
+
+  const lines: string[] = ["YouTube Channel\n"];
+  if (stats) {
+    lines.push(`${stats.title}`);
+    lines.push(`${Number(stats.subscriberCount).toLocaleString()} subscribers`);
+    lines.push(`${Number(stats.viewCount).toLocaleString()} total views`);
+    lines.push(`${stats.videoCount} videos\n`);
+  }
+  if (videos.length > 0) {
+    lines.push("Recent Videos:");
+    for (const v of videos) {
+      const date = new Date(v.publishedAt).toLocaleDateString();
+      lines.push(
+        `• ${v.title} (${Number(v.viewCount).toLocaleString()} views) — ${date}`,
+      );
+    }
+  }
+  await context.send(lines.join("\n"));
+}
+
+// ── Automate Browser ──────────────────────────────────────────────────
+export async function handleAutomate(context: MessageContext): Promise<void> {
+  const task = context.text?.replace(/^\/automate\s*/, "").trim();
+  if (!task) {
+    await context.send(
+      "Usage: /automate <browser task description>\n\nExample: /automate Take screenshot of https://example.com",
+    );
+    return;
+  }
+  await context.send(`Starting browser automation...\n\nTask: ${task}`);
+  const prompt = `Use the Playwright MCP tools to: ${task}\n\nCapture screenshots at each step. Report what you find.`;
+  const job = await createJob("claude", prompt);
+  await spawnJob(job);
+  await context.send(
+    `Browser job #${job.id} started. Session: ${job.tmuxSession}`,
+  );
 }

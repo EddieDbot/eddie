@@ -128,6 +128,19 @@ async function getUpcomingCrons(): Promise<string> {
   }
 }
 
+async function getYoutubeSnapshot(): Promise<string> {
+  const channelId = config.YOUTUBE_CHANNEL_ID;
+  if (!channelId || !config.GOOGLE_API_KEY) return "";
+  try {
+    const { getChannelStats } = await import("../comms/youtube.ts");
+    const stats = await getChannelStats(channelId);
+    if (!stats) return "";
+    return `${Number(stats.subscriberCount).toLocaleString()} subs · ${Number(stats.viewCount).toLocaleString()} views`;
+  } catch {
+    return "";
+  }
+}
+
 async function getPillarSummary(): Promise<string> {
   try {
     const { getTodayRatings, getTodayNonNegs, getStreaks } =
@@ -198,7 +211,7 @@ export async function runMorningBrief(bot: Bot): Promise<void> {
     day: "numeric",
   });
 
-  const [goals, activity, crons, usageStats, inbox, pillarData] =
+  const [goals, activity, crons, usageStats, inbox, pillarData, youtube] =
     await Promise.all([
       getActiveGoals(),
       getYesterdayActivity(),
@@ -206,6 +219,7 @@ export async function runMorningBrief(bot: Bot): Promise<void> {
       getYesterdayUsageStats().catch(() => ""),
       getInboxSummary(),
       getPillarSummary().catch(() => ""),
+      getYoutubeSnapshot().catch(() => ""),
     ]);
 
   const context = [
@@ -222,6 +236,9 @@ export async function runMorningBrief(bot: Bot): Promise<void> {
     inbox ? `\n## Inbox\n${inbox}` : "",
     usageStats ? `\n## Claude Usage (Yesterday)\n${usageStats}` : "",
     pillarData ? `\n## Yesterday's Pillars\n${pillarData}` : "",
+    youtube ? `\n## YouTube\n${youtube}` : "",
+    // News: requires NEWSAPI_KEY — placeholder, won't crash if not set
+    // TODO: add news section when NEWSAPI_KEY is configured
   ]
     .filter(Boolean)
     .join("\n");

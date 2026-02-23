@@ -353,6 +353,28 @@ export async function ensureMigrations(): Promise<void> {
     });
   }
 
+  // Revenue entries table
+  try {
+    await runSQL(`
+      CREATE TABLE IF NOT EXISTS revenue_entries (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        amount decimal(10,2) NOT NULL,
+        currency text DEFAULT 'USD',
+        source text NOT NULL,
+        description text,
+        date date NOT NULL DEFAULT CURRENT_DATE,
+        created_at timestamptz DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_revenue_entries_date ON revenue_entries (date DESC);
+      ALTER TABLE revenue_entries DISABLE ROW LEVEL SECURITY;
+    `);
+    logger.info("db:migrate:revenue-entries");
+  } catch (err) {
+    logger.warn("db:migrate:revenue-entries-skip", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   logger.info("db:migrate:done");
 }
 

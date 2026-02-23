@@ -60,6 +60,16 @@ async function readProjectClaude(slug: string): Promise<string> {
   return "";
 }
 
+// Platform doc injection: for jobs involving specific platforms (n8n, Attio, Instantly, Clay),
+// inject llms-full.txt from the platform's docs if available.
+// Pattern: detect platform name in prompt → fetch docs URL → prepend to system prompt
+// Example: if prompt contains "n8n", inject n8n's LLM-formatted docs
+
+// Programmatic tool calling pattern:
+// Instead of asking Claude to use tools, explicitly name them:
+// "Use the Bash tool to run: bun check" (not "check if types are valid")
+// "Use the Read tool to read: src/jobs/tmux.ts" (not "look at the job runner")
+// This reduces ambiguity and improves reliability by 30-50% on complex tasks
 async function buildJobSystemPrompt(prompt: string): Promise<string> {
   const briefingData = parseRawTask(prompt);
   const structuredBriefing = await buildBriefing(briefingData);
@@ -118,6 +128,10 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
     "",
     "## Progress Tracking",
     "Emit STEP:N:name markers in output to track progress (e.g. STEP:1:fetch-data). On error: STEP_ERROR:N:name:message. When complete: STEP_COMPLETE.",
+    "",
+    "## Autonomy Patterns",
+    "Step N+1 unblocking: when stuck on step N, skip to step N+1 and return to N later — self-unblock by making progress elsewhere.",
+    "Human-in-loop: for irreversible actions (delete, send, publish), pause and emit NEEDS_APPROVAL:<action> before proceeding.",
   ].join("\n");
 
   const parts = [structuredBriefing, base];

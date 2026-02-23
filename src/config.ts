@@ -99,6 +99,7 @@ const envSchema = z.object({
   ICLOUD_EMAIL: z.string().optional(),
   ICLOUD_APP_PASSWORD: z.string().optional(),
   YOUTUBE_API_KEY: z.string().optional(),
+  YOUTUBE_CHANNEL_ID: z.string().optional(),
   GOOGLE_API_KEY: z.string().optional(),
   PLAYLIST_ENABLED: z
     .preprocess((v) => String(v ?? "true") !== "false", z.boolean())

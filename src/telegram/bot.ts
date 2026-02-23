@@ -38,6 +38,9 @@ import {
   handlePillars,
   handleReview,
   handleAlign,
+  handleYoutube,
+  handleAutomate,
+  handleRevenue,
 } from "./handlers/command.ts";
 import { handleText } from "./handlers/text.ts";
 import { handleVoice } from "./handlers/voice.ts";
@@ -86,6 +89,9 @@ export function createBot(): Bot {
   bot.command("pillars", (context) => handlePillars(context));
   bot.command("review", (context) => handleReview(context));
   bot.command("align", (context) => handleAlign(context));
+  bot.command("youtube", (context) => handleYoutube(context));
+  bot.command("automate", (context) => handleAutomate(context));
+  bot.command("revenue", (context) => handleRevenue(context));
 
   bot.on("message", (context) => {
     if (context.voice) return handleVoice(context);
