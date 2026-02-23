@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+bun.lockb
+
+# Environment — never commit secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+sessions/
+data/
+*.log
+
+# OAuth tokens — sensitive, managed separately
+*.bak
+
+# Build artifacts
+dist/
+.next/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Scripts (one-off utilities, not part of the app)
+scripts/reauth-google.ts

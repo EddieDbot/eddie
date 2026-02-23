@@ -1,0 +1,183 @@
+import type { Bot } from "gramio";
+import { config } from "../config.ts";
+import { getSupabase, memoryEnabled } from "../memory/client.ts";
+import { getUsageSummary } from "../memory/usage.ts";
+import { logger } from "../utils/logger.ts";
+
+function parseTime(timeStr: string): { hour: number; minute: number } {
+  const [h, m] = timeStr.split(":").map(Number);
+  return { hour: h ?? 8, minute: m ?? 0 };
+}
+
+function msUntilTime(hour: number, minute: number, timezone: string): number {
+  const now = new Date();
+  const nowLocal = new Date(
+    now.toLocaleString("en-US", { timeZone: timezone }),
+  );
+  const target = new Date(nowLocal);
+  target.setHours(hour, minute, 0, 0);
+  if (target <= nowLocal) target.setDate(target.getDate() + 1);
+  return target.getTime() - nowLocal.getTime();
+}
+
+async function getActiveGoals(): Promise<string> {
+  if (!memoryEnabled) return "Memory not configured.";
+  try {
+    const { data } = await getSupabase()
+      .from("facts")
+      .select("content")
+      .eq("category", "goal")
+      .eq("active", true);
+    if (!data || data.length === 0) return "No active goals.";
+    return data.map((g) => `- ${g.content}`).join("\n");
+  } catch {
+    return "Could not fetch goals.";
+  }
+}
+
+async function getYesterdayActivity(): Promise<string> {
+  if (!memoryEnabled) return "No activity data.";
+  try {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data } = await getSupabase()
+      .from("communication_log")
+      .select("summary, created_at")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (!data || data.length === 0) return "No activity yesterday.";
+    return data.map((c) => `- ${c.summary}`).join("\n");
+  } catch {
+    return "Could not fetch activity.";
+  }
+}
+
+async function getInboxSummary(): Promise<string> {
+  try {
+    const { getUnreadCount } = await import("../comms/inbox.ts");
+    const counts = await getUnreadCount();
+    const entries = Object.entries(counts).filter(([, v]) => v > 0);
+    if (entries.length === 0) return "No unread messages.";
+    return entries.map(([ch, count]) => `- ${ch}: ${count} unread`).join("\n");
+  } catch {
+    return "";
+  }
+}
+
+async function getUpcomingCrons(): Promise<string> {
+  try {
+    const { listCronJobs } = await import("./cron.ts");
+    const jobs = await listCronJobs();
+    const enabled = jobs.filter((j) => j.enabled).slice(0, 5);
+    if (enabled.length === 0) return "No scheduled jobs.";
+    return enabled
+      .map((j) => `- ${j.name}: ${j.schedule_type} ${j.schedule_value}`)
+      .join("\n");
+  } catch {
+    return "Cron module unavailable.";
+  }
+}
+
+async function generateBrief(context: string): Promise<string> {
+  if (!config.ANTHROPIC_API_KEY) return context;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": config.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 512,
+        system:
+          "You are EDDIE, a chill AI assistant giving a casual morning briefing to Nicholas. Keep it short, warm, and useful — highlight what matters today. 3-5 sentences max. Casual surfer-ish tone but substantive.",
+        messages: [{ role: "user", content: context }],
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!res.ok) return `Morning brief context:\n${context}`;
+    const data = (await res.json()) as {
+      content: { type: string; text: string }[];
+    };
+    return data.content.find((c) => c.type === "text")?.text ?? context;
+  } catch {
+    return `Morning brief:\n${context}`;
+  }
+}
+
+export async function runMorningBrief(bot: Bot): Promise<void> {
+  logger.info("morning-brief:start");
+
+  const now = new Date().toLocaleString("en-US", {
+    timeZone: config.TIMEZONE,
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
+  const [goals, activity, crons, usage, inbox] = await Promise.all([
+    getActiveGoals(),
+    getYesterdayActivity(),
+    getUpcomingCrons(),
+    getUsageSummary(1).catch(() => null),
+    getInboxSummary(),
+  ]);
+
+  const costLine = usage
+    ? `Yesterday's AI cost: $${usage.totalCostUsd.toFixed(4)}`
+    : "";
+
+  const context = [
+    `Good morning! It's ${now}.`,
+    "",
+    "## Active Goals",
+    goals,
+    "",
+    "## Yesterday's Activity",
+    activity,
+    "",
+    "## Scheduled Jobs",
+    crons,
+    inbox ? `\n## Inbox\n${inbox}` : "",
+    costLine ? `\n## Cost\n${costLine}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const brief = await generateBrief(context);
+
+  await bot.api.sendMessage({
+    chat_id: config.OWNER_TELEGRAM_ID,
+    text: brief,
+  });
+
+  logger.info("morning-brief:sent");
+}
+
+export function startMorningBrief(bot: Bot, time = "08:00"): void {
+  const { hour, minute } = parseTime(time);
+  const delay = msUntilTime(hour, minute, config.TIMEZONE);
+  logger.info("morning-brief:scheduled", { time, delayMs: delay });
+
+  setTimeout(() => {
+    runMorningBrief(bot).catch((err) =>
+      logger.error("morning-brief:error", {
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+    setInterval(
+      () => {
+        runMorningBrief(bot).catch((err) =>
+          logger.error("morning-brief:error", {
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      },
+      24 * 60 * 60 * 1000,
+    );
+  }, delay);
+}

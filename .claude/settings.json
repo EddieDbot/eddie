@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "state=\"$HOME/brain-vault/90 - Agent Memory/State/eddie-current.md\"; if [ -f \"$state\" ]; then echo \"=== Session State ===\"; cat \"$state\"; else echo \"No session state yet. Run: consolidate\"; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
