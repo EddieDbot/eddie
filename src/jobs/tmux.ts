@@ -160,13 +160,10 @@ env ${envUnset} ${config.KIMI_PATH} "$PROMPT" 2>&1 | tee "${outputFile}"
     const escapedSystem = systemPrompt
       .replace(/\\/g, "\\\\")
       .replace(/'/g, "'\\''");
-    const apiKey =
-      config.ANTHROPIC_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? "";
     runnerScript = `#!/bin/bash
 PROMPT='${escapedPrompt}'
 SYSTEM='${escapedSystem}'
-export ANTHROPIC_API_KEY='${apiKey}'
-timeout ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$PROMPT" --output-format text --model claude-sonnet-4-6 --dangerously-skip-permissions --append-system-prompt "$SYSTEM" 2>&1 | tee "${outputFile}"
+timeout --foreground ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$PROMPT" --output-format text --model claude-sonnet-4-6 --dangerously-skip-permissions --append-system-prompt "$SYSTEM" 2>&1 | tee "${outputFile}"
 `;
   }
 
