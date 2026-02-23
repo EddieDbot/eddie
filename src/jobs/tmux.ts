@@ -133,6 +133,12 @@ export async function spawnJob(job: Job): Promise<void> {
   const outputFile = resolve(JOBS_DIR, `job-${job.id}-output.txt`);
   const systemFile = resolve(JOBS_DIR, `job-${job.id}-system.txt`);
   await Bun.write(promptFile, job.prompt);
+  // Pre-write a start marker so zombie detection never falsely kills a job that is
+  // just slow to produce output (pipe block-buffering keeps size=0 until flush/exit).
+  await Bun.write(
+    outputFile,
+    `job:started id=${job.id} at=${new Date().toISOString()}\n`,
+  );
 
   const timeoutMs =
     job.timeoutMs ??
@@ -152,7 +158,7 @@ export async function spawnJob(job: Job): Promise<void> {
   if (job.model === "kimi") {
     runnerScript = `#!/bin/bash
 PROMPT='${escapedPrompt}'
-env ${envUnset} ${config.KIMI_PATH} "$PROMPT" 2>&1 | tee "${outputFile}"
+env ${envUnset} ${config.KIMI_PATH} "$PROMPT" 2>&1 | tee -a "${outputFile}"
 `;
   } else {
     const systemPrompt = await buildJobSystemPrompt(job.prompt);
@@ -163,7 +169,7 @@ env ${envUnset} ${config.KIMI_PATH} "$PROMPT" 2>&1 | tee "${outputFile}"
     runnerScript = `#!/bin/bash
 PROMPT='${escapedPrompt}'
 SYSTEM='${escapedSystem}'
-timeout --foreground ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$PROMPT" --output-format text --model claude-sonnet-4-6 --dangerously-skip-permissions --append-system-prompt "$SYSTEM" 2>&1 | tee "${outputFile}"
+timeout --foreground ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$PROMPT" --output-format text --model claude-sonnet-4-6 --dangerously-skip-permissions --append-system-prompt "$SYSTEM" 2>&1 | tee -a "${outputFile}"
 `;
   }
 
