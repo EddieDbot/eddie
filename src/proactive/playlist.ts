@@ -13,6 +13,8 @@ const RAW_BUCKET = `${BRAIN_VAULT}/00 - Inbox/transcripts/_raw`;
 const UNUSED_DIR = `${BRAIN_VAULT}/00 - Inbox/transcripts/_unused`;
 const PLANS_DIR = `${BRAIN_VAULT}/90 - Agent Memory/Plans`;
 const PLAYLIST_MANAGER = `${HOME}/.claude/scripts/playlist-manager.py`;
+const DIGESTED_PLAYLIST_URL =
+  "https://youtube.com/playlist?list=PLgSl4exmSE0kXhDdqcYE5vmjaxamTh-bL";
 
 export type PlaylistEntry = {
   name: string;
@@ -148,13 +150,13 @@ Format the raw file as:
 [full transcript text here]
 \`\`\`
 
-## Step 2: Remove from Playlist
+## Step 2: Move to Digested Playlist
 
-Once the raw transcript is saved to the bucket, immediately remove the video from the playlist.
+Once the raw transcript is saved to the bucket, immediately move the video from the source playlist to the EDDIE Digested playlist.
 
 Run:
 \`\`\`bash
-python3 ${PLAYLIST_MANAGER} remove "${playlistUrl}" "${videoId}"
+python3 ${PLAYLIST_MANAGER} move "${playlistUrl}" "${DIGESTED_PLAYLIST_URL}" "${videoId}"
 \`\`\`
 
 If this fails (credentials not set up), log the failure and continue — do not abort.
@@ -329,6 +331,12 @@ export async function checkPlaylists(): Promise<{
     });
   }
 
+  if (spawned > 0) {
+    import("./report-synthesis.ts")
+      .then(({ scheduleSynthesis }) => scheduleSynthesis())
+      .catch(() => {});
+  }
+
   return { spawned, checked: enabled.length };
 }
 
@@ -442,6 +450,112 @@ export async function getRecentReports(
     return reports;
   } catch {
     return [];
+  }
+}
+
+export type ReportMeta = {
+  filename: string;
+  date: string;
+  videoId: string;
+  title: string;
+  videoUrl: string | null;
+  routedTo: string | null;
+  confidence: number | null;
+  verdicts: Record<string, number>;
+};
+
+function parseReportMeta(filename: string, content: string): ReportMeta {
+  const fnMatch = filename.match(/^playlist-(\d{4}-\d{2}-\d{2})-(.+)\.md$/);
+  const date = fnMatch ? fnMatch[1]! : "";
+  const videoId = fnMatch ? fnMatch[2]! : filename;
+
+  const titleMatch = content.match(
+    /^# Playlist Ingestion(?:: | Report — )(.+)$/m,
+  );
+  const title = titleMatch ? titleMatch[1]!.trim() : filename;
+
+  const urlMatch = content.match(
+    /^\*\*(?:Video|URL):\*\*\s*(https:\/\/[^\s]+)/m,
+  );
+  const videoUrl = urlMatch ? urlMatch[1]! : null;
+
+  const routeMatch = content.match(
+    /^\*\*(?:Routed [Tt]o|Primary route):\*\*\s*(.+)$/m,
+  );
+  const routedTo = routeMatch ? routeMatch[1]!.trim() : null;
+
+  const confMatch = content.match(/^\*\*Confidence:\*\*\s*(\d+)/m);
+  const confidence = confMatch ? parseInt(confMatch[1]!) : null;
+
+  const verdicts: Record<string, number> = {};
+  const headerRe = /^### (NET_NEW|IMPROVE|IN_BACKLOG|HAVE_IT|SKIP) \((\d+)\)/gm;
+  let m: RegExpExecArray | null;
+  while ((m = headerRe.exec(content)) !== null) {
+    verdicts[m[1]!] = parseInt(m[2]!);
+  }
+
+  // Fallback: count bullets under each section
+  if (Object.keys(verdicts).length === 0) {
+    for (const label of [
+      "NET_NEW",
+      "IMPROVE",
+      "IN_BACKLOG",
+      "HAVE_IT",
+      "SKIP",
+    ]) {
+      const sectionRe = new RegExp(
+        `## ${label} Items?\\n([\\s\\S]+?)(?:\\n##|$)`,
+      );
+      const sec = content.match(sectionRe);
+      if (sec) {
+        verdicts[label] = (sec[1]!.match(/^- \*\*/gm) ?? []).length;
+      }
+    }
+  }
+
+  return {
+    filename,
+    date,
+    videoId,
+    title,
+    videoUrl,
+    routedTo,
+    confidence,
+    verdicts,
+  };
+}
+
+export async function listReportsMeta(): Promise<ReportMeta[]> {
+  try {
+    const { readdir } = await import("node:fs/promises");
+    const files = await readdir(PLANS_DIR);
+    const playlistFiles = files
+      .filter((f) => f.startsWith("playlist-") && f.endsWith(".md"))
+      .sort()
+      .reverse();
+
+    const results: ReportMeta[] = [];
+    for (const file of playlistFiles) {
+      const content = await Bun.file(`${PLANS_DIR}/${file}`)
+        .text()
+        .catch(() => "");
+      results.push(parseReportMeta(file, content));
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+export async function getReportContent(
+  filename: string,
+): Promise<string | null> {
+  if (!/^playlist-\d{4}-\d{2}-\d{2}-[a-zA-Z0-9_-]+\.md$/.test(filename))
+    return null;
+  try {
+    return await Bun.file(`${PLANS_DIR}/${filename}`).text();
+  } catch {
+    return null;
   }
 }
 
