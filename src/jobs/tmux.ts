@@ -143,18 +143,29 @@ export async function spawnJob(job: Job): Promise<void> {
 
   const runnerFile = resolve(JOBS_DIR, `job-${job.id}-runner.sh`);
 
+  // Embed prompt/system inline so runner never depends on files that may be cleaned up
+  const escapedPrompt = job.prompt
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "'\\''");
+
   let runnerScript: string;
   if (job.model === "kimi") {
     runnerScript = `#!/bin/bash
-PROMPT=$(cat "${promptFile}")
+PROMPT='${escapedPrompt}'
 env ${envUnset} ${config.KIMI_PATH} "$PROMPT" 2>&1 | tee "${outputFile}"
 `;
   } else {
     const systemPrompt = await buildJobSystemPrompt(job.prompt);
     await Bun.write(systemFile, systemPrompt);
+    const escapedSystem = systemPrompt
+      .replace(/\\/g, "\\\\")
+      .replace(/'/g, "'\\''");
+    const apiKey =
+      config.ANTHROPIC_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? "";
     runnerScript = `#!/bin/bash
-PROMPT=$(cat "${promptFile}")
-SYSTEM=$(cat "${systemFile}")
+PROMPT='${escapedPrompt}'
+SYSTEM='${escapedSystem}'
+export ANTHROPIC_API_KEY='${apiKey}'
 timeout ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$PROMPT" --output-format stream-json --verbose --model claude-sonnet-4-6 --dangerously-skip-permissions --append-system-prompt "$SYSTEM" 2>&1 | tee "${outputFile}"
 `;
   }
