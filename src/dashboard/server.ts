@@ -69,26 +69,30 @@ export function startDashboard(): void {
     async fetch(req) {
       const url = new URL(req.url);
 
-      // SSE feed — no auth needed (EventSource can't set headers)
-      if (url.pathname === "/api/feed") return handleSSE();
+      // Slack slash commands bypass auth (HMAC-verified separately)
+      if (url.pathname === "/slack/command") {
+        // handled below
+      } else if (config.DASHBOARD_TOKEN) {
+        // Basic Auth gate on everything else
+        const auth = req.headers.get("authorization") ?? "";
+        const encoded = Buffer.from(`eddie:${config.DASHBOARD_TOKEN}`).toString(
+          "base64",
+        );
+        if (auth !== `Basic ${encoded}`) {
+          return new Response("Unauthorized", {
+            status: 401,
+            headers: { "WWW-Authenticate": 'Basic realm="EDDIE"' },
+          });
+        }
+      }
 
-      // OAuth flow — no auth needed (these are Google redirects)
+      // OAuth flow (Google redirects — after auth gate so DASHBOARD_TOKEN protects start)
       if (url.pathname === "/oauth/google/start") return handleOAuthStart(req);
       if (url.pathname === "/oauth/google/callback")
         return handleOAuthCallback(req);
 
-      // Auth check for all other /api/* routes
-      if (url.pathname.startsWith("/api/") && url.pathname !== "/api/health") {
-        if (config.DASHBOARD_TOKEN) {
-          const auth = req.headers.get("authorization");
-          if (!auth || auth !== `Bearer ${config.DASHBOARD_TOKEN}`) {
-            return new Response(JSON.stringify({ error: "unauthorized" }), {
-              status: 401,
-              headers: { "Content-Type": "application/json" },
-            });
-          }
-        }
-      }
+      // SSE feed
+      if (url.pathname === "/api/feed") return handleSSE();
 
       // Slack slash commands
       if (url.pathname === "/slack/command" && req.method === "POST") {
