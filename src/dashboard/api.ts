@@ -1,5 +1,7 @@
 import { memoryEnabled, getSupabase } from "../memory/client.ts";
 import { getRecentJobs } from "../jobs/manager.ts";
+import { listReportsMeta, getReportContent } from "../proactive/playlist.ts";
+import { parseRoadmapItems } from "../proactive/report-synthesis.ts";
 
 const startTime = Date.now();
 
@@ -36,8 +38,27 @@ export function handleApi(path: string): Response {
       return handleAsync(getInboxSummary);
     case "/api/channels":
       return handleAsync(getChannels);
-    default:
+    case "/api/needs-attention":
+      return handleAsync(getNeedsAttention);
+    case "/api/health-indicators":
+      return handleAsync(getHealthIndicators);
+    case "/api/roadmap":
+      return handleAsync(getRoadmap);
+    default: {
+      if (path === "/api/reports") {
+        return handleAsync(listReportsMeta);
+      }
+      const reportPrefix = "/api/report/";
+      if (path.startsWith(reportPrefix)) {
+        const filename = decodeURIComponent(path.slice(reportPrefix.length));
+        return handleAsync(async () => {
+          const content = await getReportContent(filename);
+          if (content === null) return { error: "not found" };
+          return { filename, content };
+        });
+      }
       return json({ error: "not found" }, 404);
+    }
   }
 }
 
@@ -241,5 +262,163 @@ async function getSystemMetrics() {
     };
   } catch (err) {
     return { error: String(err) };
+  }
+}
+
+async function getNeedsAttention() {
+  if (!memoryEnabled)
+    return { failedJobs: [], pendingJudgments: [], staleItems: 0, total: 0 };
+  try {
+    const sb = getSupabase();
+    const since48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const staleThreshold = new Date(
+      Date.now() - 2 * 60 * 60 * 1000,
+    ).toISOString();
+
+    const [failedRes, judgmentRes, staleRes] = await Promise.all([
+      sb
+        .from("jobs")
+        .select("id, prompt, error, started_at")
+        .eq("status", "failed")
+        .gte("started_at", since48h)
+        .order("started_at", { ascending: false })
+        .limit(10),
+      sb
+        .from("human_judgment")
+        .select("id, source, confidence, decision")
+        .eq("status", "pending")
+        .limit(10),
+      sb
+        .from("cron_jobs")
+        .select("id", { count: "exact", head: true })
+        .or(`last_run_at.is.null,next_run_at.lt.${staleThreshold}`),
+    ]);
+
+    const failedJobs = (failedRes.data ?? []).map((j) => ({
+      id: j.id,
+      prompt: j.prompt,
+      error: j.error,
+      startedAt: j.started_at,
+    }));
+    const pendingJudgments = judgmentRes.data ?? [];
+    const staleItems = staleRes.count ?? 0;
+
+    return {
+      failedJobs,
+      pendingJudgments,
+      staleItems,
+      total: failedJobs.length + pendingJudgments.length + staleItems,
+    };
+  } catch {
+    return { failedJobs: [], pendingJudgments: [], staleItems: 0, total: 0 };
+  }
+}
+
+async function getHealthIndicators() {
+  if (!memoryEnabled)
+    return {
+      jobSuccessRate: 0,
+      totalJobs7d: 0,
+      selfHealRate: 0,
+      selfHealSuccessRate: 0,
+      avgJobDurationMs: 0,
+      escalationCount7d: 0,
+    };
+  try {
+    const sb = getSupabase();
+    const since7d = new Date(
+      Date.now() - 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    const [
+      allJobsRes,
+      completedJobsRes,
+      healTriggeredRes,
+      healResolvedRes,
+      heartbeatRes,
+    ] = await Promise.all([
+      sb
+        .from("jobs")
+        .select("id", { count: "exact", head: true })
+        .gte("completed_at", since7d),
+      sb
+        .from("jobs")
+        .select("id", { count: "exact", head: true })
+        .gte("completed_at", since7d)
+        .eq("status", "completed"),
+      sb
+        .from("self_heal_log")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", since7d),
+      sb
+        .from("self_heal_log")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", since7d)
+        .eq("outcome", "resolved"),
+      sb
+        .from("heartbeat_log")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", since7d)
+        .in("decision", ["message", "call"]),
+    ]);
+
+    const totalJobs = allJobsRes.count ?? 0;
+    const completedJobs = completedJobsRes.count ?? 0;
+    const healTriggered = healTriggeredRes.count ?? 0;
+    const healResolved = healResolvedRes.count ?? 0;
+    const escalations = heartbeatRes.count ?? 0;
+
+    const jobSuccessRate =
+      totalJobs > 0 ? Math.round((completedJobs / totalJobs) * 100) : 0;
+    const selfHealRate =
+      totalJobs > 0 ? Math.round((healTriggered / totalJobs) * 100) : 0;
+    const selfHealSuccessRate =
+      healTriggered > 0 ? Math.round((healResolved / healTriggered) * 100) : 0;
+
+    // Avg duration from completed jobs
+    const { data: durationData } = await sb
+      .from("jobs")
+      .select("duration_ms")
+      .gte("completed_at", since7d)
+      .eq("status", "completed")
+      .not("duration_ms", "is", null)
+      .limit(200);
+    const durations = (durationData ?? [])
+      .map((d) => d.duration_ms)
+      .filter(Boolean);
+    const avgJobDurationMs =
+      durations.length > 0
+        ? Math.round(
+            durations.reduce((a: number, b: number) => a + b, 0) /
+              durations.length,
+          )
+        : 0;
+
+    return {
+      jobSuccessRate,
+      totalJobs7d: totalJobs,
+      selfHealRate,
+      selfHealSuccessRate,
+      avgJobDurationMs,
+      escalationCount7d: escalations,
+    };
+  } catch {
+    return {
+      jobSuccessRate: 0,
+      totalJobs7d: 0,
+      selfHealRate: 0,
+      selfHealSuccessRate: 0,
+      avgJobDurationMs: 0,
+      escalationCount7d: 0,
+    };
+  }
+}
+
+async function getRoadmap() {
+  try {
+    const items = await parseRoadmapItems();
+    return items;
+  } catch {
+    return [];
   }
 }

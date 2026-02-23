@@ -13,6 +13,7 @@ import {
   readOutput,
   getOutputSize,
   detectZombieProcess,
+  capturePane,
   JOBS_DIR,
 } from "./tmux.ts";
 import { memoryEnabled } from "../memory/client.ts";
@@ -22,6 +23,7 @@ import { resolve } from "node:path";
 import { homedir } from "node:os";
 import { parseStreamJson } from "../claude/parser.ts";
 import { logUsage } from "../memory/usage.ts";
+import { parseStepMarkers, extractLastStepContext } from "./steps.ts";
 
 const ZOMBIE_THRESHOLD_MS = 5 * 60_000; // 5 minutes with 0 bytes output = dead
 
@@ -250,6 +252,12 @@ async function timeoutJob(
     outcomeSummary: `Killed after exceeding ${elapsedMin}m timeout`,
   });
 
+  // Cleanup worktree if one was used
+  if (job?.worktreePath) {
+    const { removeWorktree } = await import("./worktree.ts");
+    removeWorktree(job.id).catch(() => {});
+  }
+
   await appendPerfLog(
     jobId,
     job?.prompt ?? "",
@@ -284,6 +292,11 @@ async function timeoutJob(
   if (job) {
     const { isHealJob, triggerSelfHeal } = await import("./self-heal.ts");
     if (!isHealJob(job.tmuxSession)) {
+      // Capture terminal context for self-heal enrichment
+      const paneCapture = await capturePane(job.tmuxSession, 200).catch(
+        () => "",
+      );
+
       triggerSelfHeal(
         {
           source: "job",
@@ -295,6 +308,7 @@ async function timeoutJob(
           error: `Timeout after ${elapsedMin}m`,
           timestamp: Date.now(),
           jobId,
+          paneCapture: paneCapture || undefined,
         },
         bot,
       ).catch(() => {});
@@ -304,6 +318,8 @@ async function timeoutJob(
 
 async function completeJob(bot: Bot, jobId: string): Promise<void> {
   const output = await readOutput(jobId);
+  const stepErrors = parseStepMarkers(output, jobId);
+  const lastStepCtx = extractLastStepContext(output);
   const completedAt = new Date().toISOString();
 
   // Get job to calculate duration + original prompt
@@ -335,6 +351,26 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
   // Assess outcome via haiku
   const { outcome, summary } = await assessOutcome(job?.prompt ?? "", output);
 
+  // Artifact verification
+  let artifactCheck:
+    | import("./artifact-check.ts").ArtifactCheckResult
+    | undefined;
+  if (job) {
+    const { detectJobType } = await import("./settings.ts");
+    const { verifyArtifacts } = await import("./artifact-check.ts");
+    const jobType = detectJobType(job.prompt, job.tmuxSession);
+    artifactCheck = await verifyArtifacts(jobType, job.prompt).catch(
+      () => undefined,
+    );
+    if (artifactCheck && !artifactCheck.allFound) {
+      const missing = artifactCheck.specs
+        .filter((s) => !s.found)
+        .map((s) => s.description)
+        .join(", ");
+      logger.warn("jobs:artifact-missing", { id: jobId, missing });
+    }
+  }
+
   // Save output to Brain Vault
   const date = completedAt.slice(0, 10);
   const brainVaultDir = config.BRAIN_VAULT_JOBS_DIR.replace(
@@ -362,6 +398,10 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
     outputPath,
     outcome,
     outcomeSummary: summary,
+    stepErrors: stepErrors.length > 0 ? stepErrors : undefined,
+    lastStep: lastStepCtx.lastStep > 0 ? lastStepCtx.lastStep : undefined,
+    lastStepName: lastStepCtx.lastStepName || undefined,
+    artifactCheck: artifactCheck ?? undefined,
   });
 
   // Append to performance log
@@ -411,6 +451,11 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
       // Self-healing environmental failures just adds more load.
       const isEnvFailure = summary === "No output produced";
       if (!isEnvFailure) {
+        // Capture terminal context for self-heal enrichment
+        const paneCapture = await capturePane(job.tmuxSession, 200).catch(
+          () => "",
+        );
+
         triggerSelfHeal(
           {
             source: "job",
@@ -423,11 +468,22 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
             timestamp: Date.now(),
             jobId,
             outputTail: output.slice(-2000),
+            steps: stepErrors.length > 0 ? stepErrors : undefined,
+            lastStep:
+              lastStepCtx.lastStep > 0 ? lastStepCtx.lastStep : undefined,
+            lastStepName: lastStepCtx.lastStepName || undefined,
+            paneCapture: paneCapture || undefined,
           },
           bot,
         ).catch(() => {});
       }
     }
+  }
+
+  // Cleanup worktree if one was used
+  if (job?.worktreePath) {
+    const { removeWorktree } = await import("./worktree.ts");
+    removeWorktree(job.id).catch(() => {});
   }
 
   // Cleanup temp files

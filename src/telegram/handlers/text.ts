@@ -38,6 +38,14 @@ export async function handleText(context: MessageContext): Promise<void> {
 
   logger.info("handler:text", { chatId, sessionId, textLen: text.length });
 
+  const { isInReview, advanceReview } =
+    await import("../../proactive/weekly-review.ts");
+  if (isInReview(chatId)) {
+    const bot = (context as unknown as { bot: import("gramio").Bot }).bot;
+    await advanceReview(chatId, text, bot);
+    return;
+  }
+
   const scan = scanInput(text);
   if (!scan.clean) {
     if (scan.severity === "high") {

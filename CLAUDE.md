@@ -38,6 +38,9 @@ You have access to Brain Vault, an Obsidian knowledge base synced to this server
 When asked about past decisions, projects, or context, search Brain Vault first.
 You can read and write files in Brain Vault directly.
 
+## Brain Vault Conventions
+When creating Brain Vault notes that reference other existing files, use `[[WikiLinks]]` to cross-reference. Example: `[[execution-roadmap]]` links to `Plans/execution-roadmap.md`.
+
 ## Your Persistent Memory
 
 Write session learnings and discoveries to:

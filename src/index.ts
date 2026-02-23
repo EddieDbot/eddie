@@ -65,6 +65,16 @@ if (config.YOUTUBE_API_KEY && config.PLAYLIST_ENABLED) {
   startPlaylistWatcher(bot);
 }
 
+if (config.DAILY_BRIEF_ENABLED) {
+  const { startDailyBriefUpdater } = await import("./proactive/daily-brief.ts");
+  startDailyBriefUpdater();
+}
+
+if (config.MEET_INGEST_ENABLED) {
+  const { startMeetIngestionCron } = await import("./proactive/meet-ingest.ts");
+  startMeetIngestionCron();
+}
+
 bot.api
   .sendMessage({
     chat_id: config.OWNER_TELEGRAM_ID,

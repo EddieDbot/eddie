@@ -12,99 +12,154 @@
     <span id="status" class="status offline">offline</span>
   </header>
 
+  <nav class="tab-nav">
+    <button class="tab-btn" data-tab="reports">Reports</button>
+    <button class="tab-btn" data-tab="metrics">Metrics</button>
+    <button class="tab-btn" data-tab="memory">Memory</button>
+    <button class="tab-btn" data-tab="jobs">Jobs</button>
+  </nav>
+
   <main>
-    <section id="system-panel" class="panel">
-      <h2>System Status</h2>
-      <div class="stats-grid">
-        <div class="stat">
-          <span class="stat-value" id="uptime">--</span>
-          <span class="stat-label">Uptime</span>
+
+    <!-- Reports Tab -->
+    <div class="tab-pane" id="tab-reports">
+      <section id="reports-panel" class="panel">
+        <div class="reports-panel-header">
+          <h2>Reports</h2>
+          <nav class="reports-subtab-nav">
+            <button class="reports-subtab" data-rtab="ingestion">Ingestion</button>
+            <button class="reports-subtab" data-rtab="roadmap">Roadmap</button>
+          </nav>
         </div>
-        <div class="stat">
-          <span class="stat-value" id="memory-status">--</span>
-          <span class="stat-label">Memory</span>
+        <div class="reports-layout">
+          <div id="reports-sidebar" class="reports-sidebar"></div>
+          <div id="reports-viewer" class="reports-viewer">
+            <div class="reports-placeholder">Select a report to view</div>
+          </div>
         </div>
-        <div class="stat">
-          <span class="stat-value" id="total-convos">--</span>
-          <span class="stat-label">Conversations</span>
-        </div>
-        <div class="stat">
-          <span class="stat-value" id="total-facts">--</span>
-          <span class="stat-label">Facts</span>
-        </div>
-        <div class="stat">
-          <span class="stat-value" id="total-comms">--</span>
-          <span class="stat-label">Communications</span>
-        </div>
+      </section>
+    </div>
+
+    <!-- Metrics Tab -->
+    <div class="tab-pane" id="tab-metrics">
+      <div class="panel-grid">
+
+        <section id="needs-attention-panel" class="panel panel-full attention-panel">
+          <h2>Needs Attention <span id="attention-count" class="badge"></span></h2>
+          <div id="attention-failed-jobs"></div>
+          <div id="attention-judgments"></div>
+        </section>
+
+        <section id="health-panel" class="panel panel-full">
+          <h2>System Health <small>(7 days)</small></h2>
+          <div id="health-indicators" class="stats-grid"></div>
+        </section>
+
+        <section id="system-panel" class="panel">
+          <h2>System Status</h2>
+          <div class="stats-grid">
+            <div class="stat">
+              <span class="stat-value" id="uptime">--</span>
+              <span class="stat-label">Uptime</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="memory-status">--</span>
+              <span class="stat-label">Memory</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="total-convos">--</span>
+              <span class="stat-label">Conversations</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="total-facts">--</span>
+              <span class="stat-label">Facts</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="total-comms">--</span>
+              <span class="stat-label">Communications</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="metrics-panel" class="panel">
+          <h2>System Metrics</h2>
+          <div class="stats-grid">
+            <div class="stat">
+              <span class="stat-value" id="mem-use">--</span>
+              <span class="stat-label">Memory</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="cpu-load">--</span>
+              <span class="stat-label">CPU Load</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="disk-use">--</span>
+              <span class="stat-label">Disk</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="cost-panel" class="panel">
+          <h2>Cost (7-Day)</h2>
+          <div class="stats-grid">
+            <div class="stat">
+              <span class="stat-value" id="cost-total">--</span>
+              <span class="stat-label">Total Cost</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="cost-input">--</span>
+              <span class="stat-label">Input Tokens</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="cost-output">--</span>
+              <span class="stat-label">Output Tokens</span>
+            </div>
+          </div>
+          <div id="cost-breakdown" class="scrollable" style="margin-top:8px"></div>
+        </section>
+
+        <section id="heartbeat-panel" class="panel">
+          <h2>Heartbeat History</h2>
+          <div id="heartbeat-list" class="scrollable"></div>
+        </section>
+
+        <section id="cron-panel" class="panel">
+          <h2>Cron Jobs</h2>
+          <div id="cron-list" class="scrollable"></div>
+        </section>
+
+        <section id="feed-panel" class="panel panel-full">
+          <h2>Live Feed</h2>
+          <div id="feed-list" class="scrollable"></div>
+        </section>
       </div>
-    </section>
+    </div>
 
-    <section id="conversations-panel" class="panel">
-      <h2>Recent Conversations</h2>
-      <div id="conversations-list" class="scrollable"></div>
-    </section>
+    <!-- Memory Tab -->
+    <div class="tab-pane" id="tab-memory">
+      <div class="panel-grid">
+        <section id="conversations-panel" class="panel">
+          <h2>Recent Conversations</h2>
+          <div id="conversations-list" class="scrollable"></div>
+        </section>
 
-    <section id="facts-panel" class="panel">
-      <h2>Memory / Facts</h2>
-      <div id="facts-list" class="scrollable"></div>
-    </section>
-
-    <section id="feed-panel" class="panel">
-      <h2>Live Feed</h2>
-      <div id="feed-list" class="scrollable"></div>
-    </section>
-
-    <section id="heartbeat-panel" class="panel">
-      <h2>Heartbeat History</h2>
-      <div id="heartbeat-list" class="scrollable"></div>
-    </section>
-
-    <section id="cron-panel" class="panel">
-      <h2>Cron Jobs</h2>
-      <div id="cron-list" class="scrollable"></div>
-    </section>
-
-    <section id="jobs-panel" class="panel">
-      <h2>Active Jobs</h2>
-      <div id="jobs-list" class="scrollable"></div>
-    </section>
-
-    <section id="metrics-panel" class="panel">
-      <h2>System Metrics</h2>
-      <div class="stats-grid" id="metrics-grid">
-        <div class="stat">
-          <span class="stat-value" id="mem-use">--</span>
-          <span class="stat-label">Memory</span>
-        </div>
-        <div class="stat">
-          <span class="stat-value" id="cpu-load">--</span>
-          <span class="stat-label">CPU Load</span>
-        </div>
-        <div class="stat">
-          <span class="stat-value" id="disk-use">--</span>
-          <span class="stat-label">Disk</span>
-        </div>
+        <section id="facts-panel" class="panel">
+          <h2>Memory / Facts</h2>
+          <div id="facts-list" class="scrollable"></div>
+        </section>
       </div>
-    </section>
+    </div>
 
-    <section id="cost-panel" class="panel">
-      <h2>Cost (7-Day)</h2>
-      <div class="stats-grid">
-        <div class="stat">
-          <span class="stat-value" id="cost-total">--</span>
-          <span class="stat-label">Total Cost</span>
-        </div>
-        <div class="stat">
-          <span class="stat-value" id="cost-input">--</span>
-          <span class="stat-label">Input Tokens</span>
-        </div>
-        <div class="stat">
-          <span class="stat-value" id="cost-output">--</span>
-          <span class="stat-label">Output Tokens</span>
-        </div>
+    <!-- Jobs Tab -->
+    <div class="tab-pane" id="tab-jobs">
+      <div class="panel-grid">
+        <section id="jobs-panel" class="panel panel-full">
+          <h2>Active Jobs</h2>
+          <div id="jobs-list" class="scrollable"></div>
+        </section>
       </div>
-      <div id="cost-breakdown" class="scrollable" style="margin-top:8px"></div>
-    </section>
+    </div>
+
   </main>
 
   <script src="/app.js"></script>

@@ -15,6 +15,9 @@ data/
 # OAuth tokens — sensitive, managed separately
 *.bak
 
+# Worktrees (job isolation)
+.worktrees/
+
 # Build artifacts
 dist/
 .next/

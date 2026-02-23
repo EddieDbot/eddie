@@ -1,9 +1,12 @@
 import { config } from "../config.ts";
 import { resolve } from "node:path";
 import { mkdir, readdir } from "node:fs/promises";
+import { logger } from "../utils/logger.ts";
 import { buildMemoryContext } from "../memory/context.ts";
 import { getJobEnvUnsetArgs } from "../claude/env.ts";
 import { buildBriefing, parseRawTask } from "./briefing.ts";
+import { detectJobType, resolveJobSettings } from "./settings.ts";
+import { createWorktree, shouldUseWorktree } from "./worktree.ts";
 import type { Job } from "./types.ts";
 
 const PROJECT_ROOT = resolve(import.meta.dir, "../..");
@@ -112,6 +115,9 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
     "",
     "## Output",
     "Write a clear summary of what you did and what's left. Update the project state file.",
+    "",
+    "## Progress Tracking",
+    "Emit STEP:N:name markers in output to track progress (e.g. STEP:1:fetch-data). On error: STEP_ERROR:N:name:message. When complete: STEP_COMPLETE.",
   ].join("\n");
 
   const parts = [structuredBriefing, base];
@@ -128,6 +134,20 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
 
 export async function spawnJob(job: Job): Promise<void> {
   await mkdir(JOBS_DIR, { recursive: true }).catch(() => {});
+
+  // Optionally create an isolated worktree for code-modification jobs
+  let worktreeResult: { path: string; branch: string } | undefined;
+  if (shouldUseWorktree(job.prompt, job.tmuxSession)) {
+    try {
+      worktreeResult = await createWorktree(job.id);
+    } catch (err) {
+      logger.warn("jobs:worktree-skip", {
+        id: job.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  const jobWorkdir = worktreeResult?.path ?? PROJECT_ROOT;
 
   const promptFile = resolve(JOBS_DIR, `job-${job.id}-prompt.txt`);
   const outputFile = resolve(JOBS_DIR, `job-${job.id}-output.txt`);
@@ -166,10 +186,13 @@ env ${envUnset} ${config.KIMI_PATH} "$PROMPT" 2>&1 | tee -a "${outputFile}"
     const escapedSystem = systemPrompt
       .replace(/\\/g, "\\\\")
       .replace(/'/g, "'\\''");
+    const jobType = detectJobType(job.prompt, job.tmuxSession);
+    const settingsPath = resolveJobSettings({ jobType });
+    const settingsArg = settingsPath ? `--settings "${settingsPath}"` : "";
     runnerScript = `#!/bin/bash
 PROMPT='${escapedPrompt}'
 SYSTEM='${escapedSystem}'
-timeout --foreground ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$PROMPT" --output-format text --model claude-sonnet-4-6 --dangerously-skip-permissions --append-system-prompt "$SYSTEM" 2>&1 | tee -a "${outputFile}"
+timeout --foreground ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$PROMPT" --output-format text --model claude-sonnet-4-6 --dangerously-skip-permissions ${settingsArg} --append-system-prompt "$SYSTEM" 2>&1 | tee -a "${outputFile}"
 `;
   }
 
@@ -182,10 +205,15 @@ timeout --foreground ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$P
     "-s",
     job.tmuxSession,
     "-c",
-    PROJECT_ROOT,
+    jobWorkdir,
     `bash "${runnerFile}"`,
   ]);
   await proc.exited;
+
+  if (worktreeResult) {
+    const { updateJob } = await import("./manager.ts");
+    updateJob(job.id, { worktreePath: worktreeResult.path }).catch(() => {});
+  }
 }
 
 export async function isSessionAlive(sessionName: string): Promise<boolean> {
@@ -248,6 +276,10 @@ export async function detectZombieProcess(sessionName: string): Promise<{
   pid?: number;
   state?: string;
 }> {
+  // Zombie threshold: 2-minute grace period before checking (see poll.ts ZOMBIE_THRESHOLD_MS)
+  // Detection: any T* (stopped) state in process tree = zombie
+  // Common cause: SIGTTOU from missing --foreground on timeout (now fixed)
+
   // Step 1: get the tmux pane PID
   const paneProc = Bun.spawn(
     [config.TMUX_PATH, "list-panes", "-t", sessionName, "-F", "#{pane_pid}"],
@@ -296,4 +328,25 @@ export async function detectZombieProcess(sessionName: string): Promise<{
   }
 
   return { zombie: false };
+}
+
+export async function capturePane(
+  sessionName: string,
+  lines = 200,
+): Promise<string> {
+  const proc = Bun.spawn(
+    [
+      config.TMUX_PATH,
+      "capture-pane",
+      "-p",
+      "-t",
+      sessionName,
+      "-S",
+      `-${lines}`,
+    ],
+    { stdout: "pipe", stderr: "ignore" },
+  );
+  const out = await new Response(proc.stdout).text();
+  await proc.exited;
+  return out.trim();
 }

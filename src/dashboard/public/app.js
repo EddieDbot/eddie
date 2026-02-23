@@ -201,6 +201,339 @@ async function refreshCost() {
   }
 }
 
+// Tab switching
+function switchTab(tabId) {
+  document
+    .querySelectorAll(".tab-pane")
+    .forEach((p) => p.classList.remove("active"));
+  document
+    .querySelectorAll(".tab-btn")
+    .forEach((b) => b.classList.remove("active"));
+  const pane = document.getElementById("tab-" + tabId);
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+  if (pane) pane.classList.add("active");
+  if (btn) btn.classList.add("active");
+  localStorage.setItem("eddie-tab", tabId);
+}
+
+const savedTab = localStorage.getItem("eddie-tab") || "reports";
+switchTab(savedTab);
+
+document.querySelectorAll(".tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+});
+
+let selectedReport = null;
+let activeReportsTab = "ingestion";
+let selectedRoadmapId = null;
+let _reportsCache = [];
+let _roadmapCache = [];
+
+function renderMarkdown(md) {
+  // Escape HTML first
+  let html = md
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  // Triple-backtick code blocks
+  html = html.replace(
+    /```(?:\w+)?\n([\s\S]*?)```/g,
+    (_, code) => `<pre><code>${code}</code></pre>`,
+  );
+
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+  // Headers
+  html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+  html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
+  html = html.replace(/^# (.+)$/gm, "<h1>$1</h1>");
+
+  // Horizontal rule
+  html = html.replace(/^---$/gm, "<hr>");
+
+  // Bold
+  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+
+  // Links
+  html = html.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener">$1</a>',
+  );
+
+  // Lists — convert consecutive "- " lines into <ul>
+  html = html.replace(/((?:^- .+\n?)+)/gm, (block) => {
+    const items = block
+      .trim()
+      .split("\n")
+      .map((l) => `<li>${l.replace(/^- /, "")}</li>`)
+      .join("");
+    return `<ul>${items}</ul>\n`;
+  });
+
+  // Paragraphs — split on double newlines, wrap non-block elements
+  const blockTags = /^<(h[1-3]|ul|pre|hr)/;
+  html = html
+    .split(/\n{2,}/)
+    .map((chunk) => {
+      chunk = chunk.trim();
+      if (!chunk) return "";
+      if (blockTags.test(chunk)) return chunk;
+      return `<p>${chunk.replace(/\n/g, " ")}</p>`;
+    })
+    .join("\n");
+
+  return html;
+}
+
+async function refreshReports() {
+  const data = await fetchJson("/api/reports");
+  if (!data || !Array.isArray(data)) return;
+  _reportsCache = data;
+  if (activeReportsTab === "ingestion") renderReportsSidebar(data);
+}
+
+function renderReportsSidebar(data) {
+  const sidebar = $("reports-sidebar");
+  if (!data.length) {
+    sidebar.innerHTML = '<div class="empty">No reports yet</div>';
+    return;
+  }
+  sidebar.innerHTML = data
+    .map((r) => {
+      const newCount = r.verdicts?.NET_NEW ?? 0;
+      const impCount = r.verdicts?.IMPROVE ?? 0;
+      const badges = [
+        newCount > 0
+          ? `<span class="report-badge-new">${newCount} NEW</span>`
+          : "",
+        impCount > 0
+          ? `<span class="report-badge-improve">${impCount} IMP</span>`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const route = r.routedTo
+        ? `<span class="report-route">${escapeHtml(r.routedTo)}</span>`
+        : "";
+      const active = selectedReport === r.filename ? " active" : "";
+      return `<div class="report-item${active}" data-filename="${escapeHtml(r.filename)}">
+      <div class="report-title">${escapeHtml(r.title)}</div>
+      <div class="report-meta">
+        <span class="report-date">${escapeHtml(r.date)}</span>
+        ${route}
+        ${badges}
+      </div>
+    </div>`;
+    })
+    .join("");
+}
+
+async function loadReport(filename) {
+  selectedReport = filename;
+  // Toggle active class immediately
+  document.querySelectorAll(".report-item").forEach((el) => {
+    el.classList.toggle("active", el.dataset.filename === filename);
+  });
+  const viewer = $("reports-viewer");
+  viewer.innerHTML = '<div class="reports-placeholder">Loading...</div>';
+  const data = await fetchJson(`/api/report/${encodeURIComponent(filename)}`);
+  if (!data || data.error) {
+    viewer.innerHTML =
+      '<div class="reports-placeholder">Failed to load report</div>';
+    return;
+  }
+  viewer.innerHTML = `<div class="md-content">${renderMarkdown(data.content)}</div>`;
+}
+
+async function refreshRoadmap() {
+  const data = await fetchJson("/api/roadmap");
+  if (!data || !Array.isArray(data)) return;
+  _roadmapCache = data;
+  if (activeReportsTab === "roadmap") renderRoadmapSidebar(data);
+}
+
+function renderRoadmapSidebar(items) {
+  const sidebar = $("reports-sidebar");
+  const pending = items.filter((i) => i.status === "pending");
+  if (!pending.length) {
+    sidebar.innerHTML = '<div class="empty">No roadmap items</div>';
+    return;
+  }
+  const groups = {};
+  for (const item of pending) {
+    (groups[item.domain] = groups[item.domain] || []).push(item);
+  }
+  const effortOrder = { S: 0, M: 1, L: 2, XL: 3 };
+  const effortLabel = { S: "🟢 S", M: "🟡 M", L: "🟠 L", XL: "🔴 XL" };
+  let html = "";
+  for (const [domain, domainItems] of Object.entries(groups)) {
+    const sorted = domainItems
+      .slice()
+      .sort((a, b) =>
+        b.impact !== a.impact
+          ? b.impact - a.impact
+          : (effortOrder[a.effort] ?? 3) - (effortOrder[b.effort] ?? 3),
+      );
+    html += `<div class="roadmap-group">
+      <div class="roadmap-group-header">${escapeHtml(domain)} <span class="roadmap-count">${sorted.length}</span></div>
+      ${sorted
+        .map((item) => {
+          const active = selectedRoadmapId === item.id ? " active" : "";
+          const typeBadge =
+            item.type === "NET_NEW"
+              ? '<span class="badge-type-new">🆕 NEW</span>'
+              : '<span class="badge-type-improve">🔼 IMP</span>';
+          const effortBadge = `<span class="badge-effort-${item.effort.toLowerCase()}">${effortLabel[item.effort] || item.effort}</span>`;
+          const impactBadge = `<span class="badge-impact">★ ${item.impact}/5</span>`;
+          return `<div class="roadmap-item${active}" data-item-id="${escapeHtml(item.id)}">
+          <div class="roadmap-item-name">${escapeHtml(item.name)}</div>
+          <div class="roadmap-item-meta">${typeBadge}${effortBadge}${impactBadge}</div>
+        </div>`;
+        })
+        .join("")}
+    </div>`;
+  }
+  sidebar.innerHTML = html;
+}
+
+function showRoadmapItem(id) {
+  const item = _roadmapCache.find((i) => i.id === id);
+  if (!item) return;
+  selectedRoadmapId = id;
+  document.querySelectorAll(".roadmap-item").forEach((el) => {
+    el.classList.toggle("active", el.dataset.itemId === id);
+  });
+  const effortEmoji = { S: "🟢", M: "🟡", L: "🟠", XL: "🔴" };
+  const effortDesc = {
+    S: "Small (<1 hr)",
+    M: "Medium (1–4 hrs)",
+    L: "Large (~1 day)",
+    XL: "XL (multi-day)",
+  };
+  const typeBadge =
+    item.type === "NET_NEW"
+      ? '<span class="badge-type-new badge-effort-full">🆕 NET_NEW</span>'
+      : '<span class="badge-type-improve badge-effort-full">🔼 IMPROVE</span>';
+  const effortBadge = `<span class="badge-effort-${item.effort.toLowerCase()} badge-effort-full">${effortEmoji[item.effort] || ""} ${effortDesc[item.effort] || item.effort}</span>`;
+  const impactBadge = `<span class="badge-impact-full">Impact ${item.impact}/5</span>`;
+  const domainTag = `<span style="font-size:0.72rem;color:#8892b0">${escapeHtml(item.domain)}</span>`;
+  const sources = item.sources?.length
+    ? `<div class="roadmap-detail-sources">Sources: ${item.sources
+        .map(
+          (s) =>
+            `<a href="https://youtube.com/watch?v=${escapeHtml(s)}" target="_blank" rel="noopener">${escapeHtml(s)}</a>`,
+        )
+        .join(", ")}</div>`
+    : "";
+  $("reports-viewer").innerHTML = `<div class="roadmap-detail">
+    <div class="roadmap-detail-name">${escapeHtml(item.name)}</div>
+    <div class="roadmap-detail-meta">${typeBadge}${effortBadge}${impactBadge}${domainTag}</div>
+    ${item.description ? `<div class="roadmap-detail-desc">${escapeHtml(item.description)}</div>` : ""}
+    ${sources}
+  </div>`;
+}
+
+function switchReportsTab(rtab) {
+  activeReportsTab = rtab;
+  document.querySelectorAll(".reports-subtab").forEach((b) => {
+    b.classList.toggle("active", b.dataset.rtab === rtab);
+  });
+  $("reports-viewer").innerHTML =
+    '<div class="reports-placeholder">Select an item to view</div>';
+  if (rtab === "ingestion") {
+    renderReportsSidebar(_reportsCache);
+  } else {
+    renderRoadmapSidebar(_roadmapCache);
+  }
+}
+
+document.querySelectorAll(".reports-subtab").forEach((btn) => {
+  btn.addEventListener("click", () => switchReportsTab(btn.dataset.rtab));
+});
+
+document
+  .querySelector('.reports-subtab[data-rtab="ingestion"]')
+  ?.classList.add("active");
+
+$("reports-sidebar").addEventListener("click", (e) => {
+  const reportItem = e.target.closest(".report-item");
+  if (reportItem && reportItem.dataset.filename) {
+    loadReport(reportItem.dataset.filename);
+    return;
+  }
+  const roadmapItem = e.target.closest(".roadmap-item");
+  if (roadmapItem && roadmapItem.dataset.itemId) {
+    showRoadmapItem(roadmapItem.dataset.itemId);
+  }
+});
+
+async function refreshNeedsAttention() {
+  try {
+    const data = await fetchJson("/api/needs-attention");
+    if (!data) return;
+    const count = data.total || 0;
+    const badge = $("attention-count");
+    if (badge) badge.textContent = count > 0 ? String(count) : "";
+
+    const failedDiv = $("attention-failed-jobs");
+    if (failedDiv) {
+      if (data.failedJobs?.length) {
+        failedDiv.innerHTML =
+          "<strong>Failed jobs (48h):</strong><ul>" +
+          data.failedJobs
+            .map(
+              (j) =>
+                `<li>${j.id.slice(0, 8)} — ${escapeHtml(j.prompt?.slice(0, 60) || "unknown")}${j.error ? ` (${escapeHtml(j.error.slice(0, 60))})` : ""}</li>`,
+            )
+            .join("") +
+          "</ul>";
+      } else {
+        failedDiv.innerHTML = "";
+      }
+    }
+
+    const judgDiv = $("attention-judgments");
+    if (judgDiv) {
+      if (data.pendingJudgments?.length) {
+        judgDiv.innerHTML =
+          "<strong>Pending judgments:</strong><ul>" +
+          data.pendingJudgments
+            .map(
+              (j) =>
+                `<li>[${j.confidence}%] ${escapeHtml(j.source)}: ${escapeHtml(j.decision?.slice(0, 80) || "")} <code>/approve ${j.id.slice(0, 8)}</code></li>`,
+            )
+            .join("") +
+          "</ul>";
+      } else {
+        judgDiv.innerHTML = "";
+      }
+    }
+  } catch (e) {
+    // silent fail
+  }
+}
+
+async function refreshHealthIndicators() {
+  try {
+    const data = await fetchJson("/api/health-indicators");
+    if (!data) return;
+    const div = $("health-indicators");
+    if (!div) return;
+    div.innerHTML = [
+      `<div class="stat"><span class="stat-value">${data.jobSuccessRate ?? "?"}%</span><span class="stat-label">Job Success</span></div>`,
+      `<div class="stat"><span class="stat-value">${data.totalJobs7d ?? 0}</span><span class="stat-label">Total Jobs</span></div>`,
+      `<div class="stat"><span class="stat-value">${data.selfHealRate ?? "?"}/100</span><span class="stat-label">Heal Rate</span></div>`,
+      `<div class="stat"><span class="stat-value">${data.selfHealSuccessRate ?? "?"}%</span><span class="stat-label">Heal Success</span></div>`,
+      `<div class="stat"><span class="stat-value">${data.avgJobDurationMs ? Math.round(data.avgJobDurationMs / 60000) + "m" : "?"}</span><span class="stat-label">Avg Duration</span></div>`,
+      `<div class="stat"><span class="stat-value">${data.escalationCount7d ?? 0}</span><span class="stat-label">Escalations</span></div>`,
+    ].join("");
+  } catch (e) {
+    // silent fail
+  }
+}
+
 async function refresh() {
   await Promise.all([
     refreshHealth(),
@@ -212,6 +545,10 @@ async function refresh() {
     refreshJobs(),
     refreshMetrics(),
     refreshCost(),
+    refreshReports(),
+    refreshRoadmap(),
+    refreshNeedsAttention(),
+    refreshHealthIndicators(),
   ]);
 }
 

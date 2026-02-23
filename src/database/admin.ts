@@ -218,9 +218,12 @@ export async function ensureMigrations(): Promise<void> {
       ALTER TABLE inbox DISABLE ROW LEVEL SECURITY;
 
       CREATE TABLE IF NOT EXISTS comms_sync_state (
-        channel text PRIMARY KEY,
-        cursor text NOT NULL,
-        last_polled_at timestamptz DEFAULT now()
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        channel text NOT NULL,
+        external_id text NOT NULL,
+        metadata jsonb,
+        created_at timestamptz DEFAULT now(),
+        UNIQUE (channel, external_id)
       );
 
       CREATE TABLE IF NOT EXISTS comms_notifications (
@@ -256,6 +259,96 @@ export async function ensureMigrations(): Promise<void> {
     logger.info("db:migrate:self-heal-log");
   } catch (err) {
     logger.warn("db:migrate:self-heal-log-skip", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Step error columns on jobs table
+  try {
+    await runSQL(`
+      ALTER TABLE jobs ADD COLUMN IF NOT EXISTS step_errors jsonb;
+      ALTER TABLE jobs ADD COLUMN IF NOT EXISTS last_step int;
+      ALTER TABLE jobs ADD COLUMN IF NOT EXISTS last_step_name text;
+    `);
+    logger.info("db:migrate:job-step-columns");
+  } catch (err) {
+    logger.warn("db:migrate:job-step-columns-skip", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Worktree path column on jobs table
+  try {
+    await runSQL(
+      `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS worktree_path text;`,
+    );
+    logger.info("db:migrate:job-worktree-path");
+  } catch (err) {
+    logger.warn("db:migrate:job-worktree-path-skip", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Artifact check column on jobs table
+  try {
+    await runSQL(
+      `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS artifact_check jsonb;`,
+    );
+    logger.info("db:migrate:job-artifact-check");
+  } catch (err) {
+    logger.warn("db:migrate:job-artifact-check-skip", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Human judgment table for confidence-gated decisions
+  try {
+    await runSQL(`
+      CREATE TABLE IF NOT EXISTS human_judgment (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        source text NOT NULL,
+        original_decision text NOT NULL,
+        confidence int NOT NULL,
+        human_decision text,
+        feedback text,
+        payload jsonb,
+        status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected','modified')),
+        created_at timestamptz DEFAULT now(),
+        resolved_at timestamptz
+      );
+      CREATE INDEX IF NOT EXISTS idx_human_judgment_status ON human_judgment (status, created_at DESC);
+    `);
+    logger.info("db:migrate:human-judgment");
+  } catch (err) {
+    logger.warn("db:migrate:human-judgment-skip", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Pillar ratings and non-negotiables tables
+  try {
+    await runSQL(`
+      CREATE TABLE IF NOT EXISTS pillar_ratings (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        pillar text NOT NULL,
+        score int NOT NULL CHECK (score BETWEEN 1 AND 10),
+        note text,
+        rated_date date NOT NULL DEFAULT CURRENT_DATE,
+        created_at timestamptz DEFAULT now(),
+        UNIQUE (pillar, rated_date)
+      );
+      CREATE TABLE IF NOT EXISTS non_negotiables (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        name text NOT NULL,
+        completed boolean NOT NULL DEFAULT false,
+        check_date date NOT NULL DEFAULT CURRENT_DATE,
+        created_at timestamptz DEFAULT now(),
+        UNIQUE (name, check_date)
+      );
+    `);
+    logger.info("db:migrate:pillar-tables");
+  } catch (err) {
+    logger.warn("db:migrate:pillar-tables-skip", {
       error: err instanceof Error ? err.message : String(err),
     });
   }

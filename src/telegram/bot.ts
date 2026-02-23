@@ -30,6 +30,14 @@ import {
   handleDrive,
   handleSlack,
   handlePlaylist,
+  handlePlanReports,
+  handleApprove,
+  handleReject,
+  handleRate,
+  handleNonNeg,
+  handlePillars,
+  handleReview,
+  handleAlign,
 } from "./handlers/command.ts";
 import { handleText } from "./handlers/text.ts";
 import { handleVoice } from "./handlers/voice.ts";
@@ -70,6 +78,14 @@ export function createBot(): Bot {
   bot.command("drive", (context) => handleDrive(context));
   bot.command("slack", (context) => handleSlack(context));
   bot.command("playlist", (context) => handlePlaylist(context));
+  bot.command("planreports", (context) => handlePlanReports(context));
+  bot.command("approve", (context) => handleApprove(context));
+  bot.command("reject", (context) => handleReject(context));
+  bot.command("rate", (context) => handleRate(context));
+  bot.command("nonneg", (context) => handleNonNeg(context));
+  bot.command("pillars", (context) => handlePillars(context));
+  bot.command("review", (context) => handleReview(context));
+  bot.command("align", (context) => handleAlign(context));
 
   bot.on("message", (context) => {
     if (context.voice) return handleVoice(context);

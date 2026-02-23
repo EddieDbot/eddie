@@ -90,6 +90,37 @@ export function startDashboard(): void {
         }
       }
 
+      // Slack slash commands
+      if (url.pathname === "/slack/command" && req.method === "POST") {
+        const rawBody = await req.text();
+        const signature = req.headers.get("x-slack-signature") ?? "";
+        const timestamp = req.headers.get("x-slack-request-timestamp") ?? "";
+        const signingSecret = config.SLACK_SIGNING_SECRET ?? "";
+
+        if (signingSecret) {
+          const { verifySlackSignature } =
+            await import("../comms/slack/commands.ts");
+          if (
+            !verifySlackSignature(signingSecret, signature, timestamp, rawBody)
+          ) {
+            return Response.json(
+              { error: "Invalid signature" },
+              { status: 401 },
+            );
+          }
+        }
+
+        const body = Object.fromEntries(new URLSearchParams(rawBody));
+        const command = body.command ?? "";
+        const text = body.text ?? "";
+        const userId = body.user_id ?? "";
+
+        const { handleSlackCommand } =
+          await import("../comms/slack/commands.ts");
+        const result = await handleSlackCommand(command, text, userId);
+        return Response.json(result);
+      }
+
       if (url.pathname.startsWith("/api/")) return handleApi(url.pathname);
       return serveStatic(url.pathname);
     },

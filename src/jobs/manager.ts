@@ -23,6 +23,12 @@ function rowToJob(row: Record<string, unknown>): Job {
     timeoutMs: (row.timeout_ms as number | null) ?? undefined,
     outcome: (row.outcome as string | null) ?? undefined,
     outcomeSummary: (row.outcome_summary as string | null) ?? undefined,
+    stepErrors: (row.step_errors as Job["stepErrors"]) ?? undefined,
+    lastStep: (row.last_step as number | null) ?? undefined,
+    lastStepName: (row.last_step_name as string | null) ?? undefined,
+    worktreePath: (row.worktree_path as string | null) ?? undefined,
+    artifactCheck:
+      (row.artifact_check as Record<string, unknown> | null) ?? undefined,
   };
 }
 
@@ -45,6 +51,11 @@ function jobToRow(
   if (job.outcome !== undefined) row.outcome = job.outcome;
   if (job.outcomeSummary !== undefined)
     row.outcome_summary = job.outcomeSummary;
+  if (job.stepErrors !== undefined) row.step_errors = job.stepErrors;
+  if (job.lastStep !== undefined) row.last_step = job.lastStep;
+  if (job.lastStepName !== undefined) row.last_step_name = job.lastStepName;
+  if (job.worktreePath !== undefined) row.worktree_path = job.worktreePath;
+  if (job.artifactCheck !== undefined) row.artifact_check = job.artifactCheck;
   return row;
 }
 

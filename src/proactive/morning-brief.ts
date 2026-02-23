@@ -128,6 +128,35 @@ async function getUpcomingCrons(): Promise<string> {
   }
 }
 
+async function getPillarSummary(): Promise<string> {
+  try {
+    const { getTodayRatings, getTodayNonNegs, getStreaks } =
+      await import("./pillars.ts");
+    const [ratings, nonNegs, streaks] = await Promise.all([
+      getTodayRatings(),
+      getTodayNonNegs(),
+      getStreaks(),
+    ]);
+    if (ratings.length === 0 && nonNegs.length === 0) return "";
+    const lines: string[] = [];
+    if (ratings.length > 0) {
+      ratings.forEach((r) => lines.push(`- ${r.pillar}: ${r.score}/10`));
+    }
+    if (nonNegs.length > 0) {
+      nonNegs.forEach((item) => {
+        const streak = streaks.get(item.name) ?? 0;
+        const check = item.completed ? "✓" : "○";
+        lines.push(
+          `- ${check} ${item.name}${streak > 1 ? ` (${streak}d)` : ""}`,
+        );
+      });
+    }
+    return lines.join("\n");
+  } catch {
+    return "";
+  }
+}
+
 async function generateBrief(context: string): Promise<string> {
   if (!config.ANTHROPIC_API_KEY) return context;
 
@@ -169,13 +198,15 @@ export async function runMorningBrief(bot: Bot): Promise<void> {
     day: "numeric",
   });
 
-  const [goals, activity, crons, usageStats, inbox] = await Promise.all([
-    getActiveGoals(),
-    getYesterdayActivity(),
-    getUpcomingCrons(),
-    getYesterdayUsageStats().catch(() => ""),
-    getInboxSummary(),
-  ]);
+  const [goals, activity, crons, usageStats, inbox, pillarData] =
+    await Promise.all([
+      getActiveGoals(),
+      getYesterdayActivity(),
+      getUpcomingCrons(),
+      getYesterdayUsageStats().catch(() => ""),
+      getInboxSummary(),
+      getPillarSummary().catch(() => ""),
+    ]);
 
   const context = [
     `Good morning! It's ${now}.`,
@@ -190,6 +221,7 @@ export async function runMorningBrief(bot: Bot): Promise<void> {
     crons,
     inbox ? `\n## Inbox\n${inbox}` : "",
     usageStats ? `\n## Claude Usage (Yesterday)\n${usageStats}` : "",
+    pillarData ? `\n## Yesterday's Pillars\n${pillarData}` : "",
   ]
     .filter(Boolean)
     .join("\n");

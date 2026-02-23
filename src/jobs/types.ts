@@ -1,6 +1,15 @@
 export type JobStatus = "running" | "completed" | "failed" | "killed";
 export type ModelId = "claude" | "kimi";
 
+export type StepError = {
+  jobId: string;
+  step: number;
+  stepName: string;
+  error: string;
+  timestamp: string;
+  outputSnippet?: string;
+};
+
 export type Job = {
   id: string;
   model: ModelId;
@@ -13,6 +22,11 @@ export type Job = {
   durationMs?: number;
   error?: string;
   timeoutMs?: number;
-  outcome?: string; // auto-assessed on completion: "success" | "partial" | "failed"
-  outcomeSummary?: string; // one-line haiku assessment of what was accomplished
+  outcome?: string;
+  outcomeSummary?: string;
+  stepErrors?: StepError[];
+  lastStep?: number;
+  lastStepName?: string;
+  worktreePath?: string;
+  artifactCheck?: Record<string, unknown>;
 };

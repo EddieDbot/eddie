@@ -7,6 +7,7 @@ import { logCommunication } from "../memory/store.ts";
 import { initiateCall } from "../voice/call.ts";
 import { logger } from "../utils/logger.ts";
 import { emitEvent } from "../dashboard/server.ts";
+import { parseConfidence } from "./confidence.ts";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
 import { readdir } from "node:fs/promises";
@@ -298,7 +299,7 @@ async function buildHeartbeatContext(): Promise<string> {
 }
 
 export function parseResponse(text: string): HeartbeatDecision {
-  const trimmed = text.trim();
+  const { text: trimmed } = parseConfidence(text.trim());
   if (trimmed === "HEARTBEAT_OK" || trimmed.startsWith("HEARTBEAT_OK")) {
     return { action: "ok" };
   }

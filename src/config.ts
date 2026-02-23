@@ -92,6 +92,7 @@ const envSchema = z.object({
   COMMS_SLACK_BOT_TOKEN: z.string().optional(),
   COMMS_SLACK_WATCH_CHANNELS: z.string().optional(), // comma-separated channel IDs
   SLACK_OWNER_USER_ID: z.string().optional(), // Nicholas's Slack user ID for @mention detection
+  SLACK_SIGNING_SECRET: z.string().optional(), // Slack app signing secret for request verification
   COMMS_WHATSAPP_BRIDGE_URL: z.string().optional(),
   COMMS_WHATSAPP_TOKEN: z.string().optional(),
   ICLOUD_EMAIL: z.string().optional(),
@@ -104,6 +105,14 @@ const envSchema = z.object({
   SELF_HEAL_ENABLED: z
     .preprocess((v) => String(v ?? "false") === "true", z.boolean())
     .default(false),
+  DAILY_BRIEF_ENABLED: z
+    .preprocess((v) => String(v ?? "false") === "true", z.boolean())
+    .default(false),
+  DAILY_BRIEF_INTERVAL_MS: z.coerce.number().default(10_800_000),
+  MEET_INGEST_ENABLED: z
+    .preprocess((v) => String(v ?? "false") === "true", z.boolean())
+    .default(false),
+  MEET_INGEST_TIME: z.string().default("21:00"),
 });
 
 export type Config = z.infer<typeof envSchema>;

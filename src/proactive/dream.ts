@@ -4,6 +4,7 @@ import { storeFact } from "../memory/store.ts";
 import { searchMemory } from "../memory/search.ts";
 import { logger } from "../utils/logger.ts";
 import { resolve } from "node:path";
+import { readdir, stat, rename, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 
 const BRAIN_VAULT = resolve(homedir(), "brain-vault");
@@ -125,6 +126,58 @@ async function cleanStaleHourlyFacts(): Promise<void> {
   }
 }
 
+async function rotateArchives(): Promise<void> {
+  try {
+    const dirs = await readdir(BRAIN_VAULT);
+    for (const dir of dirs) {
+      const dirPath = resolve(BRAIN_VAULT, dir);
+      const stats = await stat(dirPath);
+      if (!stats.isDirectory()) continue;
+
+      if (
+        dir.startsWith(".") ||
+        dir === "00 - Inbox" ||
+        dir === "90 - Agent Memory"
+      )
+        continue;
+
+      const archivePath = resolve(dirPath, "_archive");
+      try {
+        const archiveStats = await stat(archivePath);
+        if (!archiveStats.isDirectory()) continue;
+
+        const archiveDirs = await readdir(archivePath);
+        const now = Date.now();
+        for (const archiveDir of archiveDirs) {
+          const archiveDirPath = resolve(archivePath, archiveDir);
+          const archiveDirStats = await stat(archiveDirPath);
+          if (!archiveDirStats.isDirectory()) continue;
+
+          const ageMs = now - archiveDirStats.mtime.getTime();
+          const ageDays = ageMs / (24 * 60 * 60 * 1000);
+          if (ageDays > 90) {
+            const timestamp = archiveDirStats.mtime.toISOString().split("T")[0];
+            const movedName = `${timestamp}-${archiveDir}`;
+            await rename(archiveDirPath, resolve(archivePath, movedName));
+            logger.info("dream:archive-rotated", {
+              dir,
+              archiveDir,
+              movedName,
+              ageDays: Math.round(ageDays),
+            });
+          }
+        }
+      } catch {
+        // No archive dir, skip
+      }
+    }
+  } catch (err) {
+    logger.warn("dream:archive-rotation-failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 async function writeJournal(
   date: string,
   conversations: string,
@@ -179,6 +232,33 @@ export async function runDreamCycle(): Promise<void> {
   const date = new Date().toISOString().split("T")[0]!;
   await writeJournal(date, conversations, insights, novel);
   await cleanStaleHourlyFacts();
+
+  // Archive old daily brief files (> 7 days)
+  try {
+    const stateDir = resolve(BRAIN_VAULT, "90 - Agent Memory/State");
+    const archiveDir = resolve(BRAIN_VAULT, "90 - Agent Memory/_archive");
+    await mkdir(archiveDir, { recursive: true });
+
+    const files = await readdir(stateDir);
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    for (const file of files) {
+      if (!file.startsWith("daily-brief-")) continue;
+      const filePath = resolve(stateDir, file);
+      const info = await stat(filePath);
+      if (info.mtimeMs < sevenDaysAgo) {
+        await rename(filePath, resolve(archiveDir, file));
+        logger.info("dream:archived-brief", { file });
+      }
+    }
+  } catch (err) {
+    logger.warn("dream:archive-error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Rotate project archives
+  await rotateArchives();
 
   logger.info("dream:cycle-done", {
     total: insights.length,
