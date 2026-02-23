@@ -200,10 +200,14 @@ async function timeoutJob(
   logger.info("jobs:timed-out", { id: jobId, elapsedMin });
   emitEvent("job:timed-out", { id: jobId, elapsedMin });
 
+  // Extract job name from prompt
+  const jobName =
+    (job?.prompt ?? "").split("\n")[0].slice(0, 50).trim() || "unnamed";
+
   try {
     await bot.api.sendMessage({
       chat_id: config.OWNER_TELEGRAM_ID,
-      text: `Job #${jobId} timed out after ${elapsedMin}m and was killed.`,
+      text: `#${jobName} timed out after ${elapsedMin}m and was killed.`,
     });
   } catch (err) {
     logger.error("jobs:notify-error", {
@@ -288,7 +292,12 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
       : outcome === "partial"
         ? "⚠ partial"
         : "✗ failed";
-  const text = `Job #${jobId} done (${durationSec}s) ${outcomeTag}${summary ? `\n${summary}` : ""}`;
+
+  // Extract job name from prompt (first 50 chars or until newline)
+  const prompt = job?.prompt ?? "";
+  const jobName = prompt.split("\n")[0].slice(0, 50).trim() || "unnamed";
+
+  const text = `#${jobName} done (${durationSec}s) ${outcomeTag}${summary ? `\n${summary}` : ""}`;
   try {
     await bot.api.sendMessage({ chat_id: config.OWNER_TELEGRAM_ID, text });
   } catch (err) {

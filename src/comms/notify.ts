@@ -26,7 +26,17 @@ export function initNotifier(bot: Bot): void {
 
 export function queueNotification(items: InboxItem[]): void {
   if (!config.COMMS_NOTIFY_ENABLED) return;
-  pendingItems.push(...items);
+  // Filter out non-urgent emails (gmail channel only, skip routine notifications)
+  const filtered = items.filter((item) => {
+    if (item.channel !== "gmail") return true; // Keep all non-gmail
+    // Skip gmail unless it has urgent keywords
+    const text = (item.subject + " " + item.preview).toLowerCase();
+    return /urgent|asap|important|action required|immediate|critical/i.test(
+      text,
+    );
+  });
+  if (filtered.length === 0) return;
+  pendingItems.push(...filtered);
   if (pendingItems.length >= MAX_BATCH_SIZE) {
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = null;
@@ -53,13 +63,17 @@ async function flush(): Promise<void> {
   for (const [channel, channelItems] of byChannel) {
     const label = CHANNEL_LABELS[channel] ?? channel;
     const lines = channelItems.slice(0, 5).map((item) => {
-      const from = item.from.length > 40 ? item.from.slice(0, 40) + "…" : item.from;
+      const from =
+        item.from.length > 40 ? item.from.slice(0, 40) + "…" : item.from;
       const subj = item.subject ? ` — ${item.subject.slice(0, 60)}` : "";
       const preview = item.preview.slice(0, 100);
       return `  From: ${from}${subj}\n  ${preview}`;
     });
-    const extra = channelItems.length > 5 ? `\n  (+${channelItems.length - 5} more)` : "";
-    sections.push(`${label} (${channelItems.length} new):\n${lines.join("\n\n")}${extra}`);
+    const extra =
+      channelItems.length > 5 ? `\n  (+${channelItems.length - 5} more)` : "";
+    sections.push(
+      `${label} (${channelItems.length} new):\n${lines.join("\n\n")}${extra}`,
+    );
   }
 
   const text = sections.join("\n\n─────────────\n\n");
