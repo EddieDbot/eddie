@@ -353,6 +353,27 @@ export async function ensureMigrations(): Promise<void> {
     });
   }
 
+  // Goals table
+  try {
+    await runSQL(`
+      CREATE TABLE IF NOT EXISTS goals (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        title text NOT NULL,
+        description text,
+        status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'paused')),
+        created_at timestamptz DEFAULT now(),
+        completed_at timestamptz
+      );
+      CREATE INDEX IF NOT EXISTS idx_goals_status ON goals (status);
+      ALTER TABLE goals DISABLE ROW LEVEL SECURITY;
+    `);
+    logger.info("db:migrate:goals");
+  } catch (err) {
+    logger.warn("db:migrate:goals-skip", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   // Revenue entries table
   try {
     await runSQL(`

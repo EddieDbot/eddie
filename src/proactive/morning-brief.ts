@@ -128,6 +128,17 @@ async function getUpcomingCrons(): Promise<string> {
   }
 }
 
+async function getRevenueSnapshot(): Promise<string> {
+  try {
+    const { getRevenueSummary } = await import("./revenue.ts");
+    const summary = await getRevenueSummary();
+    if (summary.totalMRR === 0 && summary.entries.length === 0) return "";
+    return `$${summary.totalMRR.toFixed(2)}`;
+  } catch {
+    return "";
+  }
+}
+
 async function getYoutubeSnapshot(): Promise<string> {
   const channelId = config.YOUTUBE_CHANNEL_ID;
   if (!channelId || !config.GOOGLE_API_KEY) return "";
@@ -211,16 +222,25 @@ export async function runMorningBrief(bot: Bot): Promise<void> {
     day: "numeric",
   });
 
-  const [goals, activity, crons, usageStats, inbox, pillarData, youtube] =
-    await Promise.all([
-      getActiveGoals(),
-      getYesterdayActivity(),
-      getUpcomingCrons(),
-      getYesterdayUsageStats().catch(() => ""),
-      getInboxSummary(),
-      getPillarSummary().catch(() => ""),
-      getYoutubeSnapshot().catch(() => ""),
-    ]);
+  const [
+    goals,
+    activity,
+    crons,
+    usageStats,
+    inbox,
+    pillarData,
+    youtube,
+    revenue,
+  ] = await Promise.all([
+    getActiveGoals(),
+    getYesterdayActivity(),
+    getUpcomingCrons(),
+    getYesterdayUsageStats().catch(() => ""),
+    getInboxSummary(),
+    getPillarSummary().catch(() => ""),
+    getYoutubeSnapshot().catch(() => ""),
+    getRevenueSnapshot().catch(() => ""),
+  ]);
 
   const context = [
     `Good morning! It's ${now}.`,
@@ -237,6 +257,7 @@ export async function runMorningBrief(bot: Bot): Promise<void> {
     usageStats ? `\n## Claude Usage (Yesterday)\n${usageStats}` : "",
     pillarData ? `\n## Yesterday's Pillars\n${pillarData}` : "",
     youtube ? `\n## YouTube\n${youtube}` : "",
+    revenue ? `\n## Revenue (30d)\n${revenue}` : "",
     // News: requires NEWSAPI_KEY — placeholder, won't crash if not set
     // TODO: add news section when NEWSAPI_KEY is configured
   ]

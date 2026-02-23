@@ -535,6 +535,101 @@ async function refreshHealthIndicators() {
   }
 }
 
+function formatNumber(n) {
+  const num = parseInt(n) || 0;
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  return num.toString();
+}
+
+async function refreshYoutube() {
+  try {
+    const data = await fetchJson("/api/youtube");
+    if (!data) return;
+    if (data.error) {
+      $("youtube-stats").innerHTML =
+        `<p class="empty">${escapeHtml(data.error)}</p>`;
+      return;
+    }
+    if (data.stats) {
+      $("yt-subs").textContent = formatNumber(data.stats.subscriberCount);
+      $("yt-views").textContent = formatNumber(data.stats.viewCount);
+      $("yt-videos").textContent = data.stats.videoCount;
+    }
+    if (data.videos?.length > 0) {
+      $("recent-videos").innerHTML = data.videos
+        .slice(0, 3)
+        .map(
+          (v) =>
+            `<div class="item">
+          <div>${escapeHtml(v.title)}</div>
+          <div class="item-meta">${formatNumber(v.viewCount)} views &middot; ${formatTime(v.publishedAt)}</div>
+        </div>`,
+        )
+        .join("");
+    }
+  } catch (e) {
+    // silent fail
+  }
+}
+
+async function refreshGoals() {
+  try {
+    const data = await fetchJson("/api/goals");
+    if (!data) return;
+    const goals = data.goals ?? [];
+    if (goals.length === 0) {
+      $("goals-list").innerHTML = '<div class="empty">No active goals</div>';
+      return;
+    }
+    $("goals-list").innerHTML = goals
+      .map(
+        (g) =>
+          `<div class="item">
+        <div>${escapeHtml(g.title)}</div>
+        ${g.description ? `<div class="item-meta">${escapeHtml(g.description)}</div>` : ""}
+      </div>`,
+      )
+      .join("");
+  } catch (e) {
+    // silent fail
+  }
+}
+
+async function refreshRevenue() {
+  try {
+    const data = await fetchJson("/api/revenue");
+    if (!data) return;
+    if (data.error) {
+      const panel = $("revenue-panel");
+      if (panel)
+        panel.querySelector(".stats-grid").innerHTML =
+          `<p class="empty">${escapeHtml(data.error)}</p>`;
+      return;
+    }
+    $("rev-mrr").textContent = "$" + (data.totalMRR || 0).toFixed(2);
+    $("rev-total").textContent = "$" + (data.totalAllTime || 0).toFixed(2);
+    const entries = data.entries ?? [];
+    if (entries.length > 0) {
+      $("revenue-entries").innerHTML = entries
+        .slice(0, 5)
+        .map(
+          (e) =>
+            `<div class="item">
+          <div>${escapeHtml(e.source)}</div>
+          <div class="item-meta">$${parseFloat(e.amount).toFixed(2)} &mdash; ${escapeHtml(e.date)}</div>
+        </div>`,
+        )
+        .join("");
+    } else {
+      $("revenue-entries").innerHTML =
+        '<div class="empty">No entries yet. Use /revenue add to log income.</div>';
+    }
+  } catch (e) {
+    // silent fail
+  }
+}
+
 async function refresh() {
   await Promise.all([
     refreshHealth(),
@@ -550,6 +645,9 @@ async function refresh() {
     refreshRoadmap(),
     refreshNeedsAttention(),
     refreshHealthIndicators(),
+    refreshYoutube(),
+    refreshGoals(),
+    refreshRevenue(),
   ]);
 }
 

@@ -2,6 +2,10 @@ import { memoryEnabled, getSupabase } from "../memory/client.ts";
 import { getRecentJobs } from "../jobs/manager.ts";
 import { listReportsMeta, getReportContent } from "../proactive/playlist.ts";
 import { parseRoadmapItems } from "../proactive/report-synthesis.ts";
+import { getChannelStats, getRecentVideos } from "../comms/youtube.ts";
+import { listGoals } from "../proactive/goals.ts";
+import { getRevenueSummary } from "../proactive/revenue.ts";
+import { config } from "../config.ts";
 
 const startTime = Date.now();
 
@@ -44,6 +48,12 @@ export function handleApi(path: string): Response {
       return handleAsync(getHealthIndicators);
     case "/api/roadmap":
       return handleAsync(getRoadmap);
+    case "/api/youtube":
+      return handleAsync(getYoutubeStats);
+    case "/api/goals":
+      return handleAsync(getGoals);
+    case "/api/revenue":
+      return handleAsync(getRevenueSummary);
     default: {
       if (path === "/api/reports") {
         return handleAsync(listReportsMeta);
@@ -423,5 +433,24 @@ async function getRoadmap() {
     return items;
   } catch {
     return [];
+  }
+}
+
+async function getYoutubeStats() {
+  const channelId = config.YOUTUBE_CHANNEL_ID;
+  if (!channelId) return { error: "YOUTUBE_CHANNEL_ID not configured" };
+  const [stats, videos] = await Promise.all([
+    getChannelStats(channelId),
+    getRecentVideos(channelId, 5),
+  ]);
+  return { stats, videos };
+}
+
+async function getGoals() {
+  try {
+    const goals = await listGoals("active");
+    return { goals };
+  } catch (e) {
+    return { error: String(e) };
   }
 }

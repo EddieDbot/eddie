@@ -15,6 +15,7 @@
   <nav class="tab-nav">
     <button class="tab-btn" data-tab="reports">Reports</button>
     <button class="tab-btn" data-tab="metrics">Metrics</button>
+    <button class="tab-btn" data-tab="command">Command</button>
     <button class="tab-btn" data-tab="memory">Memory</button>
     <button class="tab-btn" data-tab="jobs">Jobs</button>
   </nav>
@@ -132,6 +133,52 @@
           <h2>Live Feed</h2>
           <div id="feed-list" class="scrollable"></div>
         </section>
+      </div>
+    </div>
+
+    <!-- Command Center Tab -->
+    <div class="tab-pane" id="tab-command">
+      <div class="panel-grid">
+
+        <section id="youtube-panel" class="panel">
+          <h2>YouTube</h2>
+          <div id="youtube-stats" class="stats-grid">
+            <div class="stat">
+              <span class="stat-value" id="yt-subs">—</span>
+              <span class="stat-label">Subscribers</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="yt-views">—</span>
+              <span class="stat-label">Total Views</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="yt-videos">—</span>
+              <span class="stat-label">Videos</span>
+            </div>
+          </div>
+          <div id="recent-videos" class="scrollable" style="margin-top:1rem"></div>
+        </section>
+
+        <section id="goals-panel" class="panel">
+          <h2>Active Goals</h2>
+          <div id="goals-list" class="scrollable">Loading...</div>
+        </section>
+
+        <section id="revenue-panel" class="panel">
+          <h2>Revenue</h2>
+          <div class="stats-grid">
+            <div class="stat">
+              <span class="stat-value" id="rev-mrr">—</span>
+              <span class="stat-label">Last 30 Days</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="rev-total">—</span>
+              <span class="stat-label">All Time</span>
+            </div>
+          </div>
+          <div id="revenue-entries" class="scrollable" style="margin-top:1rem"></div>
+        </section>
+
       </div>
     </div>
 
