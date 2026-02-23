@@ -171,7 +171,57 @@ export async function runConsolidation(): Promise<void> {
     );
   }
 
+  // Push codebase snapshot to GitHub
+  await gitPush();
+
   logger.info("consolidate:done");
+}
+
+async function gitPush(): Promise<void> {
+  try {
+    const { spawnSync } = await import("bun");
+    const status = spawnSync(
+      ["git", "-C", "/home/na/eddie", "status", "--porcelain"],
+      {
+        stdout: "pipe",
+      },
+    );
+    const dirty = status.stdout?.toString().trim();
+    if (!dirty) {
+      logger.debug("consolidate:git-push-skip", {
+        reason: "nothing to commit",
+      });
+      return;
+    }
+    spawnSync(["git", "-C", "/home/na/eddie", "add", "-A"]);
+    const now = new Date().toISOString().slice(0, 16).replace("T", " ");
+    spawnSync([
+      "git",
+      "-C",
+      "/home/na/eddie",
+      "commit",
+      "-m",
+      `chore: auto-snapshot ${now}`,
+    ]);
+    const push = spawnSync(
+      ["git", "-C", "/home/na/eddie", "push", "origin", "main"],
+      {
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    if (push.exitCode === 0) {
+      logger.info("consolidate:git-pushed");
+    } else {
+      logger.warn("consolidate:git-push-failed", {
+        error: push.stderr?.toString().trim(),
+      });
+    }
+  } catch (err) {
+    logger.warn("consolidate:git-push-error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 export function startConsolidation(): void {

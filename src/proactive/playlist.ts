@@ -55,7 +55,9 @@ async function loadProcessed(): Promise<Set<string>> {
 
 async function markProcessed(videoId: string, title: string): Promise<void> {
   const entry = `${videoId}|${title}|${new Date().toISOString()}\n`;
-  const existing = await Bun.file(PROCESSED_LOG).text().catch(() => "");
+  const existing = await Bun.file(PROCESSED_LOG)
+    .text()
+    .catch(() => "");
   await Bun.write(PROCESSED_LOG, existing + entry);
 }
 
@@ -214,19 +216,36 @@ Write to: ${reportPath}
 ### SKIP (N)
 - **[Idea]** — [reason]
 
-## Routing Suggestion
-Where the transcript-ingester routed this (project + confidence score).
-If Nicholas approves: transcript stays in that project's folder.
-If Nicholas archives: move ${rawPath} to ${UNUSED_DIR}/
+## Routing Decision
+**Project routed to:** [project slug the transcript-ingester chose]
+**Confidence:** [score]
+**Action taken:** [ROUTED | ARCHIVED]
 
 ## Summary
 Overall value of this video. Top 1–2 actionable picks.
 \`\`\`
 
-## Step 6: Final Output
+## Step 6: Auto-Route the Raw Transcript
+
+Based on the transcript-ingester's routing decision and confidence score:
+
+- **Score ≥ 50:** Move the raw transcript file from the bucket to the matched project:
+  \`\`\`bash
+  mv "${rawPath}" "${BRAIN_VAULT}/10 - Projects/[project-slug]/notes/transcripts/[filename]"
+  \`\`\`
+  Create the destination directory first if it doesn't exist (mkdir -p).
+
+- **Score < 50 or no clear match:** Move to unused archive:
+  \`\`\`bash
+  mv "${rawPath}" "${UNUSED_DIR}/[filename]"
+  \`\`\`
+
+Record what you did in the "Routing Decision" section of the report.
+
+## Step 7: Final Output
 
 End your response with this exact line:
-PLAYLIST_REPORT: ${title} | net_new=N | improve=N | in_backlog=N | have_it=N | skip=N | ${reportPath}
+PLAYLIST_REPORT: ${title} | net_new=N | improve=N | in_backlog=N | have_it=N | skip=N | routed=[project or archived] | ${reportPath}
 `;
 }
 
@@ -256,7 +275,10 @@ export async function checkPlaylists(): Promise<{
   for (const playlist of enabled) {
     const playlistId = extractPlaylistId(playlist.url);
     if (!playlistId) {
-      logger.warn("playlist:invalid-url", { name: playlist.name, url: playlist.url });
+      logger.warn("playlist:invalid-url", {
+        name: playlist.name,
+        url: playlist.url,
+      });
       continue;
     }
 
@@ -273,7 +295,12 @@ export async function checkPlaylists(): Promise<{
       // Mark processed immediately — prevents double-spawn if job fails partway
       await markProcessed(item.videoId, item.title);
 
-      const prompt = buildJobPrompt(item.videoId, item.title, playlist.name, playlist.url);
+      const prompt = buildJobPrompt(
+        item.videoId,
+        item.title,
+        playlist.name,
+        playlist.url,
+      );
       const job = await createJob("claude", prompt);
       await spawnJob(job);
       spawned++;
@@ -293,14 +320,17 @@ export async function checkPlaylists(): Promise<{
 export async function routeTranscript(
   videoId: string,
   projectSlug: string,
-): Promise<{ ok: boolean; from: string; to: string } | { ok: false; error: string }> {
+): Promise<
+  { ok: boolean; from: string; to: string } | { ok: false; error: string }
+> {
   try {
     const { readdir } = await import("node:fs/promises");
     const { rename, mkdir } = await import("node:fs/promises");
 
     const files = await readdir(RAW_BUCKET);
     const match = files.find((f) => f.includes(videoId));
-    if (!match) return { ok: false, error: `No raw transcript found for ${videoId}` };
+    if (!match)
+      return { ok: false, error: `No raw transcript found for ${videoId}` };
 
     const from = `${RAW_BUCKET}/${match}`;
     const destDir = `${BRAIN_VAULT}/10 - Projects/${projectSlug}/notes/transcripts`;
@@ -322,7 +352,8 @@ export async function archiveTranscript(
 
     const files = await readdir(RAW_BUCKET);
     const match = files.find((f) => f.includes(videoId));
-    if (!match) return { ok: false, error: `No raw transcript found for ${videoId}` };
+    if (!match)
+      return { ok: false, error: `No raw transcript found for ${videoId}` };
 
     await mkdir(UNUSED_DIR, { recursive: true });
     const from = `${RAW_BUCKET}/${match}`;
@@ -334,7 +365,9 @@ export async function archiveTranscript(
   }
 }
 
-export async function listBucket(): Promise<Array<{ videoId: string; filename: string }>> {
+export async function listBucket(): Promise<
+  Array<{ videoId: string; filename: string }>
+> {
   try {
     const { readdir } = await import("node:fs/promises");
     const files = await readdir(RAW_BUCKET);
@@ -360,7 +393,9 @@ export async function loadPlaylistsConfig(): Promise<PlaylistsConfig> {
   }
 }
 
-export async function savePlaylistsConfig(data: PlaylistsConfig): Promise<void> {
+export async function savePlaylistsConfig(
+  data: PlaylistsConfig,
+): Promise<void> {
   await Bun.write(PLAYLISTS_CONFIG, JSON.stringify(data, null, 2));
 }
 
@@ -379,7 +414,9 @@ export async function getRecentReports(
     const reports: Array<{ name: string; path: string; summary: string }> = [];
     for (const file of playlistFiles) {
       const path = `${PLANS_DIR}/${file}`;
-      const content = await Bun.file(path).text().catch(() => "");
+      const content = await Bun.file(path)
+        .text()
+        .catch(() => "");
       const titleMatch = content.match(/^# Playlist Ingestion: (.+)$/m);
       const title = titleMatch ? titleMatch[1]! : file;
       const summaryMatch = content.match(/## Summary\n([\s\S]+?)(?:\n##|$)/);
@@ -411,7 +448,9 @@ export function startPlaylistWatcher(bot: Bot): void {
   setTimeout(() => {
     checkPlaylists().catch((err) => logger.error("playlist:check-error", err));
     setInterval(() => {
-      checkPlaylists().catch((err) => logger.error("playlist:check-error", err));
+      checkPlaylists().catch((err) =>
+        logger.error("playlist:check-error", err),
+      );
     }, 3_600_000);
   }, msUntilNextHour);
 }
