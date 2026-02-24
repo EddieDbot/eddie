@@ -150,6 +150,9 @@ const envSchema = z.object({
   MIGRATIONS_AUTO_APPLY: z
     .preprocess((v) => String(v ?? "false") === "true", z.boolean())
     .default(false),
+  CONTEXT_DRIFT_ENABLED: z.coerce.boolean().default(false),
+  CONTEXT_DRIFT_THRESHOLD: z.coerce.number().default(0.1),
+  CONTEXT_DRIFT_MIN_SAMPLE: z.coerce.number().int().default(10),
 });
 
 export type Config = z.infer<typeof envSchema>;

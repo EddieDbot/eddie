@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import type { Bot } from "gramio";
 import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
+import { checkContextDrift } from "./context-drift.ts";
 
 const HOME = homedir();
 const INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
@@ -250,6 +251,12 @@ async function runCheck(bot: Bot): Promise<void> {
         bot,
       );
     }
+  }
+
+  if (config.CONTEXT_DRIFT_ENABLED) {
+    await checkContextDrift(bot).catch((err) =>
+      logger.warn("health:context-drift-error", { error: String(err) }),
+    );
   }
 }
 

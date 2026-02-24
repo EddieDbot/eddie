@@ -32,6 +32,7 @@ function rowToJob(row: Record<string, unknown>): Job {
     parallelGroupId: (row.parallel_group_id as string | null) ?? undefined,
     parallelRole:
       (row.parallel_role as "primary" | "specialist" | null) ?? undefined,
+    systemPromptHash: (row.system_prompt_hash as string | null) ?? undefined,
   };
 }
 
@@ -62,6 +63,8 @@ function jobToRow(
   if (job.parallelGroupId !== undefined)
     row.parallel_group_id = job.parallelGroupId;
   if (job.parallelRole !== undefined) row.parallel_role = job.parallelRole;
+  if (job.systemPromptHash !== undefined)
+    row.system_prompt_hash = job.systemPromptHash;
   return row;
 }
 

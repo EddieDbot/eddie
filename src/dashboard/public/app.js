@@ -630,6 +630,72 @@ async function refreshRevenue() {
   }
 }
 
+function fmtDuration(ms) {
+  if (!ms) return "—";
+  const s = ms / 1000;
+  if (s >= 60) return (s / 60).toFixed(1) + "m";
+  return s.toFixed(1) + "s";
+}
+
+function rateClass(rate) {
+  if (rate >= 0.9) return "rate-good";
+  if (rate >= 0.7) return "rate-warn";
+  return "rate-bad";
+}
+
+function trendArrow(rate7d, rate30d) {
+  if (rate7d > rate30d) return '<span class="trend-up">↑</span>';
+  if (rate7d < rate30d) return '<span class="trend-down">↓</span>';
+  return '<span class="trend-flat">→</span>';
+}
+
+async function refreshJobPerformance() {
+  try {
+    const data = await fetchJson("/api/job-performance");
+    if (!data) return;
+    const el = $("job-perf-content");
+    if (!el) return;
+
+    const rows = [...(data.models ?? [])];
+    const totals = data.totals ?? {};
+
+    const renderRow = (r, isTotal) => {
+      const label = isTotal
+        ? `<strong>All Models</strong>`
+        : escapeHtml(r.model);
+      const rc = rateClass(r.successRate7d ?? 0);
+      const arrow = trendArrow(r.successRate7d ?? 0, r.successRate30d ?? 0);
+      return `<tr>
+        <td>${label}</td>
+        <td>${r.count7d ?? 0}</td>
+        <td>${r.count30d ?? 0}</td>
+        <td><span class="${rc}">${((r.successRate7d ?? 0) * 100).toFixed(0)}%</span> ${arrow}</td>
+        <td>${fmtDuration(r.avgDurationMs7d)}</td>
+        <td>${fmtDuration(r.maxDurationMs7d)}</td>
+      </tr>`;
+    };
+
+    el.innerHTML = `<table class="perf-table">
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>7d Jobs</th>
+          <th>30d Jobs</th>
+          <th>Success Rate (7d)</th>
+          <th>Avg Duration (7d)</th>
+          <th>Max Duration (7d)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((r) => renderRow(r, false)).join("")}
+        ${rows.length > 0 ? renderRow({ ...totals, maxDurationMs7d: undefined }, true) : ""}
+      </tbody>
+    </table>`;
+  } catch (e) {
+    // silent fail
+  }
+}
+
 async function refresh() {
   await Promise.all([
     refreshHealth(),
@@ -648,6 +714,7 @@ async function refresh() {
     refreshYoutube(),
     refreshGoals(),
     refreshRevenue(),
+    refreshJobPerformance(),
   ]);
 }
 

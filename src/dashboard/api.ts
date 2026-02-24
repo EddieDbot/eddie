@@ -56,6 +56,8 @@ export function handleApi(path: string): Response {
       return handleAsync(getRevenueSummary);
     case "/api/books":
       return handleAsync(getBooks);
+    case "/api/job-performance":
+      return handleAsync(getJobPerformance);
     default: {
       if (path === "/api/reports") {
         return handleAsync(listReportsMeta);
@@ -454,6 +456,93 @@ async function getGoals() {
     return { goals };
   } catch (e) {
     return { error: String(e) };
+  }
+}
+
+async function getJobPerformance() {
+  if (!memoryEnabled)
+    return {
+      models: [],
+      totals: {
+        count7d: 0,
+        count30d: 0,
+        successRate7d: 0,
+        successRate30d: 0,
+        avgDurationMs7d: 0,
+      },
+    };
+  try {
+    const now = Date.now();
+    const ago30d = new Date(now - 30 * 24 * 60 * 60 * 1000);
+    const ago7d = new Date(now - 7 * 24 * 60 * 60 * 1000);
+
+    const { data } = await getSupabase()
+      .from("jobs")
+      .select("model,status,duration_ms,started_at")
+      .gte("started_at", ago30d.toISOString());
+
+    const rows = data ?? [];
+
+    const byModel: Record<string, typeof rows> = {};
+    for (const row of rows) {
+      const m = row.model ?? "unknown";
+      (byModel[m] = byModel[m] ?? []).push(row);
+    }
+
+    const computeStats = (items: typeof rows, cutoff: Date) => {
+      const window = items.filter((r) => new Date(r.started_at) >= cutoff);
+      const count = window.length;
+      const successful = window.filter((r) => r.status === "completed").length;
+      const successRate = count > 0 ? successful / count : 0;
+      const durations = window
+        .map((r) => r.duration_ms)
+        .filter((d): d is number => d != null);
+      const avgDurationMs =
+        durations.length > 0
+          ? durations.reduce((a, b) => a + b, 0) / durations.length
+          : 0;
+      const maxDurationMs = durations.length > 0 ? Math.max(...durations) : 0;
+      return { count, successRate, avgDurationMs, maxDurationMs };
+    };
+
+    const models = Object.entries(byModel)
+      .map(([model, items]) => {
+        const s7 = computeStats(items, ago7d);
+        const s30 = computeStats(items, ago30d);
+        return {
+          model,
+          count7d: s7.count,
+          count30d: s30.count,
+          successRate7d: s7.successRate,
+          successRate30d: s30.successRate,
+          avgDurationMs7d: s7.avgDurationMs,
+          maxDurationMs7d: s7.maxDurationMs,
+        };
+      })
+      .sort((a, b) => b.count30d - a.count30d);
+
+    const allS7 = computeStats(rows, ago7d);
+    const allS30 = computeStats(rows, ago30d);
+    const totals = {
+      count7d: allS7.count,
+      count30d: allS30.count,
+      successRate7d: allS7.successRate,
+      successRate30d: allS30.successRate,
+      avgDurationMs7d: allS7.avgDurationMs,
+    };
+
+    return { models, totals };
+  } catch {
+    return {
+      models: [],
+      totals: {
+        count7d: 0,
+        count30d: 0,
+        successRate7d: 0,
+        successRate30d: 0,
+        avgDurationMs7d: 0,
+      },
+    };
   }
 }
 

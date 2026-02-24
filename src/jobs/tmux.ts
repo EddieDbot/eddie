@@ -82,7 +82,9 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
   const [memCtx, relevantProjects, visionCtx] = await Promise.all([
     buildMemoryContext(prompt).catch(() => ""),
     findRelevantProjects(prompt),
-    config.VISION_ENABLED ? getCondensedVision().catch(() => "") : Promise.resolve(""),
+    config.VISION_ENABLED
+      ? getCondensedVision().catch(() => "")
+      : Promise.resolve(""),
   ]);
 
   // Load full state + CLAUDE.md for each matched project
@@ -180,43 +182,58 @@ async function buildRunnerScript(
   timeoutSec: number,
   envUnset: string,
   escapedPrompt: string,
-): Promise<string> {
+): Promise<{ script: string; systemPromptHash: string }> {
   if (job.model === "kimi") {
-    return `#!/bin/bash
+    return {
+      script: `#!/bin/bash
 PROMPT='${escapedPrompt}'
 env ${envUnset} ${config.KIMI_PATH} "$PROMPT" 2>&1 | tee -a "${outputFile}"
-`;
+`,
+      systemPromptHash: "",
+    };
   }
 
   if (job.model === "gemini") {
-    return `#!/bin/bash
+    return {
+      script: `#!/bin/bash
 PROMPT='${escapedPrompt}'
 timeout --foreground ${timeoutSec}s ${config.GEMINI_PATH} "$PROMPT" 2>&1 | tee -a "${outputFile}"
-`;
+`,
+      systemPromptHash: "",
+    };
   }
 
   if (job.model === "codex") {
-    return `#!/bin/bash
+    return {
+      script: `#!/bin/bash
 PROMPT='${escapedPrompt}'
 timeout --foreground ${timeoutSec}s env ${envUnset} ${config.CODEX_PATH} --approval-mode full-auto --skip-git-repo-check "$PROMPT" 2>&1 | tee -a "${outputFile}"
-`;
+`,
+      systemPromptHash: "",
+    };
   }
 
   // Default: claude with system prompt
   const systemPrompt = await buildJobSystemPrompt(job.prompt);
   const systemFile = resolve(JOBS_DIR, `job-${job.id}-system.txt`);
   await Bun.write(systemFile, systemPrompt);
+  const hasher = new Bun.CryptoHasher("sha256");
+  hasher.update(systemPrompt);
+  const systemPromptHash = hasher.digest("hex");
   const escapedSystem = systemPrompt
     .replace(/\\/g, "\\\\")
     .replace(/'/g, "'\\''");
   const jobType = detectJobType(job.prompt, job.tmuxSession);
   const settingsPath = resolveJobSettings({ jobType });
   const settingsArg = settingsPath ? `--settings "${settingsPath}"` : "";
-  return `#!/bin/bash
+  return {
+    script: `#!/bin/bash
 PROMPT='${escapedPrompt}'
 SYSTEM='${escapedSystem}'
 timeout --foreground ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$PROMPT" --output-format text --model claude-sonnet-4-6 --dangerously-skip-permissions ${settingsArg} --append-system-prompt "$SYSTEM" 2>&1 | tee -a "${outputFile}"
-`;
+`,
+    systemPromptHash,
+  };
 }
 
 export async function spawnJob(job: Job): Promise<void> {
@@ -260,7 +277,7 @@ export async function spawnJob(job: Job): Promise<void> {
     .replace(/\\/g, "\\\\")
     .replace(/'/g, "'\\''");
 
-  const runnerScript = await buildRunnerScript(
+  const { script: runnerScript, systemPromptHash } = await buildRunnerScript(
     job,
     outputFile,
     timeoutSec,
@@ -281,10 +298,18 @@ export async function spawnJob(job: Job): Promise<void> {
     `bash "${runnerFile}"`,
   ]);
   await proc.exited;
-  tickTool({ tool_type: "model", tool_name: job.model, job_id: job.id, context: "spawn" }).catch(() => {});
+  tickTool({
+    tool_type: "model",
+    tool_name: job.model,
+    job_id: job.id,
+    context: "spawn",
+  }).catch(() => {});
 
+  const { updateJob } = await import("./manager.ts");
+  if (systemPromptHash) {
+    updateJob(job.id, { systemPromptHash }).catch(() => {});
+  }
   if (worktreeResult) {
-    const { updateJob } = await import("./manager.ts");
     updateJob(job.id, { worktreePath: worktreeResult.path }).catch(() => {});
   }
 }

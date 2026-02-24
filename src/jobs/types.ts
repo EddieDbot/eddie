@@ -31,4 +31,5 @@ export type Job = {
   artifactCheck?: Record<string, unknown>;
   parallelGroupId?: string;
   parallelRole?: "primary" | "specialist";
+  systemPromptHash?: string;
 };

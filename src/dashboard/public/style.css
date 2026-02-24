@@ -522,6 +522,16 @@ main {
   letter-spacing: 0;
 }
 
+.perf-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.perf-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid #333; color: #aaa; font-weight: 500; }
+.perf-table td { padding: 5px 8px; border-bottom: 1px solid #222; }
+.rate-good { color: #4caf50; }
+.rate-warn { color: #ff9800; }
+.rate-bad { color: #f44336; }
+.trend-up { color: #4caf50; }
+.trend-down { color: #f44336; }
+.trend-flat { color: #888; }
+
 @media (max-width: 768px) {
   .panel-grid { grid-template-columns: 1fr; padding: 1rem; }
   header, .tab-nav { padding-left: 1rem; padding-right: 1rem; }
