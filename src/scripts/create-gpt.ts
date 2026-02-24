@@ -80,6 +80,66 @@ const VALID_CONTENT_TYPES: ContentType[] = [
   "database",
 ];
 
+type Capabilities = {
+  webBrowsing: boolean;
+  dalle: boolean;
+  codeInterpreter: boolean;
+};
+
+function buildStarters(contentType: ContentType, topic: string): string[] {
+  const t = topic || "this content";
+  const map: Record<ContentType, string[]> = {
+    book: [
+      `Help me start a 3-year business plan for my business`,
+      `Run the 3M Viability Check on my idea`,
+      `Walk me through the cash flow forecast section`,
+      `What are the critical traps I should watch for?`,
+    ],
+    transcript: [
+      `What's the single most important insight here?`,
+      `What are the most actionable takeaways?`,
+      `What's the most counterintuitive claim made?`,
+      `How does this connect to what I'm working on?`,
+    ],
+    tutorial: [
+      `I'm a beginner — where do I start?`,
+      `What are the most common mistakes to avoid?`,
+      `Give me a hands-on exercise to practice`,
+      `Explain the hardest concept using a simple analogy`,
+    ],
+    instructions: [
+      `I'm about to start — what do I need to know first?`,
+      `Walk me through it step by step`,
+      `What are the most common failure points?`,
+      `What do I do if something goes wrong at [step]?`,
+    ],
+    database: [
+      `What's in this knowledge base?`,
+      `Find everything related to [topic]`,
+      `What patterns do you see across the data?`,
+      `What's missing or anomalous here?`,
+    ],
+  };
+  return map[contentType] ?? [];
+}
+
+function buildCapabilities(contentType: ContentType): Capabilities {
+  const map: Record<ContentType, Capabilities> = {
+    book: { webBrowsing: false, dalle: false, codeInterpreter: true },
+    transcript: { webBrowsing: false, dalle: false, codeInterpreter: false },
+    tutorial: { webBrowsing: false, dalle: false, codeInterpreter: true },
+    instructions: { webBrowsing: false, dalle: false, codeInterpreter: false },
+    database: { webBrowsing: false, dalle: false, codeInterpreter: true },
+  };
+  return (
+    map[contentType] ?? {
+      webBrowsing: false,
+      dalle: false,
+      codeInterpreter: false,
+    }
+  );
+}
+
 function buildInstructions(
   name: string,
   contentType: ContentType,
@@ -314,6 +374,12 @@ const chunksDirPath = args["chunks-dir"];
 let instructions = instructionsFile
   ? fs.readFileSync(instructionsFile, "utf8").trim()
   : (args.instructions ?? "");
+let starters: string[] = [];
+let capabilities: Capabilities = {
+  webBrowsing: false,
+  dalle: false,
+  codeInterpreter: false,
+};
 
 // Build knowledge file(s) from chunks dir (for book type)
 let uploadFiles: string[] = args.file ? [args.file] : [];
@@ -396,6 +462,8 @@ if (!instructions && contentTypeArg) {
     summaryContent,
     summaryRaw: rawSummary,
   });
+  starters = buildStarters(contentTypeArg as ContentType, topic);
+  capabilities = buildCapabilities(contentTypeArg as ContentType);
   const GPT_INSTRUCTION_LIMIT = 8000;
   if (instructions.length > GPT_INSTRUCTION_LIMIT) {
     console.error(
@@ -594,7 +662,7 @@ async function createGPT(context: BrowserContext): Promise<string | null> {
     .locator('textarea[placeholder*="What does this GPT do"]')
     .fill(instructions);
 
-  // Upload knowledge file(s) sequentially
+  // Upload knowledge file(s) sequentially — wait proportional to file size for processing
   for (const filePath of uploadFiles) {
     console.log("Uploading file:", filePath);
     const uploadBtn = page
@@ -604,7 +672,57 @@ async function createGPT(context: BrowserContext): Promise<string | null> {
     await page.waitForTimeout(1000);
     const fileInput = page.locator('input[type="file"]').first();
     await fileInput.setInputFiles(filePath);
-    await page.waitForTimeout(5000);
+    // Scale wait by file size: 50ms/KB, min 10s, max 60s — ensures processing completes
+    const fileSizeKB = fs.statSync(filePath).size / 1024;
+    const waitMs = Math.max(10000, Math.min(fileSizeKB * 50, 60000));
+    console.log(
+      `  Waiting ${Math.round(waitMs / 1000)}s for upload to process...`,
+    );
+    await page.waitForTimeout(waitMs);
+  }
+
+  // Conversation starters
+  if (starters.length > 0) {
+    console.log("Filling conversation starters...");
+    for (let i = 0; i < starters.length; i++) {
+      const starterInput = page
+        .locator(
+          'input[placeholder*="conversation starter"], input[placeholder*="Message"]',
+        )
+        .nth(i);
+      if (await starterInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await starterInput.fill(starters[i]);
+        await starterInput.press("Tab");
+        await page.waitForTimeout(400);
+      }
+    }
+  }
+
+  // Capabilities (set desired state for each toggle)
+  const capabilityToggles: Array<[keyof Capabilities, RegExp]> = [
+    ["webBrowsing", /web browsing/i],
+    ["dalle", /dall.?e|image generation/i],
+    ["codeInterpreter", /code interpreter|data analysis/i],
+  ];
+  console.log("Configuring capabilities...");
+  for (const [capKey, labelRegex] of capabilityToggles) {
+    const desired = capabilities[capKey];
+    const toggle = page
+      .locator("label", { hasText: labelRegex })
+      .locator('input[type="checkbox"], input[role="switch"]')
+      .first()
+      .or(
+        page.locator('[role="switch"]').filter({ hasText: labelRegex }).first(),
+      );
+    if (await toggle.isVisible({ timeout: 2000 }).catch(() => false)) {
+      const isChecked = await toggle
+        .evaluate((el) => (el as HTMLInputElement).checked)
+        .catch(() => false);
+      if (isChecked !== desired) {
+        await toggle.click();
+        await page.waitForTimeout(300);
+      }
+    }
   }
 
   // Click Create (top-right)
