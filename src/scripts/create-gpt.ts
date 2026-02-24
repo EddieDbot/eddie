@@ -18,6 +18,7 @@ import { chromium, type BrowserContext, type Page } from "playwright";
 import { parseArgs } from "util";
 import * as fs from "fs";
 import * as path from "path";
+import * as readline from "readline";
 import { getAccessToken } from "../comms/google/auth.ts";
 
 const CHATGPT_COOKIES_PATH = path.join(
@@ -693,4 +694,84 @@ if (shareUrl) {
   console.log(
     "\n✓ GPT saved. Check https://chatgpt.com/gpts/mine for your new GPT.",
   );
+}
+
+// ─── Share prompt (interactive TTY only — skipped in background jobs) ──────────
+if (shareUrl && process.stdin.isTTY) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  await new Promise<void>((resolve) => {
+    rl.question(
+      "\nSend this to anyone? Enter Slack names/channels (comma-separated), or press Enter to skip: ",
+      async (answer) => {
+        rl.close();
+        const targets = answer
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+        if (targets.length === 0) {
+          resolve();
+          return;
+        }
+        const token = process.env.COMMS_SLACK_BOT_TOKEN;
+        if (!token) {
+          console.log("COMMS_SLACK_BOT_TOKEN not set — can't send via Slack.");
+          resolve();
+          return;
+        }
+        const message = `Here's the GPT I just built: *${name}*\n${shareUrl}`;
+        for (const target of targets) {
+          // Resolve @username → user DM channel
+          let channel = target.startsWith("#") ? target.slice(1) : target;
+          if (target.startsWith("@")) {
+            const username = target.slice(1);
+            const usersRes = await fetch(`https://slack.com/api/users.list`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const usersData = (await usersRes.json()) as {
+              members?: { id: string; name: string }[];
+            };
+            const user = usersData.members?.find(
+              (m) => m.name.toLowerCase() === username.toLowerCase(),
+            );
+            if (user) {
+              // Open DM
+              const dmRes = await fetch(
+                "https://slack.com/api/conversations.open",
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({ users: user.id }),
+                },
+              );
+              const dmData = (await dmRes.json()) as {
+                channel?: { id: string };
+              };
+              channel = dmData.channel?.id ?? channel;
+            }
+          }
+          const res = await fetch("https://slack.com/api/chat.postMessage", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ channel, text: message }),
+          });
+          const data = (await res.json()) as { ok: boolean; error?: string };
+          console.log(
+            data.ok
+              ? `  ✓ Sent to ${target}`
+              : `  ✗ Failed to send to ${target}: ${data.error}`,
+          );
+        }
+        resolve();
+      },
+    );
+  });
 }
