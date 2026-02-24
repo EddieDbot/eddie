@@ -101,9 +101,16 @@ export async function ensureMigrations(): Promise<void> {
           ALTER TABLE conversations ALTER COLUMN embedding TYPE vector(768) USING NULL::vector(768);
         EXCEPTION WHEN others THEN NULL;
         END;
+        -- Resize communication_log embedding
+        BEGIN
+          UPDATE communication_log SET embedding = NULL;
+          ALTER TABLE communication_log ALTER COLUMN embedding TYPE vector(768) USING NULL::vector(768);
+        EXCEPTION WHEN others THEN NULL;
+        END;
         -- Recreate indexes for 768-dim vectors
         EXECUTE 'CREATE INDEX IF NOT EXISTS idx_facts_embedding ON facts USING ivfflat (embedding vector_cosine_ops) WHERE embedding IS NOT NULL';
         EXECUTE 'CREATE INDEX IF NOT EXISTS idx_convos_embedding ON conversations USING ivfflat (embedding vector_cosine_ops) WHERE embedding IS NOT NULL';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_comms_embedding ON communication_log USING ivfflat (embedding vector_cosine_ops) WHERE embedding IS NOT NULL';
       END;
       $$;
     `);

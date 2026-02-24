@@ -44,6 +44,12 @@ if (config.DREAM_ENABLED) {
   startDreamCycle(bot, config.DREAM_TIME);
 }
 
+if (config.NIGHTLY_ORCHESTRATE_ENABLED) {
+  const { startNightlyOrchestrate } =
+    await import("./proactive/nightly-orchestrate.ts");
+  startNightlyOrchestrate(bot);
+}
+
 if (config.MORNING_BRIEF_ENABLED) {
   const { startMorningBrief } = await import("./proactive/morning-brief.ts");
   startMorningBrief(bot, config.MORNING_BRIEF_TIME);
@@ -73,6 +79,11 @@ if (config.DAILY_BRIEF_ENABLED) {
 if (config.MEET_INGEST_ENABLED) {
   const { startMeetIngestionCron } = await import("./proactive/meet-ingest.ts");
   startMeetIngestionCron();
+}
+
+if (config.BOOK_INGEST_ENABLED) {
+  const { startBookWatcher } = await import("./proactive/book-ingest.ts");
+  startBookWatcher(bot);
 }
 
 bot.api

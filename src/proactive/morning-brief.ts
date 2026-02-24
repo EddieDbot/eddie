@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+import { homedir } from "node:os";
 import type { Bot } from "gramio";
 import { config } from "../config.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
@@ -181,6 +183,18 @@ async function getPillarSummary(): Promise<string> {
   }
 }
 
+async function getWorldIndex(): Promise<string> {
+  try {
+    const indexPath = resolve(
+      homedir(),
+      "brain-vault/90 - Agent Memory/State/world-index.yaml",
+    );
+    return await Bun.file(indexPath).text();
+  } catch {
+    return "";
+  }
+}
+
 async function generateBrief(context: string): Promise<string> {
   if (!config.ANTHROPIC_API_KEY) return context;
 
@@ -231,6 +245,7 @@ export async function runMorningBrief(bot: Bot): Promise<void> {
     pillarData,
     youtube,
     revenue,
+    worldModel,
   ] = await Promise.all([
     getActiveGoals(),
     getYesterdayActivity(),
@@ -240,6 +255,7 @@ export async function runMorningBrief(bot: Bot): Promise<void> {
     getPillarSummary().catch(() => ""),
     getYoutubeSnapshot().catch(() => ""),
     getRevenueSnapshot().catch(() => ""),
+    getWorldIndex().catch(() => ""),
   ]);
 
   const context = [
@@ -258,6 +274,7 @@ export async function runMorningBrief(bot: Bot): Promise<void> {
     pillarData ? `\n## Yesterday's Pillars\n${pillarData}` : "",
     youtube ? `\n## YouTube\n${youtube}` : "",
     revenue ? `\n## Revenue (30d)\n${revenue}` : "",
+    worldModel ? `\n## Project Pulse\n${worldModel}` : "",
     // News: requires NEWSAPI_KEY — placeholder, won't crash if not set
     // TODO: add news section when NEWSAPI_KEY is configured
   ]

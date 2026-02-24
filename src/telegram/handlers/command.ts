@@ -538,7 +538,7 @@ export async function handleRestart(context: MessageContext): Promise<void> {
  * Use at end of sessions where Nicholas and Eddie worked together on a specific project.
  */
 export async function handleCollabLog(context: MessageContext): Promise<void> {
-  const args = context.text?.replace(/^\/collab-log\s*/, "").trim() ?? "";
+  const args = context.text?.replace(/^\/collab[_-]log\s*/, "").trim() ?? "";
   const spaceIdx = args.indexOf(" ");
   if (!args || spaceIdx === -1) {
     await context.send(
@@ -1222,6 +1222,176 @@ export async function handleRevenue(context: MessageContext): Promise<void> {
     }
   } catch (e) {
     await context.send(`Error: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+// ── Books ─────────────────────────────────────────────────────────────
+export async function handleBook(context: MessageContext): Promise<void> {
+  const text = context.text?.replace(/^\/book\s*/, "").trim() ?? "";
+  const parts = text.split(/\s+/);
+  const sub = parts[0]?.toLowerCase();
+
+  if (!sub || sub === "help") {
+    await context.send(
+      "/book commands:\n" +
+        '  /book find "Title" "Author" — search + download + ingest\n' +
+        "  /book ingest <path> — ingest a local file\n" +
+        "  /book inbox — list unprocessed books in inbox\n",
+    );
+    return;
+  }
+
+  if (sub === "inbox") {
+    const { readdir } = await import("node:fs/promises");
+    const { homedir } = await import("node:os");
+    const rawDir = `${homedir()}/brain-vault/00 - Inbox/books/_raw`;
+    try {
+      const files = await readdir(rawDir);
+      const books = files.filter((f) => /\.(pdf|epub|txt)$/i.test(f));
+      if (books.length === 0) {
+        await context.send("No books in inbox.");
+      } else {
+        await context.send(
+          `Books in inbox (${books.length}):\n` +
+            books.map((f) => `  • ${f}`).join("\n"),
+        );
+      }
+    } catch {
+      await context.send("Inbox not found or empty.");
+    }
+    return;
+  }
+
+  if (sub === "ingest") {
+    const bookPath = parts
+      .slice(1)
+      .join(" ")
+      .replace(/^["']|["']$/g, "");
+    if (!bookPath) {
+      await context.send("Usage: /book ingest <path>");
+      return;
+    }
+    const { ingestBook } = await import("../../proactive/book-ingest.ts");
+    try {
+      const { jobId, session } = await ingestBook(bookPath);
+      await context.send(
+        `Book ingestion started.\nJob: ${jobId.slice(0, 8)}\nSession: ${session}`,
+      );
+    } catch (err) {
+      await context.send(`Error: ${String(err)}`);
+    }
+    return;
+  }
+
+  if (sub === "find") {
+    const remaining = parts.slice(1).join(" ");
+    const quoted = [...remaining.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
+    let title: string;
+    let author: string | undefined;
+    if (quoted.length >= 1) {
+      title = quoted[0]!;
+      author = quoted[1];
+    } else {
+      title = parts[1] ?? "";
+      author = parts.slice(2).join(" ") || undefined;
+    }
+    if (!title) {
+      await context.send('Usage: /book find "Title" "Author"');
+      return;
+    }
+    await context.send(
+      `Searching for: ${title}${author ? ` by ${author}` : ""}...`,
+    );
+    const { findBook, ingestBook } =
+      await import("../../proactive/book-ingest.ts");
+    try {
+      const result = await findBook(title, author);
+      if (result.found && result.download_path) {
+        await context.send(
+          `Found! Source: ${result.source}\nFormat: ${result.format}\nStarting ingestion...`,
+        );
+        const { jobId, session } = await ingestBook(result.download_path, {
+          title,
+        });
+        await context.send(
+          `Ingestion started.\nJob: ${jobId.slice(0, 8)}\nSession: ${session}`,
+        );
+      } else if (result.alternatives.length > 0) {
+        const alts = result.alternatives
+          .map(
+            (a) =>
+              `  • ${String(a["source"])}: ${String(a["title"])} — ${String(a["note"] ?? "")}`,
+          )
+          .join("\n");
+        await context.send(
+          `Not found for direct download.\nAlternatives:\n${alts}`,
+        );
+      } else {
+        await context.send(`Book not found: "${title}"`);
+      }
+    } catch (err) {
+      await context.send(`Error: ${String(err)}`);
+    }
+    return;
+  }
+
+  await context.send(
+    'Unknown subcommand. Try: /book help\nUsage: /book find "Title" "Author"',
+  );
+}
+
+// ── Custom GPT ────────────────────────────────────────────────────────
+export async function handleGptCustom(context: MessageContext): Promise<void> {
+  const text = context.text?.replace(/^\/gptcustom\s*/, "").trim() ?? "";
+  if (!text) {
+    await context.send(
+      "Usage: /gptcustom Name | Instructions\nExample: /gptcustom Sales Coach | You are an expert sales coach...",
+    );
+    return;
+  }
+
+  const pipeIdx = text.indexOf("|");
+  if (pipeIdx === -1) {
+    await context.send(
+      "Use | to separate name from instructions.\nExample: /gptcustom Sales Coach | You are...",
+    );
+    return;
+  }
+
+  const name = text.slice(0, pipeIdx).trim();
+  const instructions = text.slice(pipeIdx + 1).trim();
+  if (!name || !instructions) {
+    await context.send("Both name and instructions are required.");
+    return;
+  }
+
+  await context.send(`Creating GPT "${name}"...`);
+  try {
+    const proc = Bun.spawn(
+      [
+        "bun",
+        "run",
+        `${process.env.HOME}/eddie/src/scripts/create-gpt.ts`,
+        "--name",
+        name,
+        "--instructions",
+        instructions,
+      ],
+      { cwd: `${process.env.HOME}/eddie`, stdout: "pipe", stderr: "pipe" },
+    );
+    const output = await new Response(proc.stdout).text();
+    await proc.exited;
+
+    const urlMatch = output.match(/https:\/\/chatgpt\.com\/g\/g-[^\s]+/);
+    if (urlMatch) {
+      await context.send(`Done.\n${urlMatch[0]}`);
+    } else {
+      await context.send(`GPT saved. Check https://chatgpt.com/gpts/mine`);
+    }
+  } catch (err) {
+    await context.send(
+      `Failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
 

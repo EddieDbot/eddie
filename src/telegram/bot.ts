@@ -41,6 +41,8 @@ import {
   handleYoutube,
   handleAutomate,
   handleRevenue,
+  handleBook,
+  handleGptCustom,
 } from "./handlers/command.ts";
 import { handleText } from "./handlers/text.ts";
 import { handleVoice } from "./handlers/voice.ts";
@@ -92,6 +94,8 @@ export function createBot(): Bot {
   bot.command("youtube", (context) => handleYoutube(context));
   bot.command("automate", (context) => handleAutomate(context));
   bot.command("revenue", (context) => handleRevenue(context));
+  bot.command("book", (context) => handleBook(context));
+  bot.command("gptcustom", (context) => handleGptCustom(context));
 
   bot.on("message", (context) => {
     if (context.voice) return handleVoice(context);

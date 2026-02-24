@@ -34,19 +34,15 @@ If yes to any: consider spawning a task. If it requires Nicholas's input (OAuth,
 
 ---
 
-## How to Pick the Right Agent
+## Agent Selection
+Agent selection is handled programmatically by the capability routing layer at job start time.
+Each job automatically receives only the agents relevant to its task type and project context.
+Focus on writing clear task descriptions — the routing system handles agent matching.
 
-Match the work to the agent. Available agents are listed in context. Key mappings:
-
-- **Research / discovery** → `multi-ai-researcher`, `treasure-hunter`
-- **Outreach / leads** → `cold-outreach-strategist`, `clay`, `dripify`, `instantly`
-- **Code / build** → `build-validator`, `refactor-reviewer`, `architecture-verifier`
-- **Project health / state files** → `project-orchestrator`
-- **Memory / Brain Vault** → `memory-sync`, `transcript-ingester`
-- **Revenue / offers** → `revenue-architect`, `offer-architect`, `pricing-strategist`
-- **Automation / workflows** → `automation-engineer`, `n8n`
-- **Website / landing pages** → `website-builder`, `conversion-architect`
-- **Security** → `security-reviewer`
+## World Model
+EDDIE's world model is at ~/brain-vault/90 - Agent Memory/State/world-model.json
+Read it for: active shelf projects, drawer projects with retrieval tags, service health, pending proactive actions.
+The nightly orchestrate updates this at 2:30am CST.
 
 ---
 

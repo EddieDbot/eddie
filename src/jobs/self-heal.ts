@@ -14,7 +14,8 @@ export type FailureSource =
   | "heartbeat"
   | "playlist"
   | "dream"
-  | "morning-brief";
+  | "morning-brief"
+  | "nightly-orchestrate";
 
 export type FailureContext = {
   source: FailureSource;
@@ -58,6 +59,9 @@ const SOURCE_FILES: Record<FailureSource, string[]> = {
   playlist: ["/home/na/eddie/src/proactive/playlist.ts"],
   dream: ["/home/na/eddie/src/proactive/dream.ts"],
   "morning-brief": ["/home/na/eddie/src/proactive/morning-brief.ts"],
+  "nightly-orchestrate": [
+    "/home/na/eddie/src/proactive/nightly-orchestrate.ts",
+  ],
 };
 
 function shouldHeal(ctx: FailureContext, tmuxSession?: string): boolean {

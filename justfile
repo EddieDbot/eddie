@@ -27,3 +27,8 @@ setup:
 # Build check + deploy
 release: check deploy
     @echo "Deployed successfully"
+
+# Create a Custom GPT via Playwright
+# Usage: just gpt "Name" "Instructions" ["Description"] [file=/path/to/file]
+gpt name instructions description="":
+    cd /home/na/eddie && /home/na/.bun/bin/bun run src/scripts/create-gpt.ts --name "{{name}}" --instructions "{{instructions}}" --description "{{description}}"

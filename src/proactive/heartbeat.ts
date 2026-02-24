@@ -217,6 +217,28 @@ async function goalTaskSpawnedToday(): Promise<boolean> {
   }
 }
 
+async function getPendingProactiveActions(): Promise<string> {
+  try {
+    const modelPath = resolve(
+      homedir(),
+      "brain-vault/90 - Agent Memory/State/world-model.json",
+    );
+    const raw = await Bun.file(modelPath).text();
+    const model = JSON.parse(raw);
+    const actions: any[] = model.proactiveActions ?? [];
+    if (actions.length === 0) return "";
+    return [
+      "## Nightly Orchestrate Suggestions",
+      ...actions.map(
+        (a: any) =>
+          `- [${a.priority}] ${a.description}${a.suggestedAgent ? ` (suggested agent: ${a.suggestedAgent})` : ""}${a.targetProject ? ` — project: ${a.targetProject}` : ""}`,
+      ),
+    ].join("\n");
+  } catch {
+    return "";
+  }
+}
+
 async function buildHeartbeatContext(): Promise<string> {
   const now = nowInTimezone(config.TIMEZONE);
   const timeStr = now.toLocaleString("en-US", {
@@ -236,9 +258,9 @@ async function buildHeartbeatContext(): Promise<string> {
     convos,
     lastActivity,
     dueCrons,
-    agentList,
     projectStates,
     usageBlock,
+    proactiveActions,
   ] = await Promise.all([
     loadChecklist(),
     getLastHeartbeats(),
@@ -246,20 +268,17 @@ async function buildHeartbeatContext(): Promise<string> {
     getRecentConversations(),
     getLastActivityTime(),
     getDueCronSummary(),
-    import("../agents/registry.ts").then(({ listAgents }) =>
-      listAgents()
-        .then((agents) =>
-          agents
-            .map((a) => `- ${a.slug}: ${a.description.slice(0, 80) || a.name}`)
-            .join("\n"),
-        )
-        .catch(() => "Agent registry unavailable."),
-    ),
     getProjectStates(),
     buildUsageBlock(lastHeartbeatAt, config.TIMEZONE).catch(
       () => "Usage data unavailable.",
     ),
+    getPendingProactiveActions(),
   ]);
+
+  const agentSummary = `## Agent Routing
+Jobs auto-inject relevant agents based on task content via the capability routing layer.
+Core agents always available: self-healer (errors), code-reviewer (code), security-reviewer (installs), architect (design), project-orchestrator (audits).
+Platform agents: clay, dripify, instantly, attio, n8n, cal-com — triggered by project/platform keywords.`;
 
   return [
     `Current time: ${timeStr} (${config.TIMEZONE})`,
@@ -289,10 +308,9 @@ async function buildHeartbeatContext(): Promise<string> {
     "IMPORTANT: Use ONLY this data to assess project health. Ignore any prior knowledge about project status.",
     projectStates,
     "",
-    "## Available Agents",
-    "When writing task prompts, reference specific agents by slug. The background job runs in a full Claude Code session with all agents available.",
-    agentList,
+    agentSummary,
     "",
+    ...(proactiveActions ? [proactiveActions, ""] : []),
     "## Goal Task Option",
     'You may also respond with HEARTBEAT_TASK:{"goal":"<active goal>","task":"<specific task prompt>"} to spawn an autonomous background job. Write the task prompt as a full briefing — include which agent(s) to use by slug, what project path to work in, and what done looks like. Base your decision on the CURRENT project states above, not assumptions. Only spawn if there is clear actionable mechanical work, no job is already running for this goal, and you haven\'t spawned one today.',
   ].join("\n");

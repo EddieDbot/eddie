@@ -71,6 +71,10 @@ const envSchema = z.object({
     .preprocess((v) => String(v ?? "false") === "true", z.boolean())
     .default(false),
   DREAM_TIME: z.string().default("02:00"),
+  NIGHTLY_ORCHESTRATE_ENABLED: z
+    .preprocess((v) => String(v ?? "false") === "true", z.boolean())
+    .default(false),
+  NIGHTLY_ORCHESTRATE_TIME: z.string().default("02:30"),
   MORNING_BRIEF_ENABLED: z
     .preprocess((v) => String(v ?? "false") === "true", z.boolean())
     .default(false),
@@ -115,6 +119,10 @@ const envSchema = z.object({
     .preprocess((v) => String(v ?? "false") === "true", z.boolean())
     .default(false),
   MEET_INGEST_TIME: z.string().default("21:00"),
+  BOOK_INGEST_ENABLED: z
+    .preprocess((v) => String(v ?? "false") === "true", z.boolean())
+    .default(false),
+  BOOK_INBOX_POLL_INTERVAL_MS: z.coerce.number().default(300_000),
 });
 
 export type Config = z.infer<typeof envSchema>;

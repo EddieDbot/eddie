@@ -252,6 +252,22 @@ Based on the transcript-ingester's routing decision and confidence score:
 
 Record what you did in the "Routing Decision" section of the report.
 
+## Step 6b: Vector Memory Push
+
+After routing the transcript, push the top insights to EDDIE's vector memory.
+
+For the top 5 NET_NEW and IMPROVE insights from your extraction:
+\`\`\`bash
+echo "<insight description>" | bun run ~/eddie/src/scripts/store-fact-cli.ts --category learning --source "playlist:${videoId}"
+\`\`\`
+
+For each unique framework introduced (up to 3):
+\`\`\`bash
+echo "<framework_name>: <description>. Application: <how to use it>" | bun run ~/eddie/src/scripts/store-fact-cli.ts --category learning --source "playlist:${videoId}"
+\`\`\`
+
+If \`bun run\` fails, log and continue — vector push is best-effort.
+
 ## Step 7: Final Output
 
 End your response with this exact line:

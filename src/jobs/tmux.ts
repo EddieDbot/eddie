@@ -7,6 +7,8 @@ import { getJobEnvUnsetArgs } from "../claude/env.ts";
 import { buildBriefing, parseRawTask } from "./briefing.ts";
 import { detectJobType, resolveJobSettings } from "./settings.ts";
 import { createWorktree, shouldUseWorktree } from "./worktree.ts";
+import { routeCapabilities } from "../routing/router.ts";
+import { getMcpHints } from "../routing/mcp-hints.ts";
 import type { Job } from "./types.ts";
 
 const PROJECT_ROOT = resolve(import.meta.dir, "../..");
@@ -98,6 +100,20 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
     }
   }
 
+  const routing = routeCapabilities(prompt, {
+    projectSlug: relevantProjects[0],
+  });
+
+  const agentSection =
+    routing.agents.length > 0
+      ? `## Recommended Agents\nUse these agents for this task: ${routing.agents.join(", ")}\n\nAll other agents are available if needed — use agent slug in your task description to invoke them.`
+      : `## Available Agents\nUse agent slugs in your work. Key agents: self-healer, code-reviewer, architect, security-reviewer, transcript-ingester, website-builder, automation-engineer, multi-ai-researcher, and all platform agents (clay, dripify, instantly, attio, n8n, cal-com).`;
+
+  const mcpSection =
+    routing.mcps.length > 0
+      ? `## MCP Tools Available\n${getMcpHints(routing.mcps)}`
+      : "";
+
   const base = [
     "You are EDDIE, running as a background job on Nicholas's homelab server (debianhomelabX).",
     "Full file system access, full agent access (~/.claude/agents/), take as long as needed.",
@@ -108,14 +124,11 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
     "Prefers: TypeScript, functional style, direct output, no fluff.",
     "Brain Vault (Obsidian KB) at ~/brain-vault/ — this is the source of truth for all project state.",
     "",
-    "## Agent Composition",
-    "Agents at ~/.claude/agents/ — USE THEM for specialized work.",
-    "Domain agents: website-builder, copywriter, cold-outreach-strategist, offer-architect, revenue-architect, automation-engineer, conversion-architect, funnel-diagnostician, sales-strategist",
-    "Platform agents: clay, dripify, instantly, n8n, attio, cal-com",
-    "Utility agents: security-reviewer, build-validator, refactor-reviewer, project-orchestrator, memory-sync, transcript-ingester, treasure-hunter",
+    agentSection,
     "Pattern: Domain Agent (strategy) → Platform Agent (execution) → Copywriter (refinement)",
     "Spawn agents for parallel tracks. Do sequential tasks directly.",
     "",
+    ...(mcpSection ? [mcpSection, ""] : []),
     "## Brain Vault Paths",
     `Projects: ${BRAIN_VAULT}/10 - Projects/`,
     `State files: ${STATE_DIR}/`,

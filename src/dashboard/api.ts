@@ -54,6 +54,8 @@ export function handleApi(path: string): Response {
       return handleAsync(getGoals);
     case "/api/revenue":
       return handleAsync(getRevenueSummary);
+    case "/api/books":
+      return handleAsync(getBooks);
     default: {
       if (path === "/api/reports") {
         return handleAsync(listReportsMeta);
@@ -453,4 +455,36 @@ async function getGoals() {
   } catch (e) {
     return { error: String(e) };
   }
+}
+
+async function getBooks() {
+  const { readdir } = await import("node:fs/promises");
+  const { homedir } = await import("node:os");
+  const HOME = homedir();
+  const rawDir = `${HOME}/brain-vault/00 - Inbox/books/_raw`;
+  const processedLog = `${HOME}/brain-vault/00 - Inbox/books/processed-books.txt`;
+
+  let inbox: string[] = [];
+  let processed: Array<{ hash: string; title: string; date: string }> = [];
+
+  try {
+    const files = await readdir(rawDir);
+    inbox = files.filter((f) => /\.(pdf|epub|txt)$/i.test(f));
+  } catch {
+    // dir doesn't exist yet
+  }
+
+  try {
+    const text = await Bun.file(processedLog).text();
+    for (const line of text.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const [hash, title, date] = trimmed.split("|");
+      if (hash && title) processed.push({ hash, title, date: date ?? "" });
+    }
+  } catch {
+    // file doesn't exist yet
+  }
+
+  return { inbox_count: inbox.length, inbox, processed };
 }
