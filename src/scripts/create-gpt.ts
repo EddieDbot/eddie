@@ -123,21 +123,8 @@ function buildStarters(contentType: ContentType, topic: string): string[] {
   return map[contentType] ?? [];
 }
 
-function buildCapabilities(contentType: ContentType): Capabilities {
-  const map: Record<ContentType, Capabilities> = {
-    book: { webBrowsing: false, dalle: false, codeInterpreter: true },
-    transcript: { webBrowsing: false, dalle: false, codeInterpreter: false },
-    tutorial: { webBrowsing: false, dalle: false, codeInterpreter: true },
-    instructions: { webBrowsing: false, dalle: false, codeInterpreter: false },
-    database: { webBrowsing: false, dalle: false, codeInterpreter: true },
-  };
-  return (
-    map[contentType] ?? {
-      webBrowsing: false,
-      dalle: false,
-      codeInterpreter: false,
-    }
-  );
+function buildCapabilities(_contentType: ContentType): Capabilities {
+  return { webBrowsing: true, dalle: true, codeInterpreter: true };
 }
 
 function buildInstructions(
@@ -364,7 +351,7 @@ function extractMethodology(reportContent: string): string {
 // ─── Args resolution ───────────────────────────────────────────────────────────
 
 const name = args.name!;
-const description = args.description ?? "";
+let description = args.description ?? "";
 const instructionsFile = args["instructions-file"];
 const contentTypeArg = args["content-type"];
 const topic = args.topic ?? "";
@@ -464,6 +451,15 @@ if (!instructions && contentTypeArg) {
   });
   starters = buildStarters(contentTypeArg as ContentType, topic);
   capabilities = buildCapabilities(contentTypeArg as ContentType);
+  // Auto-generate description from thesis if not provided
+  if (!description && rawSummary) {
+    const thesisMatch = rawSummary.match(/##\s+Thesis\s*\n+(.+)/);
+    const firstSentence = thesisMatch?.[1]?.split(/[.!?]/)[0]?.trim();
+    if (firstSentence) description = firstSentence + ".";
+  }
+  if (!description && topic) {
+    description = `Expert GPT for "${topic}" — built from full source synthesis.`;
+  }
   const GPT_INSTRUCTION_LIMIT = 8000;
   if (instructions.length > GPT_INSTRUCTION_LIMIT) {
     console.error(
@@ -662,17 +658,25 @@ async function createGPT(context: BrowserContext): Promise<string | null> {
     .locator('textarea[placeholder*="What does this GPT do"]')
     .fill(instructions);
 
-  // Upload knowledge file(s) sequentially — wait proportional to file size for processing
+  // Screenshot after instructions — lets us see full configure page layout for debugging
+  await page.screenshot({
+    path: "/tmp/gpt-debug-01-after-instructions.png",
+    fullPage: true,
+  });
+  console.log("  Debug screenshot: /tmp/gpt-debug-01-after-instructions.png");
+
+  // Upload knowledge file(s) — use filechooser event to intercept native OS file picker
   for (const filePath of uploadFiles) {
     console.log("Uploading file:", filePath);
     const uploadBtn = page
       .locator("button", { hasText: /upload files/i })
       .first();
-    await uploadBtn.click();
-    await page.waitForTimeout(1000);
-    const fileInput = page.locator('input[type="file"]').first();
-    await fileInput.setInputFiles(filePath);
-    // Scale wait by file size: 50ms/KB, min 10s, max 60s — ensures processing completes
+    const [fileChooser] = await Promise.all([
+      page.waitForEvent("filechooser", { timeout: 10000 }),
+      uploadBtn.click(),
+    ]);
+    await fileChooser.setFiles(filePath);
+    // Scale wait by file size: 50ms/KB, min 10s, max 60s
     const fileSizeKB = fs.statSync(filePath).size / 1024;
     const waitMs = Math.max(10000, Math.min(fileSizeKB * 50, 60000));
     console.log(
@@ -681,48 +685,93 @@ async function createGPT(context: BrowserContext): Promise<string | null> {
     await page.waitForTimeout(waitMs);
   }
 
-  // Conversation starters
+  await page.screenshot({
+    path: "/tmp/gpt-debug-02-after-uploads.png",
+    fullPage: true,
+  });
+  console.log("  Debug screenshot: /tmp/gpt-debug-02-after-uploads.png");
+
   if (starters.length > 0) {
     console.log("Filling conversation starters...");
     for (let i = 0; i < starters.length; i++) {
-      const starterInput = page
-        .locator(
-          'input[placeholder*="conversation starter"], input[placeholder*="Message"]',
-        )
-        .nth(i);
-      if (await starterInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await starterInput.fill(starters[i]);
-        await starterInput.press("Tab");
-        await page.waitForTimeout(400);
+      // Use TreeWalker to find the exact "Conversation starters" text node (not element),
+      // then walk up to section container, find empty input, and focus it.
+      // Then use Playwright keyboard.type() — not synthetic events — so React state fires.
+      const focused = await page.evaluate(() => {
+        const walker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT,
+        );
+        let node: Node | null;
+        while ((node = walker.nextNode())) {
+          if (node.textContent?.trim() === "Conversation starters") {
+            let container = node.parentElement;
+            while (container && container.tagName !== "BODY") {
+              const inputs = [
+                ...container.querySelectorAll(
+                  'input:not([type="hidden"]):not([type="checkbox"]):not([type="file"])',
+                ),
+              ] as HTMLInputElement[];
+              const empty = inputs.find((inp) => inp.value === "");
+              if (empty) {
+                empty.focus();
+                return true;
+              }
+              container = container.parentElement;
+            }
+            break;
+          }
+        }
+        return false;
+      });
+
+      if (focused) {
+        await page.keyboard.type(starters[i]);
+        await page.keyboard.press("Enter");
+        await page.waitForTimeout(600);
+        console.log(`  Starter ${i + 1}: filled`);
+      } else {
+        console.log(`  Starter ${i + 1}: input not found`);
       }
     }
   }
+  await page.screenshot({
+    path: "/tmp/gpt-debug-03-after-starters.png",
+    fullPage: true,
+  });
 
-  // Capabilities (set desired state for each toggle)
-  const capabilityToggles: Array<[keyof Capabilities, RegExp]> = [
-    ["webBrowsing", /web browsing/i],
-    ["dalle", /dall.?e|image generation/i],
-    ["codeInterpreter", /code interpreter|data analysis/i],
-  ];
+  // Capabilities — checkboxes are siblings of text nodes, not inside <label>
+  // Use DOM walk: find checkbox whose nearest container includes the label text
   console.log("Configuring capabilities...");
-  for (const [capKey, labelRegex] of capabilityToggles) {
+  const capSettings: Array<[keyof Capabilities, string]> = [
+    ["webBrowsing", "Web Search"],
+    ["dalle", "Image Generation"],
+    ["codeInterpreter", "Code Interpreter & Data Analysis"],
+  ];
+  for (const [capKey, label] of capSettings) {
     const desired = capabilities[capKey];
-    const toggle = page
-      .locator("label", { hasText: labelRegex })
-      .locator('input[type="checkbox"], input[role="switch"]')
-      .first()
-      .or(
-        page.locator('[role="switch"]').filter({ hasText: labelRegex }).first(),
-      );
-    if (await toggle.isVisible({ timeout: 2000 }).catch(() => false)) {
-      const isChecked = await toggle
-        .evaluate((el) => (el as HTMLInputElement).checked)
-        .catch(() => false);
-      if (isChecked !== desired) {
-        await toggle.click();
-        await page.waitForTimeout(300);
-      }
-    }
+    const result = await page.evaluate(
+      ({ labelText, desired }: { labelText: string; desired: boolean }) => {
+        const checkboxes = [
+          ...document.querySelectorAll('input[type="checkbox"]'),
+        ] as HTMLInputElement[];
+        for (const cb of checkboxes) {
+          const container = cb.closest("div, li, label");
+          if (container?.textContent?.includes(labelText)) {
+            const isChecked = cb.checked;
+            if (isChecked !== desired) {
+              cb.click();
+              return `${isChecked} → ${desired}`;
+            }
+            return `already ${isChecked}`;
+          }
+        }
+        return "not found";
+      },
+      { labelText: label, desired },
+    );
+    console.log(`  ${label}: ${result}`);
+    await page.waitForTimeout(200);
   }
 
   // Click Create (top-right)
@@ -751,37 +800,248 @@ async function createGPT(context: BrowserContext): Promise<string | null> {
     .first();
   if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
     await confirmBtn.click();
-    await page.waitForTimeout(3000);
   }
 
-  // Extract GPT ID — if still on editor URL, navigate to /gpts/mine to get share link
-  let finalUrl = page.url();
-  let gptId = finalUrl.match(/\/gpts\/editor\/(g-[^/?]+)/)?.[1] ?? null;
-
-  if (gptId) {
-    // Still on editor page — navigate to mine to find the share link
-    await page.goto("https://chatgpt.com/gpts/mine", {
-      waitUntil: "domcontentloaded",
+  // Wait for navigation away from editor (ChatGPT redirects to /g/g-NEWID after save)
+  try {
+    await page.waitForURL((url) => !url.toString().includes("/gpts/editor"), {
+      timeout: 10000,
     });
-    await page.waitForTimeout(3000);
-    // Find the link to the GPT we just created (by name)
-    const gptLink = page
-      .locator(`a[href*="/g/g-"]`, { hasText: name })
-      .first()
-      .or(page.locator(`a[href*="/g/g-"]`).first());
-    const href = await gptLink.getAttribute("href").catch(() => null);
-    if (href) {
-      const match = href.match(/\/(g-[^/?]+)/);
-      if (match) gptId = match[1];
+  } catch {
+    // Still on editor — handled below
+  }
+  await page.waitForTimeout(2000);
+
+  let finalUrl = page.url();
+  // Prefer direct redirect: /g/g-XXXXX or /g/g-XXXXX-slug
+  let gptId = finalUrl.match(/\/g\/(g-[^/?]+)/)?.[1] ?? null;
+
+  if (!gptId) {
+    // Still on editor URL — ID is embedded, use it directly (don't search /gpts/mine)
+    const editorId = finalUrl.match(/\/gpts\/editor\/(g-[^/?]+)/)?.[1] ?? null;
+    if (editorId) {
+      gptId = editorId;
+    } else {
+      // Last resort: search /gpts/mine by name only (no fallback to first-in-list)
+      await page.goto("https://chatgpt.com/gpts/mine", {
+        waitUntil: "domcontentloaded",
+      });
+      await page.waitForTimeout(3000);
+      const href = await page
+        .locator(`a[href*="/g/g-"]`, { hasText: name })
+        .first()
+        .getAttribute("href")
+        .catch(() => null);
+      if (href) {
+        const match = href.match(/\/(g-[^/?]+)/);
+        if (match) gptId = match[1];
+      }
     }
-  } else {
-    gptId = finalUrl.match(/\/g\/(g-[^/?]+)/)?.[1] ?? null;
   }
 
   const shareUrl = gptId ? `https://chatgpt.com/g/${gptId}` : null;
 
   await page.close();
   return shareUrl;
+}
+
+// ─── Verification pass ─────────────────────────────────────────────────────────
+
+type VerifyResult = { passed: boolean; issues: string[] };
+
+async function verifyGPT(
+  context: BrowserContext,
+  gptId: string,
+): Promise<VerifyResult> {
+  const page = await context.newPage();
+  console.log("\nVerifying GPT...");
+  await page.goto(`https://chatgpt.com/gpts/editor/${gptId}`, {
+    waitUntil: "domcontentloaded",
+  });
+  await page.waitForTimeout(4000);
+
+  const configTab = page.locator("button", { hasText: /^configure$/i }).first();
+  if (await configTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await configTab.click();
+    await page.waitForTimeout(1500);
+  }
+
+  const issues: string[] = [];
+
+  // Check knowledge files are listed
+  if (uploadFiles.length > 0) {
+    const bodyText = await page.evaluate(() => document.body.textContent ?? "");
+    const missing = uploadFiles.filter(
+      (f) => !bodyText.includes(path.basename(f)),
+    );
+    if (missing.length > 0) {
+      issues.push(
+        `Missing files: ${missing.map((f) => path.basename(f)).join(", ")}`,
+      );
+    }
+  }
+
+  // Check starters are filled
+  if (starters.length > 0) {
+    const filledCount = await page.evaluate(() => {
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+      );
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        if (node.textContent?.trim() === "Conversation starters") {
+          let container = node.parentElement;
+          while (container && container.tagName !== "BODY") {
+            const inputs = [
+              ...container.querySelectorAll(
+                'input:not([type="hidden"]):not([type="checkbox"]):not([type="file"])',
+              ),
+            ] as HTMLInputElement[];
+            const filled = inputs.filter((inp) => inp.value !== "");
+            if (filled.length > 0 || inputs.length > 0) return filled.length;
+            container = container.parentElement;
+          }
+          break;
+        }
+      }
+      return -1;
+    });
+    if (filledCount < starters.length) {
+      issues.push(
+        `Starters: only ${filledCount < 0 ? 0 : filledCount}/${starters.length} filled`,
+      );
+    }
+  }
+
+  // Check capabilities
+  const capSettings: Array<[keyof Capabilities, string]> = [
+    ["webBrowsing", "Web Search"],
+    ["dalle", "Image Generation"],
+    ["codeInterpreter", "Code Interpreter & Data Analysis"],
+  ];
+  const capIssues: string[] = [];
+  for (const [capKey, label] of capSettings) {
+    const desired = capabilities[capKey];
+    const actual = await page.evaluate(
+      ({ labelText }: { labelText: string }) => {
+        const checkboxes = [
+          ...document.querySelectorAll('input[type="checkbox"]'),
+        ] as HTMLInputElement[];
+        for (const cb of checkboxes) {
+          const container = cb.closest("div, li, label");
+          if (container?.textContent?.includes(labelText)) return cb.checked;
+        }
+        return null;
+      },
+      { labelText: label },
+    );
+    if (actual === null) {
+      capIssues.push(`${label}: not found`);
+    } else if (actual !== desired) {
+      capIssues.push(`${label}: is ${actual}, want ${desired}`);
+    }
+  }
+  if (capIssues.length > 0)
+    issues.push(`Capabilities wrong: ${capIssues.join("; ")}`);
+
+  if (issues.length === 0) {
+    console.log("✓ Verification passed — all fields confirmed.");
+    await page.close();
+    return { passed: true, issues: [] };
+  }
+
+  console.log(`⚠ Verification found ${issues.length} issue(s):`);
+  issues.forEach((i) => console.log(`  - ${i}`));
+  console.log("  Applying fixes...");
+
+  // Fix: re-fill starters
+  if (issues.some((i) => i.startsWith("Starters"))) {
+    for (let i = 0; i < starters.length; i++) {
+      const focused = await page.evaluate(() => {
+        const walker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT,
+        );
+        let node: Node | null;
+        while ((node = walker.nextNode())) {
+          if (node.textContent?.trim() === "Conversation starters") {
+            let container = node.parentElement;
+            while (container && container.tagName !== "BODY") {
+              const inputs = [
+                ...container.querySelectorAll(
+                  'input:not([type="hidden"]):not([type="checkbox"]):not([type="file"])',
+                ),
+              ] as HTMLInputElement[];
+              const empty = inputs.find((inp) => inp.value === "");
+              if (empty) {
+                empty.focus();
+                return true;
+              }
+              container = container.parentElement;
+            }
+            break;
+          }
+        }
+        return false;
+      });
+      if (focused) {
+        await page.keyboard.type(starters[i]);
+        await page.keyboard.press("Enter");
+        await page.waitForTimeout(600);
+      }
+    }
+  }
+
+  // Fix: capabilities
+  if (issues.some((i) => i.startsWith("Capabilities"))) {
+    for (const [capKey, label] of capSettings) {
+      const desired = capabilities[capKey];
+      await page.evaluate(
+        ({ labelText, desired }: { labelText: string; desired: boolean }) => {
+          const checkboxes = [
+            ...document.querySelectorAll('input[type="checkbox"]'),
+          ] as HTMLInputElement[];
+          for (const cb of checkboxes) {
+            const container = cb.closest("div, li, label");
+            if (
+              container?.textContent?.includes(labelText) &&
+              cb.checked !== desired
+            ) {
+              cb.click();
+            }
+          }
+        },
+        { labelText: label, desired },
+      );
+      await page.waitForTimeout(200);
+    }
+  }
+
+  // Re-save after fixes
+  const createBtn = page
+    .locator("header button, nav button", {
+      hasText: /^(save|update|create)$/i,
+    })
+    .first()
+    .or(page.locator("button", { hasText: /^(save|update|create)$/i }).last());
+  if (await createBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await createBtn.click();
+    await page.waitForTimeout(3000);
+    const confirmBtn2 = page
+      .locator("button", { hasText: /^(save|confirm|done)$/i })
+      .first();
+    if (await confirmBtn2.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await confirmBtn2.click();
+      await page.waitForTimeout(2000);
+    }
+    console.log("  Fixes applied and re-saved.");
+  } else {
+    console.log("  Could not find save button to re-save. Check GPT manually.");
+  }
+
+  await page.close();
+  return { passed: false, issues };
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -804,6 +1064,12 @@ if (!loggedIn) {
 }
 
 const shareUrl = await createGPT(context);
+
+if (shareUrl) {
+  const gptId = shareUrl.split("/g/")[1]?.split(/[/?]/)[0];
+  if (gptId) await verifyGPT(context, gptId);
+}
+
 await browser.close();
 
 if (shareUrl) {
