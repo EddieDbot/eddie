@@ -91,11 +91,11 @@ async function fetchGmailMessages(
 ): Promise<InboxItem[]> {
   const token = await getAccessToken(GMAIL_SCOPES, account);
   const sinceStr = await getSyncState(channel);
-  const sinceTs = sinceStr
-    ? parseInt(sinceStr)
-    : Date.now() - 24 * 60 * 60 * 1000;
+  const sinceTs = sinceStr ? parseInt(sinceStr) : null;
 
-  const q = `is:unread after:${Math.floor(sinceTs / 1000)}`;
+  const q = sinceTs
+    ? `is:unread after:${Math.floor(sinceTs / 1000)}`
+    : `is:unread`;
   const listRes = await fetch(
     `${GMAIL_API}/users/me/messages?q=${encodeURIComponent(q)}&maxResults=20`,
     {
