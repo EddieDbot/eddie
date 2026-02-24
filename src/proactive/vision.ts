@@ -1,12 +1,9 @@
 import { resolve } from "node:path";
-import { homedir } from "node:os";
+import { STATE_DIR } from "../memory/brain-vault-paths.ts";
 import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 
-const VISION_PATH = resolve(
-  homedir(),
-  "brain-vault/90 - Agent Memory/State/vision.md",
-);
+const VISION_PATH = resolve(STATE_DIR, "vision.md");
 
 let visionCache: { text: string; loadedAt: number } | null = null;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min

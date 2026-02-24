@@ -3,9 +3,7 @@ import { logger } from "../utils/logger.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
 import { resolve } from "node:path";
 import { mkdir } from "node:fs/promises";
-
-const HOME = process.env.HOME ?? "/home/na";
-const PROJECTS_DIR = resolve(HOME, "brain-vault/10 - Projects");
+import { getTranscriptDir } from "../memory/brain-vault-paths.ts";
 
 function slugify(title: string): string {
   return title
@@ -66,7 +64,7 @@ export async function storeTranscript(
 ): Promise<string> {
   const project = guessProject(title);
   const slug = slugify(title);
-  const dir = resolve(PROJECTS_DIR, project, "notes/transcripts");
+  const dir = getTranscriptDir(project);
   await mkdir(dir, { recursive: true });
   const path = resolve(dir, `${date}-${slug}.md`);
   await Bun.write(

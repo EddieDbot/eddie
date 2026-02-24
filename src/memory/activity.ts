@@ -1,10 +1,6 @@
 import { resolve } from "node:path";
-import { homedir } from "node:os";
 import { config } from "../config.ts";
-
-const HOME = homedir();
-const STATE_DIR = resolve(HOME, "brain-vault/90 - Agent Memory/State");
-const PROJECTS_DIR = resolve(HOME, "brain-vault/10 - Projects");
+import { STATE_DIR, getEddieLogPath } from "./brain-vault-paths.ts";
 
 export type ActivityMode = "AGENTIC" | "COLLAB";
 
@@ -71,7 +67,7 @@ async function appendToStateFile(slug: string, entry: string): Promise<void> {
 }
 
 async function appendToProjectLog(slug: string, entry: string): Promise<void> {
-  const logPath = resolve(PROJECTS_DIR, slug, "EDDIE_LOG.md");
+  const logPath = getEddieLogPath(slug);
   const file = Bun.file(logPath);
 
   if (await file.exists()) {

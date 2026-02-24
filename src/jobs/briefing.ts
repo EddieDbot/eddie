@@ -9,16 +9,15 @@
  * - Testable Quality: "done when X" must be verifiable
  */
 
-import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { resolveSlugPath, getEddieLogPath } from "../memory/brain-vault-paths.ts";
 
-const HOME = homedir();
-const AGENT_FORGE_PRINCIPLES = resolve(
-  HOME,
-  "brain-vault/10 - Projects/agent-forge/methodology/principles.md",
-);
+const AGENT_FORGE_PRINCIPLES = (() => {
+  const agentForge = resolveSlugPath("agent-forge");
+  return agentForge ? `${agentForge}/methodology/principles.md` : null;
+})();
 
 async function loadAgentForgePrinciples(): Promise<string> {
+  if (!AGENT_FORGE_PRINCIPLES) return "";
   try {
     return await Bun.file(AGENT_FORGE_PRINCIPLES).text();
   } catch {

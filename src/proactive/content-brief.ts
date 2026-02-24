@@ -1,6 +1,7 @@
 import { runPrompt } from "../claude/run-prompt.ts";
 import { logger } from "../utils/logger.ts";
 import { mkdir } from "node:fs/promises";
+import { BRAIN_VAULT_ROOT } from "../memory/brain-vault-paths.ts";
 
 async function searchWeb(query: string): Promise<string> {
   // Brave Search MCP is available in agent context; in direct calls, do a basic fetch
@@ -62,7 +63,7 @@ Be punchy, specific, and actionable. Avoid generic advice.`,
     // Write to Brain Vault
     const date = new Date().toISOString().slice(0, 10);
     const slug = topic.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
-    const briefDir = `${process.env.HOME}/brain-vault/20 - Areas/Content/briefs`;
+    const briefDir = `${BRAIN_VAULT_ROOT}/20 - Areas/Content/briefs`;
     const briefPath = `${briefDir}/${date}-${slug}.md`;
 
     try {

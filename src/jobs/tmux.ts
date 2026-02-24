@@ -13,19 +13,18 @@ import { buildDelegationGuidance } from "../routing/model-kb.ts";
 import type { Job, ModelId } from "./types.ts";
 import { tickTool } from "../memory/tool-ticker.ts";
 import { getCondensedVision } from "../proactive/vision.ts";
+import { BRAIN_VAULT_ROOT, STATE_DIR as BV_STATE_DIR, getProjectClaude } from "../memory/brain-vault-paths.ts";
 
 const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 const HOME = process.env.HOME ?? "/home/na";
 export const JOBS_DIR = resolve(PROJECT_ROOT, "data/jobs");
-const BRAIN_VAULT = `${HOME}/brain-vault`;
-const STATE_DIR = `${BRAIN_VAULT}/90 - Agent Memory/State`;
 
 const DEFAULT_TIMEOUT_MS = 7_200_000; // 2 hours
 
 // Identify which project(s) the prompt is about by matching against state file slugs
 async function findRelevantProjects(prompt: string): Promise<string[]> {
   try {
-    const files = await readdir(STATE_DIR);
+    const files = await readdir(BV_STATE_DIR);
     const slugs = files
       .filter((f) => f.endsWith(".md") && !f.endsWith(".bak"))
       .map((f) => f.replace(/\.md$/, ""));
@@ -41,7 +40,7 @@ async function findRelevantProjects(prompt: string): Promise<string[]> {
 
 async function readProjectState(slug: string): Promise<string> {
   try {
-    return await Bun.file(resolve(STATE_DIR, `${slug}.md`)).text();
+    return await Bun.file(resolve(BV_STATE_DIR, `${slug}.md`)).text();
   } catch {
     return "";
   }
@@ -50,9 +49,8 @@ async function readProjectState(slug: string): Promise<string> {
 async function readProjectClaude(slug: string): Promise<string> {
   // Check common project locations for a CLAUDE.md
   const candidates = [
-    `${HOME}/${slug}/CLAUDE.md`,
-    `${BRAIN_VAULT}/10 - Projects/${slug}/CLAUDE.md`,
-    `${HOME}/Documents/Brain Vault/10 - Projects/${slug}/CLAUDE.md`,
+    `${process.env.HOME ?? "/home/na"}/${slug}/CLAUDE.md`,
+    getProjectClaude(slug),
   ];
   for (const path of candidates) {
     try {
@@ -142,10 +140,10 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
     ...(mcpSection ? [mcpSection, ""] : []),
     ...(toolSection ? [toolSection, ""] : []),
     "## Brain Vault Paths",
-    `Projects: ${BRAIN_VAULT}/10 - Projects/`,
-    `State files: ${STATE_DIR}/`,
-    `Decisions: ${BRAIN_VAULT}/90 - Agent Memory/Decisions/`,
-    `Learnings: ${BRAIN_VAULT}/90 - Agent Memory/Learnings/`,
+    `Projects: ${BRAIN_VAULT_ROOT}/10 - Projects/`,
+    `State files: ${BV_STATE_DIR}/`,
+    `Decisions: ${BRAIN_VAULT_ROOT}/90 - Agent Memory/Decisions/`,
+    `Learnings: ${BRAIN_VAULT_ROOT}/90 - Agent Memory/Learnings/`,
     "When done: write a summary under '## Last Agent Action' in the project's state file.",
     "",
     "## Output",

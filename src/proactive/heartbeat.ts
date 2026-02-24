@@ -10,13 +10,13 @@ import { emitEvent } from "../dashboard/server.ts";
 import { parseConfidence } from "./confidence.ts";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
+import { STATE_DIR } from "../memory/brain-vault-paths.ts";
 import { readdir } from "node:fs/promises";
 import { buildUsageBlock } from "../memory/usage.ts";
 import { evaluateTaskAlignment } from "./vision.ts";
 import { getQueueStats, getNextTask } from "./task-queue.ts";
 
 const PROJECT_ROOT = resolve(import.meta.dir, "../..");
-const STATE_DIR = resolve(homedir(), "brain-vault/90 - Agent Memory/State");
 
 const SKIP_STATE_FILES = new Set([
   "system-overview",

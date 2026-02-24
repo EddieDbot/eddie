@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { config } from "./config.ts";
 import { createBot } from "./telegram/bot.ts";
 import { startDashboard } from "./dashboard/server.ts";
@@ -76,6 +77,20 @@ startConsolidation();
 
 const { startJobPoller } = await import("./jobs/poll.ts");
 startJobPoller(bot);
+
+// Hourly capabilities parity check — runs even when HEARTBEAT_ENABLED=false
+setInterval(async () => {
+  try {
+    const { spawnSync } = await import("bun");
+    spawnSync(["bun", "run", resolve(import.meta.dir, "scripts/capabilities-parity-check.ts")], {
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+  } catch (err) {
+    // Non-fatal — log and continue
+    console.error("capabilities-parity: interval error:", err);
+  }
+}, 60 * 60 * 1000);
 
 if (config.COMMS_ENABLED) {
   const { startComms } = await import("./comms/index.ts");

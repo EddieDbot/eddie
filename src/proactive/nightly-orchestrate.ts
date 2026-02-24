@@ -8,6 +8,7 @@ import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 import { emitEvent } from "../dashboard/server.ts";
 import { CAPABILITIES } from "../routing/capabilities.ts";
+import { STATE_DIR, LEARNINGS_DIR, EDDIE_STATE_FILE } from "../memory/brain-vault-paths.ts";
 
 type ProjectSnapshot = {
   slug: string;
@@ -69,7 +70,6 @@ type WorldModel = {
   modelPerformance?: Partial<Record<string, number>>;
 };
 
-const STATE_DIR = resolve(homedir(), "brain-vault/90 - Agent Memory/State");
 const WORLD_MODEL_PATH = resolve(STATE_DIR, "world-model.json");
 const WORLD_INDEX_PATH = resolve(STATE_DIR, "world-index.yaml");
 const STALE_THRESHOLD_DAYS = 7;
@@ -103,15 +103,14 @@ function msUntilTime(hour: number, minute: number, timezone: string): number {
 }
 
 async function readDailyConsolidations(): Promise<string> {
-  const HOME = homedir();
   const tz = "America/Chicago";
   const localNow = new Date(
     new Date().toLocaleString("en-US", { timeZone: tz }),
   );
   const today = localNow.toISOString().slice(0, 10);
   const activityPath = resolve(
-    HOME,
-    `brain-vault/90 - Agent Memory/Learnings/${today}-eddie-activity.md`,
+    LEARNINGS_DIR,
+    `${today}-eddie-activity.md`,
   );
   try {
     return await Bun.file(activityPath).text();
@@ -121,17 +120,13 @@ async function readDailyConsolidations(): Promise<string> {
 }
 
 async function parseTodayActivityLog(): Promise<string> {
-  const HOME = homedir();
   const tz = "America/Chicago";
   const localNow = new Date(
     new Date().toLocaleString("en-US", { timeZone: tz }),
   );
   const today = localNow.toISOString().slice(0, 10);
   try {
-    const statePath = resolve(
-      HOME,
-      "brain-vault/90 - Agent Memory/State/eddie-current.md",
-    );
+    const statePath = EDDIE_STATE_FILE;
     const content = await Bun.file(statePath).text();
     const lines = content.split("\n");
     const todayLines = lines.filter((l) => l.includes(today));

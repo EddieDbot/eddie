@@ -1,5 +1,6 @@
 import type { Bot } from "gramio";
 import { homedir } from "node:os";
+import { BRAIN_VAULT_ROOT, PLANS_DIR as BV_PLANS_DIR, INBOX_DIR, getTranscriptDir } from "../memory/brain-vault-paths.ts";
 import { createJob } from "../jobs/manager.ts";
 import { spawnJob } from "../jobs/tmux.ts";
 import { logProvenance } from "../memory/provenance.ts";
@@ -7,12 +8,11 @@ import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 
 const HOME = homedir();
-const BRAIN_VAULT = `${HOME}/brain-vault`;
-const PLAYLISTS_CONFIG = `${BRAIN_VAULT}/00 - Inbox/transcripts/playlists.json`;
-const PROCESSED_LOG = `${BRAIN_VAULT}/00 - Inbox/transcripts/processed-videos.txt`;
-const RAW_BUCKET = `${BRAIN_VAULT}/00 - Inbox/transcripts/_raw`;
-const UNUSED_DIR = `${BRAIN_VAULT}/00 - Inbox/transcripts/_unused`;
-const PLANS_DIR = `${BRAIN_VAULT}/90 - Agent Memory/Plans`;
+const PLAYLISTS_CONFIG = `${INBOX_DIR}/transcripts/playlists.json`;
+const PROCESSED_LOG = `${INBOX_DIR}/transcripts/processed-videos.txt`;
+const RAW_BUCKET = `${INBOX_DIR}/transcripts/_raw`;
+const UNUSED_DIR = `${INBOX_DIR}/transcripts/_unused`;
+const PLANS_DIR = BV_PLANS_DIR;
 const PLAYLIST_MANAGER = `${HOME}/.claude/scripts/playlist-manager.py`;
 const DIGESTED_PLAYLIST_URL =
   "https://youtube.com/playlist?list=PLgSl4exmSE0kXhDdqcYE5vmjaxamTh-bL";
@@ -242,7 +242,7 @@ Based on the transcript-ingester's routing decision and confidence score:
 
 - **Score ≥ 50:** Move the raw transcript file from the bucket to the matched project:
   \`\`\`bash
-  mv "${rawPath}" "${BRAIN_VAULT}/10 - Projects/[project-slug]/notes/transcripts/[filename]"
+  mv "${rawPath}" "${BRAIN_VAULT_ROOT}/10 - Projects/[project-slug]/notes/transcripts/[filename]"
   \`\`\`
   Create the destination directory first if it doesn't exist (mkdir -p).
 
@@ -382,7 +382,7 @@ export async function routeTranscript(
       return { ok: false, error: `No raw transcript found for ${videoId}` };
 
     const from = `${RAW_BUCKET}/${match}`;
-    const destDir = `${BRAIN_VAULT}/10 - Projects/${projectSlug}/notes/transcripts`;
+    const destDir = getTranscriptDir(projectSlug);
     await mkdir(destDir, { recursive: true });
     const to = `${destDir}/${match}`;
     await rename(from, to);

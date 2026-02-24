@@ -1,9 +1,7 @@
 import { searchMemory } from "./search.ts";
 import { memoryEnabled } from "./client.ts";
 import { logger } from "../utils/logger.ts";
-
-const HOME = process.env.HOME ?? "/home/na";
-const STATE_FILE = `${HOME}/brain-vault/90 - Agent Memory/State/eddie-current.md`;
+import { EDDIE_STATE_FILE } from "./brain-vault-paths.ts";
 
 function relativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -21,7 +19,7 @@ export async function buildMemoryContext(prompt: string): Promise<string> {
   try {
     const [results, stateContent] = await Promise.all([
       searchMemory(prompt, 10, 0.7).catch(() => []),
-      Bun.file(STATE_FILE).text().catch(() => ""),
+      Bun.file(EDDIE_STATE_FILE).text().catch(() => ""),
     ]);
 
     const parts: string[] = [];

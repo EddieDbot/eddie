@@ -5,10 +5,8 @@ import { storeFact } from "../memory/store.ts";
 import { logger } from "../utils/logger.ts";
 import { resolve } from "node:path";
 import { formatToolUsageSummary } from "../memory/tool-ticker.ts";
+import { EDDIE_STATE_FILE, LEARNINGS_DIR } from "../memory/brain-vault-paths.ts";
 
-const HOME = process.env.HOME ?? "/home/na";
-const STATE_FILE = `${HOME}/brain-vault/90 - Agent Memory/State/eddie-current.md`;
-const DAILY_LOG_DIR = `${HOME}/brain-vault/90 - Agent Memory/Learnings`;
 
 async function getRecentConversations(windowMs: number): Promise<string> {
   if (!memoryEnabled) return "";
@@ -107,11 +105,11 @@ async function writeStateFile(
     sections.push("", "## Tool Usage", toolUsage);
   }
 
-  await Bun.write(STATE_FILE, sections.join("\n"));
+  await Bun.write(EDDIE_STATE_FILE, sections.join("\n"));
 
   // Append to daily cumulative log
   const dateStr = now.toISOString().slice(0, 10);
-  const dailyLog = `${DAILY_LOG_DIR}/${dateStr}-eddie-activity.md`;
+  const dailyLog = `${LEARNINGS_DIR}/${dateStr}-eddie-activity.md`;
   const entry = `\n\n## ${timeStr}\n\n${summary}`;
 
   try {

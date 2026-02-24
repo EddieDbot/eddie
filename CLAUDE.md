@@ -41,6 +41,21 @@ Search Brain Vault first for past decisions and context.
 ### WikiLinks
 Use `[[filename]]` (no .md) when cross-referencing existing files. Naming: `learning-descriptor.md`, `decision-descriptor.md`, `YYYY-MM-DD-descriptor.md`.
 
+## Project Taxonomy
+
+Brain Vault uses 4 tiers:
+- **Active Projects** (`~/brain-vault/10 - Projects/`) — crabill-leadgen, fanways, motion-recreation, shur, freelance
+- **Capability Domains** (`~/brain-vault/20 - Areas/`) — EDDIE, AI Research/agent-forge, AI Research/claude-mastery, Homelab
+- **Identity Contexts** (`~/brain-vault/20 - Areas/`) — creative-technologist
+- **Idea Buckets** (`~/brain-vault/30 - Resources/`) — ai-money, session-nuggets, vimeo-heygen-dub, health-optimization, puerto-rico-relocation, peculiar-people
+
+Path resolver: `src/memory/brain-vault-paths.ts` — import `resolveSlugPath(slug)` instead of hardcoding paths.
+
+**Agent Changelog:** All agent file edits are auto-logged to `~/.claude/agents/CHANGELOG.md` via PostToolUse hook. When adding a new agent, also add its capabilities.ts entry.
+
+**Capabilities Parity Check:** Runs hourly. Diffs `~/.claude/agents/*.md` vs capabilities.ts. Alerts via Telegram on drift. Script: `src/scripts/capabilities-parity-check.ts`.
+
+
 ## Persistent Memory
 Write learnings to `~/brain-vault/90 - Agent Memory/Learnings/` and project status to `~/brain-vault/90 - Agent Memory/State/`.
 

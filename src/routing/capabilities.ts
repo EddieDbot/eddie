@@ -1281,6 +1281,14 @@ export const CAPABILITIES: Capability[] = [
     invoke: `# Task queue is managed programmatically via src/proactive/task-queue.ts\n# addTask(), getNextTask(), getQueueStats(), updateTaskState()`,
     priority: 6,
   },
+  {
+    id: "script:capabilities-parity-check",
+    type: "script",
+    name: "Capabilities Parity Check",
+    invoke: "bun run ~/eddie/src/scripts/capabilities-parity-check.ts",
+    triggers: [],
+    priority: 1,
+  },
   // ── MCPs ──
   {
     id: "mcp:instantly",

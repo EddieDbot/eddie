@@ -28,6 +28,7 @@ import { listAgents } from "../../agents/registry.ts";
 import { startWheel, stopWheel, isWheelActive } from "../../proactive/wheel.ts";
 import { runMorningBrief } from "../../proactive/morning-brief.ts";
 import { logProjectActivity } from "../../memory/activity.ts";
+import { BRAIN_VAULT_ROOT } from "../../memory/brain-vault-paths.ts";
 import {
   addRevenueEntry,
   getRevenueSummary,
@@ -1196,7 +1197,7 @@ export async function handleAlign(context: MessageContext): Promise<void> {
     return;
   }
   try {
-    const visionPath = `${process.env.HOME ?? "/home/na"}/brain-vault/20 - Areas/Master Vision.md`;
+    const visionPath = `${BRAIN_VAULT_ROOT}/20 - Areas/Master Vision.md`;
     let vision = "";
     try {
       vision = await Bun.file(visionPath).text();
