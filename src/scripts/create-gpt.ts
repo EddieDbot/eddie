@@ -83,7 +83,7 @@ function buildInstructions(
   name: string,
   contentType: ContentType,
   topic: string,
-  opts: { summaryContent?: string } = {},
+  opts: { summaryContent?: string; summaryRaw?: string } = {},
 ): string {
   const subject = topic || "the uploaded content";
 
@@ -109,7 +109,7 @@ function buildInstructions(
 - Don't summarize when the user wants to discuss`;
 
   const sharedOpening = `## Opening Move
-When starting a fresh conversation, don't just say hello. In 2–3 sentences: describe what you know (the source material), then ask one specific question to invite exploration. Make it feel like talking to someone who's read this thoroughly and is genuinely interested in discussing it.`;
+When starting a fresh conversation, don't just say hello. Briefly state what you know and what you can help with (one sentence), then ask one specific question that gets to what the user actually wants to accomplish.`;
 
   // ── Book: two-part V3 structure ──────────────────────────────────────────────
   // Part A: Methodology — baked in (from --summary-file synthesis, or placeholder)
@@ -126,11 +126,15 @@ You are a deeply-read expert on "${subject}". You've internalized the book's cor
 
   const bookSourceProtocol = `## Part B — Source Protocol
 
-You have the full book uploaded as a knowledge file. Use it precisely:
-- Before answering any specific question, search the knowledge file for relevant passages
+You have two knowledge files uploaded:
+- **book-knowledge.md** — the full source text of the book (use for exact passages, quotes, and chapter-level detail)
+- **book-methodology.md** — a structured synthesis of all frameworks, core claims, actionable insights, and key terms (use for framework definitions, step sequences, and cross-framework connections)
+
+Use them precisely:
+- Before answering any specific question, search \`book-knowledge.md\` for the relevant passage and \`book-methodology.md\` for the relevant framework
 - When citing, reference chapter and section name (e.g., "Chapter 4: Define the Business")
 - Distinguish direct quotes from your paraphrase — make it clear which is which
-- When guiding a user through a step, pull the relevant passage first, then give your guidance
+- When guiding a user through a step, pull the relevant passage from \`book-knowledge.md\` first, then apply the framework from \`book-methodology.md\`
 - If a passage is unclear or noisy, paraphrase it accurately rather than quoting the garbled text`;
 
   const bookModes = `## Interaction Modes
@@ -143,6 +147,24 @@ You have two modes:
 
 Default to Build. Switch to Explore when the user signals they want to discuss rather than do (e.g., "what does the book say about...", "explain the concept of...", "I'm curious about..."). You can switch mid-conversation — follow their lead.`;
 
+  const bookOpening = `## Opening Move
+Default to Build mode. When starting fresh: briefly state you can guide them through the full planning process (one sentence), then ask what business or project they're working on. Once they answer, run the 3M Viability Check — ask about Management, Marketing, and Money in sequence. If any of the three is weak, tell them to address that gap before writing any section that depends on it. Only then proceed to plan-building.`;
+
+  // Dynamically extracted from ingested synthesis — injected per-book, not hardcoded
+  const contrarian = opts.summaryRaw
+    ? extractContrarianPositions(opts.summaryRaw)
+    : [];
+  const strongClaims = opts.summaryRaw
+    ? extractStrongClaims(opts.summaryRaw)
+    : [];
+  const allTraps = [...new Set([...strongClaims, ...contrarian])].slice(0, 5);
+  const bookWarnings =
+    allTraps.length > 0
+      ? `## Critical Traps
+Surface these proactively at the relevant plan stage — they are the book's most important counterintuitive warnings:
+${allTraps.map((t) => `- ${t}`).join("\n")}`
+      : "";
+
   const typeBlocks: Record<ContentType, string> = {
     book: `## Your Role
 You are ${name}, a specialized assistant for "${subject}". You combine a baked-in synthesis of the book's methodology with access to the full source text. You are both prescriptive (you know the process cold) and precise (you can cite the exact passage).
@@ -151,7 +173,7 @@ ${bookMethodology}
 
 ${bookSourceProtocol}
 
-${bookModes}`,
+${bookModes}${bookWarnings ? "\n\n" + bookWarnings : ""}`,
 
     transcript: `## Your Role
 You are a conversation distiller and insight guide for "${subject}". You've processed this transcript thoroughly — you know who said what, the arc of the conversation, which claims are speculative vs factual, and where the most useful insights live.
@@ -196,6 +218,8 @@ You are a research librarian and analyst for "${subject}". You've deeply indexed
 - When something isn't in the knowledge base, say so clearly and suggest what related information is available`,
   };
 
+  const opening = contentType === "book" ? bookOpening : sharedOpening;
+
   return `You are ${name}, a specialized AI assistant built around "${subject}".
 
 ${typeBlocks[contentType]}
@@ -206,12 +230,46 @@ ${sharedFormat}
 
 ${sharedBoundaries}
 
-${sharedOpening}`;
+${opening}`;
 }
 
 // ─── Summary extraction ────────────────────────────────────────────────────────
 
-const METHODOLOGY_CHAR_LIMIT = 4400;
+const METHODOLOGY_CHAR_LIMIT = 3200;
+
+/**
+ * Extract numbered contrarian positions from a book synthesis report.
+ * Looks for "## Frameworks Contrarian Positions" or "## Contrarian Positions".
+ */
+function extractContrarianPositions(raw: string): string[] {
+  const match = raw.match(
+    /##\s+(?:Frameworks\s+)?Contrarian Positions\s*\n([\s\S]*?)(?=\n## |\s*$)/i,
+  );
+  if (!match) return [];
+  const items = [...match[1].matchAll(/^\d+\.\s+(.+)/gm)].map((m) =>
+    m[1]
+      .replace(/\*\*/g, "")
+      .replace(/^"/, "")
+      .replace(/"$/, "")
+      .replace(/\s*—\s*.*$/, "")
+      .trim(),
+  );
+  return items.slice(0, 3);
+}
+
+/**
+ * Extract high-confidence (strength: strong) claims from the Core Claims table.
+ */
+function extractStrongClaims(raw: string): string[] {
+  const match = raw.match(/##\s+Core Claims\s*\n([\s\S]*?)(?=\n## |\s*$)/i);
+  if (!match) return [];
+  const rows = [
+    ...match[1].matchAll(
+      /\|\s*\d+\s*\|\s*([^|]+?)\s*\|\s*\w+\s*\|\s*strong\s*\|/gi,
+    ),
+  ];
+  return rows.slice(0, 3).map((r) => r[1].trim());
+}
 
 /**
  * Extract Thesis + Frameworks from a book master report, capped at METHODOLOGY_CHAR_LIMIT.
@@ -335,6 +393,7 @@ if (!instructions && contentTypeArg) {
   }
   instructions = buildInstructions(name, contentTypeArg as ContentType, topic, {
     summaryContent,
+    summaryRaw: rawSummary,
   });
   const GPT_INSTRUCTION_LIMIT = 8000;
   if (instructions.length > GPT_INSTRUCTION_LIMIT) {
