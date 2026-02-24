@@ -144,7 +144,7 @@ Run the /ingest-book command pipeline for this book:
 - Finder script: ${BOOK_FINDER}
 - Output report: ${reportPath}
 
-Follow all 8 steps from the /ingest-book command:
+Follow all 7 steps from the /ingest-book command:
 1. Verify file exists at ${bookPath}
 2. Parse with book-parser.py → get manifest
 3. Extract chunks in parallel (chapters sequential, chunks parallel, up to 4)
@@ -152,17 +152,6 @@ Follow all 8 steps from the /ingest-book command:
 5. Route to Brain Vault projects
 6. Move book to _processed/, mark in processed-books.txt
 7. Push top 5 insights + frameworks to vector memory via store-fact-cli.ts
-8. Upload master report to Internet Archive (if IA keys available):
-   \`\`\`bash
-   curl -s --location --header "x-amz-auto-make-bucket:1" \\
-     --header "x-archive-meta-title:${title} — EDDIE Knowledge Report" \\
-     --header "x-archive-meta-mediatype:texts" \\
-     --header "x-archive-meta-subject:book summary;AI notes;EDDIE" \\
-     --header "Authorization: LOW ${config.IA_S3_ACCESS_KEY ?? ""}:${config.IA_S3_SECRET_KEY ?? ""}" \\
-     --upload-file "${reportPath}" \\
-     "https://s3.us.archive.org/eddie-knowledge-${date}/${slug}-report.md"
-   \`\`\`
-   Log result but don't fail the job if upload errors.
 
 End your response with:
 BOOK_REPORT: ${title} | chapters=N | chunks=N | claims=N | frameworks=N | insights=N | routed=<project or Plans> | ${reportPath}
