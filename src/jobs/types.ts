@@ -1,5 +1,5 @@
 export type JobStatus = "running" | "completed" | "failed" | "killed";
-export type ModelId = "claude" | "kimi";
+export type ModelId = "claude" | "kimi" | "gemini" | "codex";
 
 export type StepError = {
   jobId: string;
@@ -29,4 +29,6 @@ export type Job = {
   lastStepName?: string;
   worktreePath?: string;
   artifactCheck?: Record<string, unknown>;
+  parallelGroupId?: string;
+  parallelRole?: "primary" | "specialist";
 };

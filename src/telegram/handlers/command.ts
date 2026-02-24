@@ -405,19 +405,20 @@ export async function handleRun(context: MessageContext): Promise<void> {
   const text = context.text?.replace(/^\/run\s*/, "").trim() ?? "";
   if (!text) {
     await context.send(
-      "Usage: /run [--model claude|kimi] [--timeout <minutes>] <prompt>",
+      "Usage: /run [--model claude|kimi|gemini|codex] [--timeout <minutes>] <prompt>",
     );
     return;
   }
 
-  let model: "claude" | "kimi" = "claude";
+  let model: import("../../jobs/types.ts").ModelId = "claude";
   let timeoutMs: number | undefined;
   let prompt = text;
 
   // Parse --model flag
-  const modelMatch = prompt.match(/^--model\s+(claude|kimi)\s+/i);
+  const modelMatch = prompt.match(/^--model\s+(claude|kimi|gemini|codex)\s+/i);
   if (modelMatch) {
-    model = modelMatch[1]!.toLowerCase() as "claude" | "kimi";
+    model =
+      modelMatch[1]!.toLowerCase() as import("../../jobs/types.ts").ModelId;
     prompt = prompt.slice(modelMatch[0].length).trim();
   }
 
@@ -430,9 +431,19 @@ export async function handleRun(context: MessageContext): Promise<void> {
 
   if (!prompt) {
     await context.send(
-      "Usage: /run [--model claude|kimi] [--timeout <minutes>] <prompt>",
+      "Usage: /run [--model claude|kimi|gemini|codex] [--timeout <minutes>] <prompt>",
     );
     return;
+  }
+
+  // Auto-delegation: if no explicit model, check if a specialist is better
+  if (!modelMatch) {
+    const { evaluateDelegation } = await import("../../routing/delegate.ts");
+    const decision = evaluateDelegation(prompt);
+    if (decision.shouldDelegate && decision.targetModel) {
+      model = decision.targetModel;
+      await context.send(`Auto-delegating to ${model} (${decision.reason}).`);
+    }
   }
 
   const job = await createJob(model, prompt);
@@ -444,6 +455,57 @@ export async function handleRun(context: MessageContext): Promise<void> {
   await context.send(
     `Job #${job.id} started (${model}${timeoutMs ? `, timeout: ${timeoutMs / 60_000}m` : ""}). Session: ${job.tmuxSession}`,
   );
+}
+
+export async function handleCompare(context: MessageContext): Promise<void> {
+  const text = context.text?.replace(/^\/compare\s*/, "").trim() ?? "";
+  if (!text) {
+    await context.send(
+      "Usage: /compare [--models claude,gemini,kimi,codex] [--synthesize] <prompt>",
+    );
+    return;
+  }
+
+  let prompt = text;
+  let explicitModels: import("../../jobs/types.ts").ModelId[] | undefined;
+  let synthesize = false;
+
+  // Parse --models flag
+  const modelsMatch = prompt.match(/^--models\s+([\w,]+)\s+/i);
+  if (modelsMatch) {
+    explicitModels = modelsMatch[1]!
+      .split(",")
+      .map((m) =>
+        m.trim().toLowerCase(),
+      ) as import("../../jobs/types.ts").ModelId[];
+    prompt = prompt.slice(modelsMatch[0].length).trim();
+  }
+
+  // Parse --synthesize flag
+  if (prompt.startsWith("--synthesize ")) {
+    synthesize = true;
+    prompt = prompt.slice("--synthesize ".length).trim();
+  }
+
+  if (!prompt) {
+    await context.send(
+      "Usage: /compare [--models claude,gemini,kimi,codex] [--synthesize] <prompt>",
+    );
+    return;
+  }
+
+  try {
+    const { runParallelComparison, selectModels } =
+      await import("../../jobs/parallel.ts");
+    const models = selectModels(prompt, explicitModels);
+    const result = await runParallelComparison(prompt, models, { synthesize });
+    await context.send(
+      `Comparing ${models.join(" vs ")} — group ${result.groupId}. Results will arrive as each job completes.`,
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await context.send(`Compare failed: ${msg}`);
+  }
 }
 
 export async function handleJobs(context: MessageContext): Promise<void> {

@@ -561,16 +561,68 @@ export const CAPABILITIES: Capability[] = [
     type: "agent",
     name: "ChatGPT Specialist",
     triggers: [
+      // name-based (explicit routing)
       {
         type: "keyword",
         patterns: [
           "chatgpt",
           "openai",
-          "gpt-4",
+          "codex",
           "ask chatgpt",
-          "get chatgpt's take",
+          "gpt-4",
+          "gpt-5",
         ],
         weight: 1.0,
+      },
+      // math / abstract reasoning — codex leads (100% AIME 2025, ARC-AGI-2 52.9%)
+      {
+        type: "keyword",
+        patterns: [
+          "math problem",
+          "aime",
+          "arc-agi",
+          "abstract reasoning",
+          "novel reasoning",
+          "logic puzzle",
+          "proof",
+        ],
+        weight: 0.85,
+      },
+      // quick single-file edits / mechanical refactors
+      {
+        type: "keyword",
+        patterns: [
+          "quick fix",
+          "rename all",
+          "migrate all",
+          "upgrade pattern",
+          "mechanical refactor",
+          "find and replace",
+        ],
+        weight: 0.75,
+      },
+      // voice / image analysis — codex/GPT unique
+      {
+        type: "keyword",
+        patterns: [
+          "voice interaction",
+          "real-time voice",
+          "image analysis",
+          "analyze image",
+          "describe image",
+        ],
+        weight: 0.8,
+      },
+      // provider flexibility
+      {
+        type: "keyword",
+        patterns: [
+          "openrouter",
+          "local model",
+          "provider flexibility",
+          "ollama api",
+        ],
+        weight: 0.9,
       },
     ],
     priority: 6,
@@ -580,16 +632,76 @@ export const CAPABILITIES: Capability[] = [
     type: "agent",
     name: "Gemini Specialist",
     triggers: [
+      // name-based (explicit routing)
+      {
+        type: "keyword",
+        patterns: ["gemini", "google ai", "ask gemini", "gemini cli"],
+        weight: 1.0,
+      },
+      // large context ingestion — gemini's standout (1M, 99.7% recall)
       {
         type: "keyword",
         patterns: [
-          "gemini",
-          "google ai",
-          "ask gemini",
-          "large context",
+          "entire codebase",
+          "whole repo",
+          "ingest repo",
+          "massive context",
           "1m context",
+          "large context",
+          "all the files",
+          "full project",
         ],
-        weight: 1.0,
+        weight: 0.9,
+      },
+      // video / recording analysis — unique capability
+      {
+        type: "keyword",
+        patterns: [
+          "analyze video",
+          "video recording",
+          "watch this video",
+          "timestamp",
+          "what happens in the video",
+          "video intelligence",
+        ],
+        weight: 0.95,
+      },
+      // cross-document synthesis
+      {
+        type: "keyword",
+        patterns: [
+          "cross-reference",
+          "50 documents",
+          "search logs",
+          "months of logs",
+          "historical analysis",
+          "all these files",
+        ],
+        weight: 0.85,
+      },
+      // rapid MVP / shell commands / docs
+      {
+        type: "keyword",
+        patterns: [
+          "quick prototype",
+          "fast mvp",
+          "first draft",
+          "generate readme",
+          "write docs",
+          "shell command for",
+        ],
+        weight: 0.7,
+      },
+      // Google ecosystem
+      {
+        type: "keyword",
+        patterns: [
+          "firebase",
+          "google cloud",
+          "google search grounding",
+          "gcp",
+        ],
+        weight: 0.9,
       },
     ],
     priority: 6,
@@ -599,10 +711,63 @@ export const CAPABILITIES: Capability[] = [
     type: "agent",
     name: "Kimi Specialist",
     triggers: [
+      // name-based (explicit routing)
       {
         type: "keyword",
         patterns: ["kimi", "moonshot", "ask kimi", "kimi ai"],
         weight: 1.0,
+      },
+      // screenshot/video → code — K2.5 standout feature
+      {
+        type: "keyword",
+        patterns: [
+          "screenshot to code",
+          "video to code",
+          "ui from image",
+          "design to code",
+          "build ui from",
+          "convert screenshot",
+          "frontend from image",
+        ],
+        weight: 0.95,
+      },
+      // Chinese language — unambiguous #1
+      {
+        type: "keyword",
+        patterns: [
+          "chinese",
+          "中文",
+          "mandarin",
+          "simplified chinese",
+          "traditional chinese",
+        ],
+        weight: 1.0,
+      },
+      // cost-sensitive bulk / batch work
+      {
+        type: "keyword",
+        patterns: [
+          "bulk process",
+          "batch job",
+          "high volume",
+          "cost sensitive",
+          "process many",
+          "hundreds of",
+          "parallel agents",
+        ],
+        weight: 0.8,
+      },
+      // execution-phase coding (after planning is done)
+      {
+        type: "keyword",
+        patterns: [
+          "implement this plan",
+          "execute the plan",
+          "just code it",
+          "implement exactly",
+          "write the code for",
+        ],
+        weight: 0.75,
       },
     ],
     priority: 6,
@@ -880,7 +1045,7 @@ export const CAPABILITIES: Capability[] = [
         weight: 1.0,
       },
     ],
-    invoke: `bun run ~/eddie/src/scripts/create-gpt.ts --name "..." --instructions "..." [--description "..."] [--file ./knowledge.pdf]`,
+    invoke: `bun run ~/eddie/src/scripts/create-gpt.ts --name "..." --content-type [book|transcript|tutorial|instructions|database] --topic "..." [--file ./knowledge.pdf]\n# Or manual: --instructions "..." or --instructions-file ./prompt.txt`,
     priority: 8,
   },
   // ── MCPs ──

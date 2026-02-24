@@ -43,6 +43,12 @@ const envSchema = z.object({
     .string()
     .default("~/brain-vault/90 - Agent Memory/Jobs"),
   KIMI_PATH: z.string().default("kimi"),
+  GEMINI_PATH: z
+    .string()
+    .default("/home/na/.nvm/versions/node/v22.22.0/bin/gemini"),
+  CODEX_PATH: z
+    .string()
+    .default("/home/na/.nvm/versions/node/v22.22.0/bin/codex"),
   TMUX_PATH: z.string().default("tmux"),
   JOB_POLL_INTERVAL_MS: z.coerce.number().default(30_000),
   CONSOLIDATE_INTERVAL_MS: z.coerce.number().default(3_600_000),
@@ -127,6 +133,9 @@ const envSchema = z.object({
     .preprocess((v) => String(v ?? "false") === "true", z.boolean())
     .default(false),
   CONTACT_SYNC_TIME: z.string().default("03:00"),
+  CLAUDE_HEALTH_ENABLED: z
+    .preprocess((v) => String(v ?? "false") === "true", z.boolean())
+    .default(false),
 });
 
 export type Config = z.infer<typeof envSchema>;

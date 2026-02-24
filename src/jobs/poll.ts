@@ -450,7 +450,9 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
       // (resource pressure, OOM kill, process killed) rather than a code bug.
       // Self-healing environmental failures just adds more load.
       const isEnvFailure = summary === "No output produced";
-      if (!isEnvFailure) {
+      // Don't trigger self-heal for specialist model failures (non-Claude models don't have tools)
+      const isSpecialistFailure = job?.parallelRole === "specialist";
+      if (!isEnvFailure && !isSpecialistFailure) {
         // Capture terminal context for self-heal enrichment
         const paneCapture = await capturePane(job.tmuxSession, 200).catch(
           () => "",
@@ -476,6 +478,70 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
           },
           bot,
         ).catch(() => {});
+      }
+    }
+  }
+
+  // Parallel group completion hook
+  if (job?.parallelGroupId) {
+    const {
+      getParallelGroupStatus,
+      collectParallelOutputs,
+      synthesizeResults,
+    } = await import("./parallel.ts");
+    const { scoreOutputsAndStore } = await import("../routing/comparisons.ts");
+
+    const groupStatus = await getParallelGroupStatus(job.parallelGroupId);
+
+    if (groupStatus.allDone) {
+      logger.info("parallel:group-complete", {
+        groupId: job.parallelGroupId,
+        ...groupStatus,
+      });
+
+      // Don't re-synthesize if this is a specialist failure
+      if (groupStatus.completed > 0) {
+        try {
+          const outputs = await collectParallelOutputs(job.parallelGroupId);
+
+          // Send individual results to Telegram
+          for (const o of outputs) {
+            const preview = o.output.slice(-500).trim();
+            if (preview) {
+              try {
+                await bot.api.sendMessage({
+                  chat_id: config.OWNER_TELEGRAM_ID,
+                  text: `[${o.model.toUpperCase()}] ${preview.slice(0, 300)}`,
+                });
+              } catch {}
+            }
+          }
+
+          // Synthesize
+          const synthesis = await synthesizeResults(job?.prompt ?? "", outputs);
+          if (synthesis) {
+            await bot.api.sendMessage({
+              chat_id: config.OWNER_TELEGRAM_ID,
+              text: `Synthesis:\n${synthesis.slice(0, 1000)}`,
+            });
+          }
+
+          // Score and store comparison
+          const scorableOutputs = outputs.map((o) => ({
+            model: o.model,
+            output: o.output,
+          }));
+          await scoreOutputsAndStore(
+            job?.prompt ?? "",
+            scorableOutputs,
+            !!synthesis,
+          ).catch(() => {});
+        } catch (err) {
+          logger.warn("parallel:group-synthesis-failed", {
+            groupId: job.parallelGroupId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     }
   }

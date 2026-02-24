@@ -91,6 +91,11 @@ if (config.CONTACT_SYNC_ENABLED) {
   startContactSync();
 }
 
+if (config.CLAUDE_HEALTH_ENABLED) {
+  const { startClaudeHealth } = await import("./proactive/claude-health.ts");
+  startClaudeHealth(bot);
+}
+
 bot.api
   .sendMessage({
     chat_id: config.OWNER_TELEGRAM_ID,

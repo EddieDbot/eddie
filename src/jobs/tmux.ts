@@ -9,7 +9,8 @@ import { detectJobType, resolveJobSettings } from "./settings.ts";
 import { createWorktree, shouldUseWorktree } from "./worktree.ts";
 import { routeCapabilities } from "../routing/router.ts";
 import { getMcpHints } from "../routing/mcp-hints.ts";
-import type { Job } from "./types.ts";
+import { buildDelegationGuidance } from "../routing/model-kb.ts";
+import type { Job, ModelId } from "./types.ts";
 
 const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 const HOME = process.env.HOME ?? "/home/na";
@@ -156,7 +157,60 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
     parts.push(memCtx);
   }
 
+  parts.push(buildDelegationGuidance());
+
   return parts.join("\n\n");
+}
+
+export function wrapPromptForModel(prompt: string, model: ModelId): string {
+  if (model === "claude") return prompt;
+  const header = `[EDDIE Task] You are helping EDDIE, Nicholas's AI assistant. Answer directly and concisely.\n\nTask: `;
+  return header + prompt;
+}
+
+async function buildRunnerScript(
+  job: Job,
+  outputFile: string,
+  timeoutSec: number,
+  envUnset: string,
+  escapedPrompt: string,
+): Promise<string> {
+  if (job.model === "kimi") {
+    return `#!/bin/bash
+PROMPT='${escapedPrompt}'
+env ${envUnset} ${config.KIMI_PATH} "$PROMPT" 2>&1 | tee -a "${outputFile}"
+`;
+  }
+
+  if (job.model === "gemini") {
+    return `#!/bin/bash
+PROMPT='${escapedPrompt}'
+timeout --foreground ${timeoutSec}s ${config.GEMINI_PATH} "$PROMPT" 2>&1 | tee -a "${outputFile}"
+`;
+  }
+
+  if (job.model === "codex") {
+    return `#!/bin/bash
+PROMPT='${escapedPrompt}'
+timeout --foreground ${timeoutSec}s env ${envUnset} ${config.CODEX_PATH} --approval-mode full-auto --skip-git-repo-check "$PROMPT" 2>&1 | tee -a "${outputFile}"
+`;
+  }
+
+  // Default: claude with system prompt
+  const systemPrompt = await buildJobSystemPrompt(job.prompt);
+  const systemFile = resolve(JOBS_DIR, `job-${job.id}-system.txt`);
+  await Bun.write(systemFile, systemPrompt);
+  const escapedSystem = systemPrompt
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "'\\''");
+  const jobType = detectJobType(job.prompt, job.tmuxSession);
+  const settingsPath = resolveJobSettings({ jobType });
+  const settingsArg = settingsPath ? `--settings "${settingsPath}"` : "";
+  return `#!/bin/bash
+PROMPT='${escapedPrompt}'
+SYSTEM='${escapedSystem}'
+timeout --foreground ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$PROMPT" --output-format text --model claude-sonnet-4-6 --dangerously-skip-permissions ${settingsArg} --append-system-prompt "$SYSTEM" 2>&1 | tee -a "${outputFile}"
+`;
 }
 
 export async function spawnJob(job: Job): Promise<void> {
@@ -178,7 +232,6 @@ export async function spawnJob(job: Job): Promise<void> {
 
   const promptFile = resolve(JOBS_DIR, `job-${job.id}-prompt.txt`);
   const outputFile = resolve(JOBS_DIR, `job-${job.id}-output.txt`);
-  const systemFile = resolve(JOBS_DIR, `job-${job.id}-system.txt`);
   await Bun.write(promptFile, job.prompt);
   // Pre-write a start marker so zombie detection never falsely kills a job that is
   // just slow to produce output (pipe block-buffering keeps size=0 until flush/exit).
@@ -201,27 +254,13 @@ export async function spawnJob(job: Job): Promise<void> {
     .replace(/\\/g, "\\\\")
     .replace(/'/g, "'\\''");
 
-  let runnerScript: string;
-  if (job.model === "kimi") {
-    runnerScript = `#!/bin/bash
-PROMPT='${escapedPrompt}'
-env ${envUnset} ${config.KIMI_PATH} "$PROMPT" 2>&1 | tee -a "${outputFile}"
-`;
-  } else {
-    const systemPrompt = await buildJobSystemPrompt(job.prompt);
-    await Bun.write(systemFile, systemPrompt);
-    const escapedSystem = systemPrompt
-      .replace(/\\/g, "\\\\")
-      .replace(/'/g, "'\\''");
-    const jobType = detectJobType(job.prompt, job.tmuxSession);
-    const settingsPath = resolveJobSettings({ jobType });
-    const settingsArg = settingsPath ? `--settings "${settingsPath}"` : "";
-    runnerScript = `#!/bin/bash
-PROMPT='${escapedPrompt}'
-SYSTEM='${escapedSystem}'
-timeout --foreground ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$PROMPT" --output-format text --model claude-sonnet-4-6 --dangerously-skip-permissions ${settingsArg} --append-system-prompt "$SYSTEM" 2>&1 | tee -a "${outputFile}"
-`;
-  }
+  const runnerScript = await buildRunnerScript(
+    job,
+    outputFile,
+    timeoutSec,
+    envUnset,
+    escapedPrompt,
+  );
 
   await Bun.write(runnerFile, runnerScript);
 

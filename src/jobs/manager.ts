@@ -29,6 +29,9 @@ function rowToJob(row: Record<string, unknown>): Job {
     worktreePath: (row.worktree_path as string | null) ?? undefined,
     artifactCheck:
       (row.artifact_check as Record<string, unknown> | null) ?? undefined,
+    parallelGroupId: (row.parallel_group_id as string | null) ?? undefined,
+    parallelRole:
+      (row.parallel_role as "primary" | "specialist" | null) ?? undefined,
   };
 }
 
@@ -56,6 +59,9 @@ function jobToRow(
   if (job.lastStepName !== undefined) row.last_step_name = job.lastStepName;
   if (job.worktreePath !== undefined) row.worktree_path = job.worktreePath;
   if (job.artifactCheck !== undefined) row.artifact_check = job.artifactCheck;
+  if (job.parallelGroupId !== undefined)
+    row.parallel_group_id = job.parallelGroupId;
+  if (job.parallelRole !== undefined) row.parallel_role = job.parallelRole;
   return row;
 }
 

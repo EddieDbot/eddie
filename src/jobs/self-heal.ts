@@ -15,7 +15,8 @@ export type FailureSource =
   | "playlist"
   | "dream"
   | "morning-brief"
-  | "nightly-orchestrate";
+  | "nightly-orchestrate"
+  | "claude-health";
 
 export type FailureContext = {
   source: FailureSource;
@@ -62,6 +63,7 @@ const SOURCE_FILES: Record<FailureSource, string[]> = {
   "nightly-orchestrate": [
     "/home/na/eddie/src/proactive/nightly-orchestrate.ts",
   ],
+  "claude-health": ["/home/na/eddie/src/proactive/claude-health.ts"],
 };
 
 function shouldHeal(ctx: FailureContext, tmuxSession?: string): boolean {
