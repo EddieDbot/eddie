@@ -160,6 +160,37 @@ const envSchema = z.object({
   SELF_IMPROVE_WEEKLY_DAY: z.coerce.number().default(0),
   KANBAN_ENABLED: z.coerce.boolean().default(false),
   GATHER_BEFORE_BRIEF: z.coerce.boolean().default(false),
+  // Wave 0B — Persistent Jobs Session
+  PERSISTENT_JOBS_SESSION: z.coerce.boolean().default(false),
+  // Wave 2 — Security Hardening
+  TRUST_CLASSIFICATION_ENABLED: z.coerce.boolean().default(false),
+  HOOKS_VALIDATION_ENABLED: z.coerce.boolean().default(false),
+  MCP_AUDIT_LOG_ENABLED: z.coerce.boolean().default(false),
+  ANOMALY_DETECT_ENABLED: z.coerce.boolean().default(false),
+  // Wave 4 — Morning Brief + Commands
+  MORNING_BRIEF_NEWS_ENABLED: z.coerce.boolean().default(false),
+  BOOK_EXERCISE_EXTRACTION: z.coerce.boolean().default(false),
+  // Wave 5 — Tracking + Ingestion
+  EXPENSE_TRACKING_ENABLED: z.coerce.boolean().default(false),
+  COMMITMENT_TRACKING_ENABLED: z.coerce.boolean().default(false),
+  SOCIAL_SNAPSHOT_ENABLED: z.coerce.boolean().default(false),
+  YOUTUBE_COMPETITOR_ENABLED: z.coerce.boolean().default(false),
+  URL_INGESTION_ENABLED: z.coerce.boolean().default(false),
+  // Wave 6 — Dashboard + Job Execution
+  WEB_CHAT_ENABLED: z.coerce.boolean().default(false),
+  FRAMEWORK_PROMPTING_ENABLED: z.coerce.boolean().default(false),
+  JOB_DISCOVERY_PHASE_ENABLED: z.coerce.boolean().default(false),
+  PHASE_GIT_COMMITS_ENABLED: z.coerce.boolean().default(false),
+  // Wave 7 — Autonomous Crons
+  SECURITY_COUNCIL_ENABLED: z.coerce.boolean().default(false),
+  SECURITY_COUNCIL_TIME: z.string().default("03:30"),
+  DISCOVERABILITY_ENABLED: z.coerce.boolean().default(false),
+  MONTHLY_REVIEW_ENABLED: z.coerce.boolean().default(false),
+  ACCOUNTING_PIPELINE_ENABLED: z.coerce.boolean().default(false),
+  OBSERVATION_LOG_ENABLED: z.coerce.boolean().default(false),
+  // Wave 8 — Final Polish
+  CROSS_PROVIDER_ROUTING_ENABLED: z.coerce.boolean().default(false),
+  MONOLOGUE_BRIEF_ENABLED: z.coerce.boolean().default(false),
 });
 
 export type Config = z.infer<typeof envSchema>;

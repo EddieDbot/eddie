@@ -46,6 +46,13 @@ import {
   handleCompare,
   handleMilestone,
 } from "./handlers/command.ts";
+import { handleBookmark, handleResume } from "./handlers/bookmark-commands.ts";
+import {
+  handleSpending,
+  handleExpense,
+  handleWaitingOn,
+} from "./handlers/tracking-commands.ts";
+import { handleDashboard } from "./handlers/dashboard-commands.ts";
 import { handleText } from "./handlers/text.ts";
 import { handleVoice } from "./handlers/voice.ts";
 import { handlePhoto, handleDocument } from "./handlers/media.ts";
@@ -100,6 +107,12 @@ export function createBot(): Bot {
   bot.command("gptcustom", (context) => handleGptCustom(context));
   bot.command("compare", (context) => handleCompare(context));
   bot.command("milestone", (context) => handleMilestone(context));
+  bot.command("bookmark", (context) => handleBookmark(context));
+  bot.command("resume", (context) => handleResume(context));
+  bot.command("spending", (context) => handleSpending(context));
+  bot.command("expense", (context) => handleExpense(context));
+  bot.command("waitingon", (context) => handleWaitingOn(context));
+  bot.command("dashboard", (context) => handleDashboard(context));
 
   bot.on("message", (context) => {
     if (context.voice) return handleVoice(context);

@@ -421,6 +421,15 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
     }
   }
 
+  // Phase-level git commit on STEP_COMPLETE
+  if (config.PHASE_GIT_COMMITS_ENABLED && output.includes("STEP_COMPLETE")) {
+    const stepMatch = output.match(/STEP_COMPLETE:(\w+)/);
+    if (stepMatch) {
+      const { commitPhase } = await import("../utils/git-phase-commit.ts");
+      commitPhase(jobId, stepMatch[1]!).catch(() => {});
+    }
+  }
+
   // Redact secrets from output before persisting or transmitting
   const safeOutput = config.OUTPUT_SCAN_ENABLED
     ? redactSecrets(output)

@@ -220,6 +220,17 @@ async function runCheck(bot: Bot): Promise<void> {
     }
   }
 
+  if (config.HOOKS_VALIDATION_ENABLED) {
+    const { validateHooks } = await import("../security/hooks-validator.ts");
+    const hooksResult = await validateHooks().catch(() => null);
+    if (hooksResult && !hooksResult.valid) {
+      logger.warn("claude-health:suspicious-hooks", {
+        suspicious: hooksResult.suspicious,
+        approved: hooksResult.approved,
+      });
+    }
+  }
+
   if (issues.length === 0) {
     logger.info("claude-health:healthy");
     return;

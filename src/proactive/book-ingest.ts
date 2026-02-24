@@ -8,6 +8,7 @@ import { spawnJob } from "../jobs/tmux.ts";
 import { logProvenance } from "../memory/provenance.ts";
 import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
+import { runPrompt } from "../claude/run-prompt.ts";
 
 const HOME = homedir();
 const BRAIN_VAULT = `${HOME}/brain-vault`;
@@ -158,6 +159,41 @@ BOOK_REPORT: ${title} | chapters=N | chunks=N | claims=N | frameworks=N | insigh
 `;
 }
 
+async function extractExercises(
+  bookPath: string,
+  bookTitle: string,
+): Promise<void> {
+  if (!config.BOOK_EXERCISE_EXTRACTION) return;
+
+  let sample = "";
+  try {
+    sample = (await Bun.file(bookPath).text()).slice(0, 5000);
+  } catch {
+    return;
+  }
+
+  const { text, ok } = await runPrompt({
+    system:
+      "Extract all exercises, action items, and practice prompts from this book excerpt. Format as a numbered list with the chapter/section if available. Be concrete and actionable.",
+    prompt: `Book: ${bookTitle}\n\nExcerpt:\n${sample}`,
+    model: "claude-haiku-4-5-20251001",
+  });
+
+  if (!ok || !text) return;
+
+  const { homedir: homeDir } = await import("node:os");
+  const exercisesDir = `${homeDir()}/brain-vault/00 - Inbox/books/exercises`;
+  await mkdir(exercisesDir, { recursive: true });
+  const slug = bookTitle
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, 40);
+  await Bun.write(
+    `${exercisesDir}/${slug}-exercises.md`,
+    `# Exercises: ${bookTitle}\n\n${text}`,
+  );
+}
+
 export async function ingestBook(
   bookPath: string,
   opts?: { title?: string; hash?: string },
@@ -181,6 +217,9 @@ export async function ingestBook(
     job_id: job.id,
     status: "in_progress",
   }).catch(() => {});
+  extractExercises(bookPath, title).catch((err) => {
+    logger.warn("book-ingest:exercise-extract-error", { error: String(err) });
+  });
   return { jobId: job.id, session: job.tmuxSession };
 }
 

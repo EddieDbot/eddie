@@ -2,6 +2,7 @@ import type { Bot } from "gramio";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
 import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
+import { homedir } from "node:os";
 
 export async function checkContextDrift(bot: Bot): Promise<void> {
   if (!memoryEnabled) return;
@@ -73,5 +74,36 @@ export async function checkContextDrift(bot: Bot): Promise<void> {
       },
       { onConflict: "system_prompt_hash" },
     );
+  }
+}
+
+export async function runPostCommitDriftCheck(bot: Bot): Promise<void> {
+  if (!config.CONTEXT_DRIFT_ENABLED) return;
+
+  try {
+    const eddieDir = `${homedir()}/eddie`;
+
+    const gitProc = Bun.spawn(["git", "log", "--oneline", "-1"], {
+      cwd: eddieDir,
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+    const lastCommit = await new Response(gitProc.stdout).text();
+    if (!lastCommit.trim()) return;
+
+    const gitTimeProc = Bun.spawn(["git", "log", "-1", "--format=%ct"], {
+      cwd: eddieDir,
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+    const commitTime = parseInt(await new Response(gitTimeProc.stdout).text());
+    if (isNaN(commitTime) || Date.now() / 1000 - commitTime > 300) return;
+
+    await checkContextDrift(bot);
+    logger.info("context-drift:post-commit-check", {
+      commit: lastCommit.slice(0, 40),
+    });
+  } catch (err) {
+    logger.warn("context-drift:post-commit-error", { error: String(err) });
   }
 }

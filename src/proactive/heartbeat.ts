@@ -7,7 +7,11 @@ import { logCommunication } from "../memory/store.ts";
 import { initiateCall } from "../voice/call.ts";
 import { logger } from "../utils/logger.ts";
 import { emitEvent } from "../dashboard/server.ts";
-import { parseConfidence } from "./confidence.ts";
+import {
+  parseConfidence,
+  getPendingEscalations,
+  clearEscalation,
+} from "./confidence.ts";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
 import { STATE_DIR } from "../memory/brain-vault-paths.ts";
@@ -419,11 +423,37 @@ async function executeDueCronJobs(bot: Bot): Promise<void> {
   }
 }
 
+async function flushPendingEscalations(bot: Bot): Promise<void> {
+  const escalations = getPendingEscalations();
+  if (escalations.length === 0) return;
+
+  for (let i = escalations.length - 1; i >= 0; i--) {
+    const esc = escalations[i]!;
+    const targetChatId = esc.chatId ?? config.OWNER_TELEGRAM_ID;
+    try {
+      await bot.api.sendMessage({
+        chat_id: targetChatId,
+        text: `Uncertainty check: ${esc.action} — ${esc.reason}. Proceed? Use /approve or /reject.`,
+      });
+      clearEscalation(i);
+      logger.info("heartbeat:escalation-sent", {
+        action: esc.action,
+        threshold: esc.threshold,
+      });
+    } catch (err) {
+      logger.warn("heartbeat:escalation-send-error", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+}
+
 async function tick(bot: Bot): Promise<void> {
   const start = Date.now();
   const lastHeartbeatAt = await getLastHeartbeatAt();
 
   await executeDueCronJobs(bot);
+  await flushPendingEscalations(bot);
 
   const context = await buildHeartbeatContext();
   const result = await relayHeartbeat(context);

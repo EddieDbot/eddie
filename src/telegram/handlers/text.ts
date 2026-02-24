@@ -19,6 +19,73 @@ import { config } from "../../config.ts";
 
 type MessageContext = ContextType<BotLike, "message">;
 
+async function detectAndIngestUrl(
+  text: string,
+  context: MessageContext,
+): Promise<boolean> {
+  if (!config.URL_INGESTION_ENABLED) return false;
+
+  const urlMatch = text.match(/^(https?:\/\/\S+)/);
+  if (!urlMatch) return false;
+
+  const url = urlMatch[1]!;
+  if (text.replace(url, "").trim().length > 100) return false;
+
+  const isYouTube = /youtube\.com|youtu\.be/.test(url);
+
+  if (isYouTube) {
+    await context.send(
+      `YouTube URL detected. Spawning transcript ingestion...`,
+    );
+    const job = await createJob(
+      "claude",
+      `Use the transcript-ingester agent to download and process this YouTube video: ${url}\nSave transcript to Brain Vault inbox.`,
+    );
+    await spawnJob(job);
+    await context.send(`Ingestion job #${job.id} started.`);
+  } else {
+    await context.send(`URL detected. Saving summary to Brain Vault...`);
+    const job = await createJob(
+      "claude",
+      `Use the WebFetch tool to fetch and summarize this URL: ${url}\nWrite a structured summary to ~/brain-vault/00 - Inbox/ with filename based on the page title.`,
+    );
+    await spawnJob(job);
+    await context.send(
+      `Job #${job.id} started. Summary will be saved to Brain Vault inbox.`,
+    );
+  }
+
+  logger.info("handler:text:url-ingested", { url, isYouTube });
+  return true;
+}
+
+async function detectMonologue(
+  text: string,
+  context: MessageContext,
+): Promise<boolean> {
+  if (!config.MONOLOGUE_BRIEF_ENABLED) return false;
+  if (text.length < 300) return false;
+
+  // Heuristic: long message with multiple sentence breaks = brain dump / monologue
+  const sentences = text.split(/[.!?]+/).filter((s) => s.trim().length > 10);
+  if (sentences.length < 3) return false;
+
+  // Detect if it's a voice-to-text / brain dump (not a question or command)
+  const isQuestion =
+    text.trim().endsWith("?") || text.toLowerCase().startsWith("what");
+  if (isQuestion) return false;
+
+  await context.send(
+    "Sounds like a brain dump. Generating structured brief...",
+  );
+
+  const { generateContentBrief } =
+    await import("../../proactive/content-brief.ts");
+  const brief = await generateContentBrief(text);
+  await context.send(brief.slice(0, 4000));
+  return true; // handled — don't relay
+}
+
 function parseBackgroundTag(
   text: string,
 ): { jobPrompt: string; userResponse: string } | null {
@@ -45,6 +112,9 @@ export async function handleText(context: MessageContext): Promise<void> {
     await advanceReview(chatId, text, bot);
     return;
   }
+
+  if (await detectAndIngestUrl(text, context)) return;
+  if (await detectMonologue(text, context)) return;
 
   const scan = scanInput(text);
   if (!scan.clean) {

@@ -1,5 +1,6 @@
 export type JobStatus = "running" | "completed" | "failed" | "killed";
 export type ModelId = "claude" | "kimi" | "gemini" | "codex";
+export type ChannelContext = "private" | "shared" | "automated";
 
 export type StepError = {
   jobId: string;
@@ -33,4 +34,5 @@ export type Job = {
   parallelRole?: "primary" | "specialist";
   systemPromptHash?: string;
   qaGate?: { passed: boolean; issues: string[] };
+  channelContext?: ChannelContext;
 };

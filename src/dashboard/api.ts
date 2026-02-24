@@ -1,5 +1,6 @@
 import { memoryEnabled, getSupabase } from "../memory/client.ts";
-import { getRecentJobs } from "../jobs/manager.ts";
+import { getRecentJobs, getJob } from "../jobs/manager.ts";
+import { readOutput, isSessionAlive } from "../jobs/tmux.ts";
 import { listReportsMeta, getReportContent } from "../proactive/playlist.ts";
 import { parseRoadmapItems } from "../proactive/report-synthesis.ts";
 import { getChannelStats, getRecentVideos } from "../comms/youtube.ts";
@@ -69,6 +70,21 @@ export function handleApi(path: string): Response {
           const content = await getReportContent(filename);
           if (content === null) return { error: "not found" };
           return { filename, content };
+        });
+      }
+      // Job output endpoint: GET /api/jobs/:id/output
+      const jobOutputMatch = path.match(/^\/api\/jobs\/([^/]+)\/output$/);
+      if (jobOutputMatch) {
+        const jobId = jobOutputMatch[1]!;
+        return handleAsync(async () => {
+          const job = await getJob(jobId);
+          if (!job) return { error: "job not found" };
+          const output = await readOutput(jobId);
+          const alive = await isSessionAlive(job.tmuxSession);
+          return {
+            output,
+            status: alive ? "running" : job.status,
+          };
         });
       }
       return json({ error: "not found" }, 404);

@@ -67,6 +67,12 @@ if (config.NIGHTLY_ORCHESTRATE_ENABLED) {
   startNightlyOrchestrate(bot);
 }
 
+if (config.SECURITY_COUNCIL_ENABLED) {
+  const { startSecurityCouncil } =
+    await import("./security/security-council.ts");
+  startSecurityCouncil(bot);
+}
+
 if (config.MORNING_BRIEF_ENABLED) {
   const { startMorningBrief } = await import("./proactive/morning-brief.ts");
   startMorningBrief(bot, config.MORNING_BRIEF_TIME);
@@ -79,18 +85,28 @@ const { startJobPoller } = await import("./jobs/poll.ts");
 startJobPoller(bot);
 
 // Hourly capabilities parity check — runs even when HEARTBEAT_ENABLED=false
-setInterval(async () => {
-  try {
-    const { spawnSync } = await import("bun");
-    spawnSync(["bun", "run", resolve(import.meta.dir, "scripts/capabilities-parity-check.ts")], {
-      stdout: "inherit",
-      stderr: "inherit",
-    });
-  } catch (err) {
-    // Non-fatal — log and continue
-    console.error("capabilities-parity: interval error:", err);
-  }
-}, 60 * 60 * 1000);
+setInterval(
+  async () => {
+    try {
+      const { spawnSync } = await import("bun");
+      spawnSync(
+        [
+          "bun",
+          "run",
+          resolve(import.meta.dir, "scripts/capabilities-parity-check.ts"),
+        ],
+        {
+          stdout: "inherit",
+          stderr: "inherit",
+        },
+      );
+    } catch (err) {
+      // Non-fatal — log and continue
+      console.error("capabilities-parity: interval error:", err);
+    }
+  },
+  60 * 60 * 1000,
+);
 
 if (config.COMMS_ENABLED) {
   const { startComms } = await import("./comms/index.ts");
@@ -125,6 +141,19 @@ if (config.CONTACT_SYNC_ENABLED) {
 if (config.CLAUDE_HEALTH_ENABLED) {
   const { startClaudeHealth } = await import("./proactive/claude-health.ts");
   startClaudeHealth(bot);
+}
+
+if (config.ANOMALY_DETECT_ENABLED) {
+  const { runAnomalyCheck } = await import("./security/anomaly-detect.ts");
+  // Run on startup then every 24h (03:30 slot shared with security council)
+  runAnomalyCheck().catch(() => {});
+  setInterval(
+    () =>
+      runAnomalyCheck().catch((err) =>
+        logger.warn("anomaly-detect:error", { error: String(err) }),
+      ),
+    24 * 60 * 60 * 1000,
+  );
 }
 
 bot.api

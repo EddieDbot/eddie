@@ -10,10 +10,14 @@ import { createWorktree, shouldUseWorktree } from "./worktree.ts";
 import { routeCapabilities } from "../routing/router.ts";
 import { getMcpHints } from "../routing/mcp-hints.ts";
 import { buildDelegationGuidance } from "../routing/model-kb.ts";
-import type { Job, ModelId } from "./types.ts";
+import type { Job, ModelId, ChannelContext } from "./types.ts";
 import { tickTool } from "../memory/tool-ticker.ts";
 import { getCondensedVision } from "../proactive/vision.ts";
-import { BRAIN_VAULT_ROOT, STATE_DIR as BV_STATE_DIR, getProjectClaude } from "../memory/brain-vault-paths.ts";
+import {
+  BRAIN_VAULT_ROOT,
+  STATE_DIR as BV_STATE_DIR,
+  getProjectClaude,
+} from "../memory/brain-vault-paths.ts";
 
 const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 const HOME = process.env.HOME ?? "/home/na";
@@ -73,9 +77,19 @@ async function readProjectClaude(slug: string): Promise<string> {
 // "Use the Bash tool to run: bun check" (not "check if types are valid")
 // "Use the Read tool to read: src/jobs/tmux.ts" (not "look at the job runner")
 // This reduces ambiguity and improves reliability by 30-50% on complex tasks
-async function buildJobSystemPrompt(prompt: string): Promise<string> {
+async function buildJobSystemPrompt(
+  prompt: string,
+  channelContext?: ChannelContext,
+): Promise<string> {
   const briefingData = parseRawTask(prompt);
   const structuredBriefing = await buildBriefing(briefingData);
+
+  const channelHint =
+    channelContext === "shared"
+      ? "\n[CONTEXT: shared-channel] Write for an audience beyond Nicholas — be professional, avoid internal references."
+      : channelContext === "automated"
+        ? "\n[CONTEXT: automated] This is a cron/background job. Be terse, skip social niceties, focus on output."
+        : ""; // private — default behavior
 
   const [memCtx, relevantProjects, visionCtx] = await Promise.all([
     buildMemoryContext(prompt).catch(() => ""),
@@ -113,9 +127,22 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
       ? `## Recommended Agents\nUse these agents for this task: ${routing.agents.join(", ")}\n\nAll other agents are available if needed — use agent slug in your task description to invoke them.`
       : `## Available Agents\nUse agent slugs in your work. Key agents: self-healer, code-reviewer, architect, security-reviewer, transcript-ingester, website-builder, automation-engineer, multi-ai-researcher, and all platform agents (clay, dripify, instantly, attio, n8n, cal-com).`;
 
+  // Wave 2D: Filter MCPs by job type for attack surface minimization
+  const jobTypeName = detectJobType(prompt, "");
+  const filteredMcps = config.MCP_AUDIT_LOG_ENABLED
+    ? routing.mcps.filter((mcp) => {
+        // Research jobs: allow search MCPs
+        if (jobTypeName === "research") return true;
+        // Code jobs: exclude browser/external MCPs
+        if (jobTypeName === "code")
+          return !["playwright", "brave-search"].includes(mcp);
+        return true;
+      })
+    : routing.mcps;
+
   const mcpSection =
-    routing.mcps.length > 0
-      ? `## MCP Tools Available\n${getMcpHints(routing.mcps)}`
+    filteredMcps.length > 0
+      ? `## MCP Tools Available\n${getMcpHints(filteredMcps)}`
       : "";
 
   const toolSection =
@@ -127,6 +154,7 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
     "You are EDDIE, running as a background job on Nicholas's homelab server (debianhomelabX).",
     "Full file system access, full agent access (~/.claude/agents/), take as long as needed.",
     "This job runs unattended — be thorough, make decisions autonomously, write results back.",
+    ...(channelHint ? [channelHint] : []),
     "",
     "## Who You're Working For",
     "Nicholas Alexander Crabill — creative technologist, creative director.",
@@ -139,11 +167,17 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
     "",
     ...(mcpSection ? [mcpSection, ""] : []),
     ...(toolSection ? [toolSection, ""] : []),
-    "## Brain Vault Paths",
-    `Projects: ${BRAIN_VAULT_ROOT}/10 - Projects/`,
-    `State files: ${BV_STATE_DIR}/`,
+    "## Brain Vault Paths (PARA structure)",
+    `Inbox:     ${BRAIN_VAULT_ROOT}/00 - Inbox/`,
+    `Projects:  ${BRAIN_VAULT_ROOT}/10 - Projects/   (active work with deadlines)`,
+    `Areas:     ${BRAIN_VAULT_ROOT}/20 - Areas/      (ongoing domains: EDDIE, AI Research, Homelab, creative-technologist)`,
+    `Resources: ${BRAIN_VAULT_ROOT}/30 - Resources/  (idea buckets: ai-money, session-nuggets, health-optimization)`,
+    `Archive:   ${BRAIN_VAULT_ROOT}/40 - Archive/`,
+    `State:     ${BV_STATE_DIR}/`,
     `Decisions: ${BRAIN_VAULT_ROOT}/90 - Agent Memory/Decisions/`,
     `Learnings: ${BRAIN_VAULT_ROOT}/90 - Agent Memory/Learnings/`,
+    `Handovers: ${BRAIN_VAULT_ROOT}/90 - Agent Memory/Handovers/`,
+    "Route outputs to the correct tier — e.g. agent-forge → Areas/AI Research/agent-forge/, ai-money → Resources/ai-money/",
     "When done: write a summary under '## Last Agent Action' in the project's state file.",
     "",
     "## Output",
@@ -164,6 +198,30 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
     "## Autonomy Patterns",
     "Step N+1 unblocking: when stuck on step N, skip to step N+1 and return to N later — self-unblock by making progress elsewhere.",
     "Human-in-loop: for irreversible actions (delete, send, publish), pause and emit NEEDS_APPROVAL:<action> before proceeding.",
+    // Wave 6C: Framework detection hint
+    ...(() => {
+      if (!config.FRAMEWORK_PROMPTING_ENABLED) return [];
+      const frameworkHint = (() => {
+        const frameworks: Record<string, string> = {
+          n8n: "Use n8n workflow JSON format. Reference ~/.claude/skills/n8n-workflow-patterns.md.",
+          react: "Use React functional components with hooks.",
+          supabase: "Use Supabase client from src/memory/client.ts.",
+          gramio: "Use GramIO bot patterns from existing src/telegram/ files.",
+        };
+        for (const [name, hint] of Object.entries(frameworks)) {
+          if (prompt.toLowerCase().includes(name))
+            return `\n## Framework: ${name}\n${hint}`;
+        }
+        return "";
+      })();
+      return frameworkHint ? [frameworkHint] : [];
+    })(),
+    // Wave 6E: Discovery phase instructions
+    ...(config.JOB_DISCOVERY_PHASE_ENABLED
+      ? [
+          "\n## Discovery Phase\nBefore implementing: (1) Read relevant existing files, (2) Identify reusable patterns, (3) Check for similar implementations in src/ to extend rather than duplicate.",
+        ]
+      : []),
   ].join("\n");
 
   const parts = [structuredBriefing, base];
@@ -196,6 +254,23 @@ async function buildRunnerScript(
   envUnset: string,
   escapedPrompt: string,
 ): Promise<{ script: string; systemPromptHash: string }> {
+  // Wave 3E: sub-Haiku tier — pure TypeScript tasks run directly via Bun
+  // Check signals: short prompt, no file ops, contains "calculate" or "compute" or "convert"
+  const isDeterministic =
+    job.prompt.length < 500 &&
+    /\b(calculate|compute|convert|format|parse)\b/i.test(job.prompt) &&
+    !/\b(file|read|write|save|load|fetch|create|update|delete)\b/i.test(
+      job.prompt,
+    );
+
+  if (isDeterministic && job.model === "claude") {
+    const bunScript = `const result = await (async () => { /* task: ${job.prompt.replace(/`/g, "'")} */ return "Run in Claude instead — deterministic path not implemented yet"; })(); console.log(result);`;
+    return {
+      script: `#!/bin/bash\nbun eval '${bunScript.replace(/'/g, "'\\''")}' 2>&1 | tee -a "${outputFile}"\n`,
+      systemPromptHash: "",
+    };
+  }
+
   if (job.model === "kimi") {
     return {
       script: `#!/bin/bash
@@ -227,7 +302,10 @@ timeout --foreground ${timeoutSec}s env ${envUnset} ${config.CODEX_PATH} --appro
   }
 
   // Default: claude with system prompt
-  const systemPrompt = await buildJobSystemPrompt(job.prompt);
+  const systemPrompt = await buildJobSystemPrompt(
+    job.prompt,
+    job.channelContext,
+  );
   const systemFile = resolve(JOBS_DIR, `job-${job.id}-system.txt`);
   await Bun.write(systemFile, systemPrompt);
   const hasher = new Bun.CryptoHasher("sha256");
@@ -247,6 +325,39 @@ timeout --foreground ${timeoutSec}s env ${envUnset} ${config.CLAUDE_PATH} -p "$P
 `,
     systemPromptHash,
   };
+}
+
+const PERSISTENT_SESSION_NAME = "eddie-jobs";
+const WINDOW_NAME_MAX = 20;
+
+function toWindowName(sessionName: string): string {
+  const stripped = sessionName.replace(/^job-/, "");
+  return stripped.length > WINDOW_NAME_MAX
+    ? stripped.slice(-WINDOW_NAME_MAX)
+    : stripped;
+}
+
+function getTargetRef(sessionName: string): string {
+  if (!config.PERSISTENT_JOBS_SESSION) return sessionName;
+  return `${PERSISTENT_SESSION_NAME}:${toWindowName(sessionName)}`;
+}
+
+async function ensurePersistentSession(): Promise<void> {
+  const check = Bun.spawn(
+    [config.TMUX_PATH, "has-session", "-t", PERSISTENT_SESSION_NAME],
+    { stderr: "ignore", stdout: "ignore" },
+  );
+  const code = await check.exited;
+  if (code !== 0) {
+    const create = Bun.spawn([
+      config.TMUX_PATH,
+      "new-session",
+      "-d",
+      "-s",
+      PERSISTENT_SESSION_NAME,
+    ]);
+    await create.exited;
+  }
 }
 
 export async function spawnJob(job: Job): Promise<void> {
@@ -300,17 +411,34 @@ export async function spawnJob(job: Job): Promise<void> {
 
   await Bun.write(runnerFile, runnerScript);
 
-  const proc = Bun.spawn([
-    config.TMUX_PATH,
-    "new-session",
-    "-d",
-    "-s",
-    job.tmuxSession,
-    "-c",
-    jobWorkdir,
-    `bash "${runnerFile}"`,
-  ]);
-  await proc.exited;
+  if (config.PERSISTENT_JOBS_SESSION) {
+    await ensurePersistentSession();
+    const windowName = toWindowName(job.tmuxSession);
+    const proc = Bun.spawn([
+      config.TMUX_PATH,
+      "new-window",
+      "-t",
+      `${PERSISTENT_SESSION_NAME}:`,
+      "-n",
+      windowName,
+      "-c",
+      jobWorkdir,
+      `bash "${runnerFile}"`,
+    ]);
+    await proc.exited;
+  } else {
+    const proc = Bun.spawn([
+      config.TMUX_PATH,
+      "new-session",
+      "-d",
+      "-s",
+      job.tmuxSession,
+      "-c",
+      jobWorkdir,
+      `bash "${runnerFile}"`,
+    ]);
+    await proc.exited;
+  }
   tickTool({
     tool_type: "model",
     tool_name: job.model,
@@ -328,7 +456,8 @@ export async function spawnJob(job: Job): Promise<void> {
 }
 
 export async function isSessionAlive(sessionName: string): Promise<boolean> {
-  const proc = Bun.spawn([config.TMUX_PATH, "has-session", "-t", sessionName], {
+  const target = getTargetRef(sessionName);
+  const proc = Bun.spawn([config.TMUX_PATH, "has-session", "-t", target], {
     stderr: "ignore",
     stdout: "ignore",
   });
@@ -337,13 +466,14 @@ export async function isSessionAlive(sessionName: string): Promise<boolean> {
 }
 
 export async function killSession(sessionName: string): Promise<boolean> {
-  const proc = Bun.spawn(
-    [config.TMUX_PATH, "kill-session", "-t", sessionName],
-    {
-      stderr: "ignore",
-      stdout: "ignore",
-    },
-  );
+  const target = getTargetRef(sessionName);
+  const [cmd, arg] = config.PERSISTENT_JOBS_SESSION
+    ? ["kill-window", "-t"]
+    : ["kill-session", "-t"];
+  const proc = Bun.spawn([config.TMUX_PATH, cmd, arg, target], {
+    stderr: "ignore",
+    stdout: "ignore",
+  });
   const code = await proc.exited;
   return code === 0;
 }
@@ -392,8 +522,9 @@ export async function detectZombieProcess(sessionName: string): Promise<{
   // Common cause: SIGTTOU from missing --foreground on timeout (now fixed)
 
   // Step 1: get the tmux pane PID
+  const target = getTargetRef(sessionName);
   const paneProc = Bun.spawn(
-    [config.TMUX_PATH, "list-panes", "-t", sessionName, "-F", "#{pane_pid}"],
+    [config.TMUX_PATH, "list-panes", "-t", target, "-F", "#{pane_pid}"],
     { stdout: "pipe", stderr: "ignore" },
   );
   const paneOut = await new Response(paneProc.stdout).text();
@@ -445,16 +576,9 @@ export async function capturePane(
   sessionName: string,
   lines = 200,
 ): Promise<string> {
+  const target = getTargetRef(sessionName);
   const proc = Bun.spawn(
-    [
-      config.TMUX_PATH,
-      "capture-pane",
-      "-p",
-      "-t",
-      sessionName,
-      "-S",
-      `-${lines}`,
-    ],
+    [config.TMUX_PATH, "capture-pane", "-p", "-t", target, "-S", `-${lines}`],
     { stdout: "pipe", stderr: "ignore" },
   );
   const out = await new Response(proc.stdout).text();

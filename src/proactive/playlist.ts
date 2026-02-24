@@ -1,6 +1,11 @@
 import type { Bot } from "gramio";
 import { homedir } from "node:os";
-import { BRAIN_VAULT_ROOT, PLANS_DIR as BV_PLANS_DIR, INBOX_DIR, getTranscriptDir } from "../memory/brain-vault-paths.ts";
+import {
+  BRAIN_VAULT_ROOT,
+  PLANS_DIR as BV_PLANS_DIR,
+  INBOX_DIR,
+  getTranscriptDir,
+} from "../memory/brain-vault-paths.ts";
 import { createJob } from "../jobs/manager.ts";
 import { spawnJob } from "../jobs/tmux.ts";
 import { logProvenance } from "../memory/provenance.ts";
@@ -24,8 +29,15 @@ export type PlaylistEntry = {
   enabled: boolean;
 };
 
+export type CompetitorEntry = {
+  name: string;
+  channelId: string;
+  enabled: boolean;
+};
+
 type PlaylistsConfig = {
   playlists: PlaylistEntry[];
+  competitors?: CompetitorEntry[];
 };
 
 function extractPlaylistId(url: string): string | null {
@@ -276,6 +288,51 @@ PLAYLIST_REPORT: ${title} | net_new=N | improve=N | in_backlog=N | have_it=N | s
 `;
 }
 
+async function trackCompetitorChannels(
+  competitors: CompetitorEntry[],
+): Promise<string> {
+  if (!config.YOUTUBE_COMPETITOR_ENABLED) return "";
+
+  const apiKey = config.YOUTUBE_API_KEY;
+  if (!apiKey) return "";
+
+  const { getChannelStats, getRecentVideos } =
+    await import("../comms/youtube.ts");
+
+  const enabled = competitors.filter((c) => c.enabled);
+  if (enabled.length === 0) return "";
+
+  const lines: string[] = [];
+  for (const competitor of enabled) {
+    const [stats, videos] = await Promise.all([
+      getChannelStats(competitor.channelId),
+      getRecentVideos(competitor.channelId, 3),
+    ]);
+
+    if (!stats) {
+      logger.warn("playlist:competitor-fetch-failed", {
+        name: competitor.name,
+        channelId: competitor.channelId,
+      });
+      continue;
+    }
+
+    const recentTitles = videos.map((v) => `  - ${v.title}`).join("\n");
+    lines.push(
+      `${competitor.name}: ${stats.subscriberCount} subs, ${stats.videoCount} videos` +
+        (recentTitles ? `\n${recentTitles}` : ""),
+    );
+
+    logger.info("playlist:competitor-checked", {
+      name: competitor.name,
+      subscriberCount: stats.subscriberCount,
+      recentVideos: videos.length,
+    });
+  }
+
+  return lines.length > 0 ? `Competitor update:\n${lines.join("\n\n")}` : "";
+}
+
 export async function checkPlaylists(): Promise<{
   spawned: number;
   checked: number;
@@ -359,6 +416,14 @@ export async function checkPlaylists(): Promise<{
   if (spawned > 0) {
     import("./report-synthesis.ts")
       .then(({ scheduleSynthesis }) => scheduleSynthesis())
+      .catch(() => {});
+  }
+
+  if (config.YOUTUBE_COMPETITOR_ENABLED && configData.competitors?.length) {
+    trackCompetitorChannels(configData.competitors)
+      .then((summary) => {
+        if (summary) logger.info("playlist:competitor-summary", { summary });
+      })
       .catch(() => {});
   }
 

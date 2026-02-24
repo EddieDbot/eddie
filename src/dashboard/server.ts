@@ -5,6 +5,8 @@ import {
   handleOAuthStart,
   handleOAuthCallback,
 } from "../comms/google/oauth-flow.ts";
+import { createJob } from "../jobs/manager.ts";
+import { spawnJob } from "../jobs/tmux.ts";
 
 type SSEClient = { controller: ReadableStreamDefaultController; id: string };
 
@@ -123,6 +125,36 @@ export function startDashboard(): void {
           await import("../comms/slack/commands.ts");
         const result = await handleSlackCommand(command, text, userId);
         return Response.json(result);
+      }
+
+      // Web chat routes (gated by WEB_CHAT_ENABLED)
+      if (config.WEB_CHAT_ENABLED) {
+        if (url.pathname === "/chat") {
+          return serveStatic("/chat.html");
+        }
+        if (url.pathname === "/chat.js") {
+          return serveStatic("/chat.js");
+        }
+        if (url.pathname === "/chat/send" && req.method === "POST") {
+          try {
+            const body = (await req.json()) as { message?: string };
+            const message = body.message?.trim();
+            if (!message) {
+              return Response.json(
+                { error: "message is required" },
+                { status: 400 },
+              );
+            }
+            const job = await createJob("claude", message);
+            await spawnJob(job);
+            return Response.json({ jobId: job.id });
+          } catch (err) {
+            return Response.json(
+              { error: err instanceof Error ? err.message : String(err) },
+              { status: 500 },
+            );
+          }
+        }
       }
 
       if (url.pathname.startsWith("/api/")) return handleApi(url.pathname);

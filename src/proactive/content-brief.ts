@@ -19,12 +19,12 @@ async function searchWeb(query: string): Promise<string> {
     );
     if (!res.ok) return "";
     const data = (await res.json()) as {
-      web?: { results?: Array<{ title: string; description: string; url: string }> };
+      web?: {
+        results?: Array<{ title: string; description: string; url: string }>;
+      };
     };
     const results = data.web?.results?.slice(0, 5) ?? [];
-    return results
-      .map((r) => `- ${r.title}: ${r.description}`)
-      .join("\n");
+    return results.map((r) => `- ${r.title}: ${r.description}`).join("\n");
   } catch {
     return "";
   }
@@ -34,18 +34,38 @@ export async function generateContentBrief(
   topic: string,
   voiceNote?: string,
 ): Promise<string> {
+  const isBrainDump = topic.length > 100;
+
+  // For brain dumps, extract a search query from the first sentence rather than using the full text
+  const searchQuery = isBrainDump
+    ? (topic.split(/[.!?\n]/)[0]?.slice(0, 80) ?? topic.slice(0, 80))
+    : topic;
+
   const searchResults = await searchWeb(
-    `${topic} content ideas 2026`,
+    `${searchQuery} content ideas 2026`,
   ).catch(() => "");
 
-  const contextParts = [`Topic: ${topic}`];
-  if (voiceNote) contextParts.push(`Voice note context: ${voiceNote}`);
-  if (searchResults) contextParts.push(`Top content on this topic:\n${searchResults}`);
+  const contextParts = isBrainDump
+    ? [`Brain dump / voice note:\n${topic}`]
+    : [`Topic: ${topic}`];
+  if (voiceNote && !isBrainDump)
+    contextParts.push(`Voice note context: ${voiceNote}`);
+  if (searchResults)
+    contextParts.push(`Top content on this topic:\n${searchResults}`);
   const prompt = contextParts.join("\n\n");
 
-  try {
-    const { text: briefText, ok } = await runPrompt({
-      system: `You are a creative content strategist for Nicholas, a creative technologist and director.
+  const systemInstruction = isBrainDump
+    ? `You are a creative content strategist for Nicholas, a creative technologist and director.
+The user has sent a brain dump / voice note with multiple ideas. Extract the strongest content angle and generate a structured brief:
+**Core Idea** (distill the brain dump into one punchy thesis)
+**Hook Options** (2-3 hooks)
+**Angle** (the unique POV)
+**Key Points** (3-5 bullets)
+**Format Suggestions** (short-form, long-form, thread, etc.)
+**Call to Action**
+
+Be punchy, specific, and actionable. Avoid generic advice.`
+    : `You are a creative content strategist for Nicholas, a creative technologist and director.
 Generate a structured content brief with these sections:
 **Hook Options** (2-3 hooks)
 **Angle** (the unique POV)
@@ -53,8 +73,16 @@ Generate a structured content brief with these sections:
 **Format Suggestions** (short-form, long-form, thread, etc.)
 **Call to Action**
 
-Be punchy, specific, and actionable. Avoid generic advice.`,
-      prompt: `Create a content brief for: ${prompt}`,
+Be punchy, specific, and actionable. Avoid generic advice.`;
+
+  const userPrompt = isBrainDump
+    ? `Structure this brain dump into a content brief:\n\n${prompt}`
+    : `Create a content brief for: ${prompt}`;
+
+  try {
+    const { text: briefText, ok } = await runPrompt({
+      system: systemInstruction,
+      prompt: userPrompt,
       model: "claude-haiku-4-5-20251001",
       maxWaitMs: 20_000,
     });
@@ -62,7 +90,11 @@ Be punchy, specific, and actionable. Avoid generic advice.`,
 
     // Write to Brain Vault
     const date = new Date().toISOString().slice(0, 10);
-    const slug = topic.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
+    const slugSource = isBrainDump ? searchQuery : topic;
+    const slug = slugSource
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .slice(0, 40);
     const briefDir = `${BRAIN_VAULT_ROOT}/20 - Areas/Content/briefs`;
     const briefPath = `${briefDir}/${date}-${slug}.md`;
 

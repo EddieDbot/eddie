@@ -242,10 +242,16 @@ export async function runDreamCycle(): Promise<void> {
 
   // Self-improvement: extract rejection learnings nightly, weekly analysis on configured day
   if (config.SELF_IMPROVE_ENABLED) {
-    const { extractRejectionLearnings, runWeeklyAnalysis } =
-      await import("./self-improve.ts");
+    const {
+      extractRejectionLearnings,
+      runWeeklyAnalysis,
+      generatePromptRewrites,
+    } = await import("./self-improve.ts");
     await extractRejectionLearnings().catch((err) =>
       logger.warn("dream:rejection-learnings-error", { error: String(err) }),
+    );
+    await generatePromptRewrites().catch((err) =>
+      logger.warn("dream:prompt-rewrites-error", { error: String(err) }),
     );
     const dayOfWeek = new Date().getDay();
     if (dayOfWeek === config.SELF_IMPROVE_WEEKLY_DAY) {
@@ -287,11 +293,25 @@ export function startDreamCycle(
       .catch(() => {});
   };
 
+  const runMonthlyIfNeeded = (): void => {
+    import("./monthly-review.ts")
+      .then(({ isMonthlyReviewDay, runMonthlyReview }) => {
+        if (isMonthlyReviewDay()) {
+          runMonthlyReview(bot, config.OWNER_TELEGRAM_ID).catch((err) =>
+            logger.warn("dream:monthly-review-error", { error: String(err) }),
+          );
+        }
+      })
+      .catch(() => {});
+  };
+
   setTimeout(() => {
     runDreamCycle().catch(handleDreamError);
+    runMonthlyIfNeeded();
     setInterval(
       () => {
         runDreamCycle().catch(handleDreamError);
+        runMonthlyIfNeeded();
       },
       24 * 60 * 60 * 1000,
     );

@@ -14,7 +14,10 @@ export type PendingJudgment = {
   createdAt: string;
 };
 
-export function parseConfidence(text: string): { text: string; confidence: number } {
+export function parseConfidence(text: string): {
+  text: string;
+  confidence: number;
+} {
   const match = text.match(/\[(\d+)\]/);
   if (!match) return { text, confidence: 100 };
   const confidence = parseInt(match[1]!, 10);
@@ -80,6 +83,80 @@ export async function storeJudgment(
   } catch {
     return false;
   }
+}
+
+export type UncertaintyEscalation = {
+  action: string;
+  reason: string;
+  threshold: number;
+  chatId?: number;
+};
+
+const pendingEscalations: UncertaintyEscalation[] = [];
+
+export function escalateUncertainty(escalation: UncertaintyEscalation): void {
+  pendingEscalations.push(escalation);
+}
+
+export function getPendingEscalations(): UncertaintyEscalation[] {
+  return [...pendingEscalations];
+}
+
+export function clearEscalation(index: number): void {
+  pendingEscalations.splice(index, 1);
+}
+
+type ConfidenceDistribution = {
+  scores: number[];
+  lastUpdated: number;
+};
+
+const distribution: ConfidenceDistribution = { scores: [], lastUpdated: 0 };
+const DISTRIBUTION_CACHE_MS = 3600 * 1000; // 1 hour cache
+
+async function refreshDistribution(): Promise<void> {
+  if (Date.now() - distribution.lastUpdated < DISTRIBUTION_CACHE_MS) return;
+
+  try {
+    const { getSupabase: getDb, memoryEnabled: isEnabled } =
+      await import("../memory/client.ts");
+    if (!isEnabled) return;
+
+    const { data } = await getDb()
+      .from("judgments")
+      .select("confidence, outcome")
+      .not("confidence", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (data && data.length > 0) {
+      distribution.scores = data
+        .filter((j) => j.outcome === "approved")
+        .map((j) => j.confidence as number)
+        .filter((c) => typeof c === "number" && !isNaN(c));
+      distribution.lastUpdated = Date.now();
+    }
+  } catch {}
+}
+
+function percentile(arr: number[], p: number): number {
+  if (arr.length === 0) return 0.7; // fallback static threshold
+  const sorted = [...arr].sort((a, b) => a - b);
+  const idx = Math.floor((p / 100) * sorted.length);
+  return sorted[Math.max(0, Math.min(idx, sorted.length - 1))]!;
+}
+
+export async function getDynamicThreshold(): Promise<number> {
+  await refreshDistribution();
+  if (distribution.scores.length < 5) return 0.7; // not enough data yet
+  // Use 25th percentile of approved judgments as the threshold
+  // This means "we need at least as confident as the bottom 25% of past approvals"
+  return percentile(distribution.scores, 25);
+}
+
+export async function isConfidentEnough(score: number): Promise<boolean> {
+  const threshold = await getDynamicThreshold();
+  return score >= threshold;
 }
 
 export async function getPendingJudgments(): Promise<PendingJudgment[]> {

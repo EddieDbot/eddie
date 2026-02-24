@@ -234,6 +234,44 @@ async function getRecentlyShipped(): Promise<string> {
   }
 }
 
+async function getAINewsFeed(): Promise<string> {
+  if (!config.MORNING_BRIEF_NEWS_ENABLED) return "";
+  const { text, ok } = await runPrompt({
+    system:
+      "You are an AI news curator. Generate a brief 3-point summary of the most impactful AI developments from the past 48 hours that a creative technologist would care about. Be specific, not generic. Focus on tools, capabilities, and business implications.",
+    prompt: `Today is ${new Date().toLocaleDateString()}. Generate 3 key AI developments.`,
+    model: "claude-haiku-4-5-20251001",
+  });
+  if (!ok || !text) return "";
+  return `\n## AI News\n${text}`;
+}
+
+async function getFeedbackTriage(): Promise<string> {
+  if (!config.MORNING_BRIEF_NEWS_ENABLED) return "";
+  try {
+    const { getSupabase: getSupa, memoryEnabled: memEnabled } =
+      await import("../memory/client.ts");
+    if (!memEnabled) return "";
+    const { data } = await getSupa()
+      .from("judgments")
+      .select("id, action, reason, created_at")
+      .eq("outcome", "rejected")
+      .gte(
+        "created_at",
+        new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString(),
+      )
+      .order("created_at", { ascending: false })
+      .limit(5);
+    if (!data || data.length === 0) return "";
+    const items = data
+      .map((j) => `- ${j.action}${j.reason ? `: ${j.reason}` : ""}`)
+      .join("\n");
+    return `\n## Pending Feedback (${data.length} rejected)\n${items}`;
+  } catch {
+    return "";
+  }
+}
+
 async function generateBrief(context: string): Promise<string> {
   const { text, ok } = await runPrompt({
     system:
@@ -265,6 +303,8 @@ export async function buildBriefText(): Promise<string> {
     worldModel,
     recentlyShipped,
     roadmapPicks,
+    aiNews,
+    feedbackTriage,
   ] = await Promise.all([
     getActiveGoals(),
     getYesterdayActivity(),
@@ -277,6 +317,8 @@ export async function buildBriefText(): Promise<string> {
     getWorldIndex().catch(() => ""),
     getRecentlyShipped().catch(() => ""),
     getRoadmapPicks().catch(() => ""),
+    getAINewsFeed().catch(() => ""),
+    getFeedbackTriage().catch(() => ""),
   ]);
 
   const context = [
@@ -298,6 +340,8 @@ export async function buildBriefText(): Promise<string> {
     recentlyShipped ? `\n## Recently Shipped\n${recentlyShipped}` : "",
     worldModel ? `\n## Project Pulse\n${worldModel}` : "",
     roadmapPicks ? `\n## Roadmap Picks\n${roadmapPicks}` : "",
+    aiNews || "",
+    feedbackTriage || "",
   ]
     .filter(Boolean)
     .join("\n");

@@ -7,6 +7,26 @@ import type { Job, ModelId } from "./types.ts";
 // Fallback flat-file path used only when Supabase is unavailable
 const JOBS_FILE = resolve(config.JOBS_DATA_DIR, "jobs.json");
 
+// Generate human-readable session name from prompt
+function makeSessionName(prompt: string): string {
+  const words = prompt
+    .trim()
+    .split(/\s+/)
+    .slice(0, 3)
+    .map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, ""))
+    .filter((w) => w.length > 0)
+    .slice(0, 3);
+
+  if (words.length === 0) {
+    const suffix = crypto.randomUUID().slice(0, 4);
+    return `job-${suffix}`;
+  }
+
+  const slug = words.join("-").slice(0, 25);
+  const suffix = crypto.randomUUID().slice(0, 4);
+  return `job-${slug}-${suffix}`;
+}
+
 // Map Supabase snake_case row → Job camelCase
 function rowToJob(row: Record<string, unknown>): Job {
   return {
@@ -122,13 +142,12 @@ export async function createJob(
   }
 
   const id = crypto.randomUUID().slice(0, 8);
-  const prefix = opts?.tmuxPrefix ?? "job";
   const job: Job = {
     id,
     model,
     prompt,
     status: "running",
-    tmuxSession: `${prefix}-${id}`,
+    tmuxSession: makeSessionName(prompt),
     startedAt: new Date().toISOString(),
     ...(opts?.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
   };

@@ -7,6 +7,7 @@ import { logger } from "../utils/logger.ts";
 import { emitEvent } from "../dashboard/server.ts";
 import type { StepError } from "./types.ts";
 import { matchCommonIssue, healRiskLevel } from "./heal-risk.ts";
+import { classifySource, TrustLevel } from "../security/trust.ts";
 
 export type FailureSource =
   | "job"
@@ -66,24 +67,47 @@ const SOURCE_FILES: Record<FailureSource, string[]> = {
   "claude-health": ["/home/na/eddie/src/proactive/claude-health.ts"],
 };
 
-function shouldHeal(ctx: FailureContext, tmuxSession?: string): boolean {
-  if (tmuxSession?.startsWith("heal-")) return false;
+type HealDecision =
+  | { shouldHeal: false }
+  | { shouldHeal: true; scope: "full" | "restart-only" };
+
+function shouldHeal(ctx: FailureContext, tmuxSession?: string): HealDecision {
+  if (tmuxSession?.startsWith("heal-")) return { shouldHeal: false };
 
   const key = `${ctx.source}:${ctx.name}`;
-  if (activeHeals.has(key)) return false;
+  if (activeHeals.has(key)) return { shouldHeal: false };
 
   const lastHeal = cooldowns.get(key);
-  if (lastHeal && Date.now() - lastHeal < COOLDOWN_MS) return false;
+  if (lastHeal && Date.now() - lastHeal < COOLDOWN_MS)
+    return { shouldHeal: false };
 
   const now = Date.now();
   const recentCount = recentHeals.filter(
     (h) => now - h.at < CAP_WINDOW_MS,
   ).length;
-  if (recentCount >= GLOBAL_CAP) return false;
+  if (recentCount >= GLOBAL_CAP) return { shouldHeal: false };
 
-  if (TRANSIENT_PATTERNS.some((p) => p.test(ctx.error))) return false;
+  if (TRANSIENT_PATTERNS.some((p) => p.test(ctx.error)))
+    return { shouldHeal: false };
 
-  return true;
+  // Detect external content signals in the prompt snippet
+  const externalSignals =
+    /https?:\/\/|web fetch|external api|scrape|crawl/i.test(
+      ctx.promptSnippet ?? "",
+    );
+  if (externalSignals) {
+    const { level } = classifySource("external-url");
+    if (level === TrustLevel.External || level === TrustLevel.Untrusted) {
+      logger.info("self-heal:scope-restricted", {
+        source: ctx.source,
+        name: ctx.name,
+        reason: "external content job",
+      });
+      return { shouldHeal: true, scope: "restart-only" };
+    }
+  }
+
+  return { shouldHeal: true, scope: "full" };
 }
 
 function buildHealPrompt(ctx: FailureContext): string {
@@ -131,11 +155,21 @@ export async function triggerSelfHeal(
 
   const key = `${ctx.source}:${ctx.name}`;
 
-  if (!shouldHeal(ctx)) {
+  const healDecision = shouldHeal(ctx);
+  if (!healDecision.shouldHeal) {
     logger.debug("self-heal:skipped", {
       source: ctx.source,
       name: ctx.name,
       key,
+    });
+    return;
+  }
+
+  // Restricted scope — restart-only, do not spawn a new heal job
+  if (healDecision.scope === "restart-only") {
+    logger.info("self-heal:restart-only", {
+      source: ctx.source,
+      name: ctx.name,
     });
     return;
   }

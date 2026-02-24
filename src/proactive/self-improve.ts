@@ -2,6 +2,11 @@ import { getSupabase, memoryEnabled } from "../memory/client.ts";
 import { storeFact } from "../memory/store.ts";
 import { searchMemory } from "../memory/search.ts";
 import { logger } from "../utils/logger.ts";
+import { runPrompt } from "../claude/run-prompt.ts";
+import { config } from "../config.ts";
+import { resolve } from "node:path";
+import { homedir } from "node:os";
+import { LEARNINGS_DIR } from "../memory/brain-vault-paths.ts";
 
 export async function gatherHealPatterns(): Promise<{
   total: number;
@@ -53,7 +58,7 @@ export async function extractRejectionLearnings(): Promise<void> {
     for (const row of data) {
       const feedback = (row.feedback as string).trim();
       if (!feedback || feedback.length < 10) continue;
-      const insight = `User rejected: ${(row.prompt_preview as string ?? "").slice(0, 80)} — reason: ${feedback.slice(0, 120)}`;
+      const insight = `User rejected: ${((row.prompt_preview as string) ?? "").slice(0, 80)} — reason: ${feedback.slice(0, 120)}`;
       const existing = await searchMemory(insight, 3, 0.85).catch(() => []);
       if (existing.length === 0) {
         await storeFact(insight, "learning", "rejection-analysis");
@@ -67,13 +72,54 @@ export async function extractRejectionLearnings(): Promise<void> {
   }
 }
 
+export async function generatePromptRewrites(): Promise<void> {
+  if (!config.SELF_IMPROVE_ENABLED) return;
+  if (!memoryEnabled) return;
+
+  const { data } = await getSupabase()
+    .from("judgments")
+    .select("action, reason, created_at")
+    .eq("outcome", "rejected")
+    .not("reason", "is", null)
+    .gte(
+      "created_at",
+      new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString(),
+    )
+    .limit(5);
+
+  if (!data || data.length === 0) return;
+
+  const rewrites: string[] = [
+    `# Prompt Rewrite Suggestions\n_Generated: ${new Date().toLocaleDateString()}_\n`,
+  ];
+
+  for (const judgment of data) {
+    const { text, ok } = await runPrompt({
+      system:
+        "You are a prompt engineering expert. Given a rejected action and the reason it was rejected, suggest a better way to phrase or structure the prompt to avoid the same rejection.",
+      prompt: `Rejected action: ${judgment.action}\nRejection reason: ${judgment.reason}\n\nSuggest a rewrite:`,
+      model: "claude-haiku-4-5-20251001",
+    });
+    if (ok && text) {
+      rewrites.push(
+        `## ${(judgment.action as string)?.slice(0, 60) ?? "Unknown"}\n**Rejected because:** ${judgment.reason}\n**Suggested rewrite:**\n${text}\n`,
+      );
+    }
+  }
+
+  const path = resolve(LEARNINGS_DIR, "prompt-rewrites.md");
+  await Bun.write(path, rewrites.join("\n"));
+  logger.info("self-improve:prompt-rewrites-written", {
+    path,
+    count: rewrites.length - 1,
+  });
+}
+
 export async function runWeeklyAnalysis(): Promise<void> {
-  const { gatherWeeklyData, writeWeeklyReport } = await import(
-    "./outcome-analysis.ts"
-  );
-  const { getWinRates, getTaskTypeWinners } = await import(
-    "../routing/comparisons.ts"
-  );
+  const { gatherWeeklyData, writeWeeklyReport } =
+    await import("./outcome-analysis.ts");
+  const { getWinRates, getTaskTypeWinners } =
+    await import("../routing/comparisons.ts");
 
   const [weeklyData, winRates, taskWinners, healPatterns] = await Promise.all([
     gatherWeeklyData(),

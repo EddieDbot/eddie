@@ -1468,4 +1468,174 @@ export const CAPABILITIES: Capability[] = [
     ],
     priority: 7,
   },
+  // ── Wave 2 Security Scripts ──
+  {
+    id: "script:anomaly-detect",
+    type: "script",
+    name: "Anomaly Detector",
+    invoke: "bun run ~/eddie/src/security/anomaly-detect.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "anomaly",
+          "threat",
+          "suspicious",
+          "security scan",
+          "job output scan",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 9,
+  },
+  {
+    id: "script:mcp-audit",
+    type: "script",
+    name: "MCP Audit Log",
+    invoke: "bun run ~/eddie/src/security/mcp-audit.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: ["mcp audit", "tool audit", "mcp security", "audit log"],
+        weight: 1.0,
+      },
+    ],
+    priority: 8,
+  },
+  {
+    id: "script:security-council",
+    type: "script",
+    name: "Security Council",
+    invoke: "bun run ~/eddie/src/security/security-council.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: ["security council", "nightly security", "security audit"],
+        weight: 1.0,
+      },
+    ],
+    priority: 9,
+  },
+  // ── Wave 4 Content Scripts ──
+  {
+    id: "script:video-idea-pipeline",
+    type: "script",
+    name: "Video Idea Pipeline",
+    invoke: "bun run ~/eddie/src/proactive/video-idea-pipeline.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "video idea",
+          "youtube idea",
+          "content idea",
+          "video pipeline",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 7,
+  },
+  // ── Wave 6 Dashboard Scripts ──
+  {
+    id: "script:dashboard-gen",
+    type: "script",
+    name: "Dashboard Generator",
+    invoke: "bun run ~/eddie/src/proactive/dashboard-gen.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "dashboard",
+          "status report",
+          "system overview",
+          "generate dashboard",
+        ],
+        weight: 0.9,
+      },
+    ],
+    priority: 7,
+  },
+  {
+    id: "script:git-phase-commit",
+    type: "script",
+    name: "Phase Git Commit",
+    invoke: "bun run ~/eddie/src/utils/git-phase-commit.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: ["phase commit", "git phase", "auto commit"],
+        weight: 0.8,
+      },
+    ],
+    priority: 5,
+  },
+  // ── Wave 7 Autonomous Cron Scripts ──
+  {
+    id: "script:accounting-triage",
+    type: "script",
+    name: "Accounting Triage",
+    invoke: "bun run ~/eddie/src/proactive/accounting-triage.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "accounting",
+          "invoice triage",
+          "financial emails",
+          "expense triage",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 7,
+  },
+  {
+    id: "script:discoverability",
+    type: "script",
+    name: "Discoverability Scanner",
+    invoke: "bun run ~/eddie/src/proactive/discoverability.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "discoverability",
+          "seo audit",
+          "ai search",
+          "online presence",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 7,
+  },
+  {
+    id: "script:monthly-review",
+    type: "script",
+    name: "Monthly Vision Review",
+    invoke: "bun run ~/eddie/src/proactive/monthly-review.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: ["monthly review", "vision alignment", "monthly check"],
+        weight: 1.0,
+      },
+    ],
+    priority: 8,
+  },
+  {
+    id: "script:observation-log",
+    type: "script",
+    name: "Observation Logger",
+    invoke: "bun run ~/eddie/src/proactive/observation-log.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: ["observation", "log observation", "multimodal log"],
+        weight: 0.8,
+      },
+    ],
+    priority: 6,
+  },
 ];
