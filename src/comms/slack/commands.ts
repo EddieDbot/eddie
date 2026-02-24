@@ -36,7 +36,9 @@ export async function handleSlashRun(
     const { spawnJob } = await import("../../jobs/tmux.ts");
     const job = await createJob("claude", text);
     await spawnJob(job);
-    return { text: `Job started: ${job.id.slice(0, 8)} — ${text.slice(0, 60)}` };
+    return {
+      text: `Job started: ${job.id.slice(0, 8)} — ${text.slice(0, 60)}`,
+    };
   } catch (err) {
     logger.error("slack-cmd:run-error", {
       error: err instanceof Error ? err.message : String(err),
@@ -47,15 +49,20 @@ export async function handleSlashRun(
 
 export async function handleSlashBrief(): Promise<{ text: string }> {
   try {
-    const { runMorningBrief } = await import("../../proactive/morning-brief.ts");
-    runMorningBrief(null as any).catch(() => {});
-    return { text: "Sending brief to Telegram..." };
-  } catch {
+    const { buildBriefText } = await import("../../proactive/morning-brief.ts");
+    const brief = await buildBriefText();
+    return { text: brief };
+  } catch (err) {
+    logger.error("slack-cmd:brief-error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return { text: "Brief failed." };
   }
 }
 
-export async function handleSlashAlign(text: string): Promise<{ text: string }> {
+export async function handleSlashAlign(
+  text: string,
+): Promise<{ text: string }> {
   if (!text.trim()) return { text: "Usage: /align <idea>" };
   if (!config.ANTHROPIC_API_KEY) return { text: "API key not configured." };
 

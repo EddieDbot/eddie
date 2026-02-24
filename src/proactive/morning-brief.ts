@@ -226,9 +226,7 @@ async function generateBrief(context: string): Promise<string> {
   }
 }
 
-export async function runMorningBrief(bot: Bot): Promise<void> {
-  logger.info("morning-brief:start");
-
+export async function buildBriefText(): Promise<string> {
   const now = new Date().toLocaleString("en-US", {
     timeZone: config.TIMEZONE,
     weekday: "long",
@@ -275,19 +273,20 @@ export async function runMorningBrief(bot: Bot): Promise<void> {
     youtube ? `\n## YouTube\n${youtube}` : "",
     revenue ? `\n## Revenue (30d)\n${revenue}` : "",
     worldModel ? `\n## Project Pulse\n${worldModel}` : "",
-    // News: requires NEWSAPI_KEY — placeholder, won't crash if not set
-    // TODO: add news section when NEWSAPI_KEY is configured
   ]
     .filter(Boolean)
     .join("\n");
 
-  const brief = await generateBrief(context);
+  return generateBrief(context);
+}
 
+export async function runMorningBrief(bot: Bot): Promise<void> {
+  logger.info("morning-brief:start");
+  const brief = await buildBriefText();
   await bot.api.sendMessage({
     chat_id: config.OWNER_TELEGRAM_ID,
     text: brief,
   });
-
   logger.info("morning-brief:sent");
 }
 
