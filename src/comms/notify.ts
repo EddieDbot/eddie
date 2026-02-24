@@ -44,6 +44,7 @@ export function queueNotification(items: InboxItem[]): void {
         ownerSlackId && item.preview.includes(`<@${ownerSlackId}>`);
       return isDm || !!isMentioned;
     }
+    if (item.channel === "imessage") return false;
     return true;
   });
   if (filtered.length === 0) return;
