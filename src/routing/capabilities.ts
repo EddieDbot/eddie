@@ -1170,7 +1170,12 @@ export const CAPABILITIES: Capability[] = [
     triggers: [
       {
         type: "keyword",
-        patterns: ["log provenance", "track feature origin", "record where this came from", "provenance"],
+        patterns: [
+          "log provenance",
+          "track feature origin",
+          "record where this came from",
+          "provenance",
+        ],
         weight: 0.9,
       },
     ],
@@ -1184,12 +1189,39 @@ export const CAPABILITIES: Capability[] = [
     triggers: [
       {
         type: "keyword",
-        patterns: ["tool usage", "which tools", "tool report", "unused tools", "tool ticker"],
+        patterns: [
+          "tool usage",
+          "which tools",
+          "tool report",
+          "unused tools",
+          "tool ticker",
+        ],
         weight: 0.9,
       },
     ],
     invoke: `bun run ~/eddie/src/scripts/tool-usage-report.ts --days 7`,
     priority: 6,
+  },
+  {
+    id: "script:run-migration",
+    type: "script",
+    name: "Run Migrations",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "run migration",
+          "apply migration",
+          "pending migration",
+          "migrate database",
+          "schema migration",
+          "apply sql",
+        ],
+        weight: 1.0,
+      },
+    ],
+    invoke: `bun run ~/eddie/src/scripts/run-migration.ts\n# Or specific file: bun run ~/eddie/src/scripts/run-migration.ts --file 004_milestones_reached.sql`,
+    priority: 8,
   },
   {
     id: "script:vision-score",
@@ -1198,7 +1230,13 @@ export const CAPABILITIES: Capability[] = [
     triggers: [
       {
         type: "keyword",
-        patterns: ["vision score", "roadmap score", "align roadmap", "top priorities", "score tasks"],
+        patterns: [
+          "vision score",
+          "roadmap score",
+          "align roadmap",
+          "top priorities",
+          "score tasks",
+        ],
         weight: 0.9,
       },
     ],

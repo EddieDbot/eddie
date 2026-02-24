@@ -10,6 +10,22 @@ logger.info("EDDIE:init", { logLevel: config.LOG_LEVEL });
 
 if (config.SUPABASE_PAT) {
   await ensureMigrations();
+  if (config.MIGRATIONS_AUTO_APPLY) {
+    const { applyPendingMigrations } = await import("./memory/migrations.ts");
+    const result = await applyPendingMigrations();
+    if (result.applied.length > 0) {
+      logger.info("db:migration:auto-applied", {
+        count: result.applied.length,
+        files: result.applied,
+      });
+    }
+    if (result.failed.length > 0) {
+      logger.error("db:migration:auto-apply-failures", {
+        count: result.failed.length,
+        failures: result.failed,
+      });
+    }
+  }
 }
 
 const bot = createBot();

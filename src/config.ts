@@ -147,6 +147,9 @@ const envSchema = z.object({
   VISION_ENABLED: z
     .preprocess((v) => String(v ?? "false") === "true", z.boolean())
     .default(false),
+  MIGRATIONS_AUTO_APPLY: z
+    .preprocess((v) => String(v ?? "false") === "true", z.boolean())
+    .default(false),
 });
 
 export type Config = z.infer<typeof envSchema>;
