@@ -5,7 +5,7 @@ import { config } from "../../config.ts";
 import { logger } from "../../utils/logger.ts";
 
 const CALENDAR_API = "https://www.googleapis.com/calendar/v3";
-const CAL_SCOPES = "https://www.googleapis.com/auth/calendar.readonly";
+const CAL_SCOPES = "https://www.googleapis.com/auth/calendar";
 const POLL_INTERVAL_MS = 5 * 60_000;
 
 interface CalEvent {
@@ -32,11 +32,19 @@ function eventToItem(event: CalEvent): InboxItem {
         hour12: true,
       })
     : "TBD";
-  const attendees = event.attendees?.slice(0, 3).map((a) => a.displayName ?? a.email).join(", ");
-  const preview = [startFormatted, attendees ? `with ${attendees}` : "", event.description?.slice(0, 80)]
+  const attendees = event.attendees
+    ?.slice(0, 3)
+    .map((a) => a.displayName ?? a.email)
+    .join(", ");
+  const preview = [
+    startFormatted,
+    attendees ? `with ${attendees}` : "",
+    event.description?.slice(0, 80),
+  ]
     .filter(Boolean)
     .join(" · ");
-  const isUpcoming = startTime && new Date(startTime).getTime() - Date.now() < 15 * 60_000;
+  const isUpcoming =
+    startTime && new Date(startTime).getTime() - Date.now() < 15 * 60_000;
 
   return {
     channel: "google-calendar",
@@ -70,21 +78,30 @@ async function fetchUpcomingEvents(account: string): Promise<InboxItem[]> {
     maxResults: "20",
   });
 
-  const res = await fetch(`${CALENDAR_API}/calendars/primary/events?${params}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(15_000),
-  });
+  const res = await fetch(
+    `${CALENDAR_API}/calendars/primary/events?${params}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
   if (!res.ok) throw new Error(`Calendar list ${res.status}`);
   const data = (await res.json()) as { items?: CalEvent[] };
 
   await setSyncState("google-calendar", new Date().toISOString());
-  return (data.items ?? []).filter((e) => e.status !== "cancelled").map(eventToItem);
+  return (data.items ?? [])
+    .filter((e) => e.status !== "cancelled")
+    .map(eventToItem);
 }
 
 export function createGoogleCalendarProvider(): ChannelProvider | null {
   if (!hasGoogleAuth()) return null;
-  const accounts = (config.COMMS_EMAIL_ACCOUNTS ?? "").split(",").map((a) => a.trim()).filter(Boolean);
-  const primary = accounts.find((a) => !a.toLowerCase().includes("eddie")) ?? accounts[0];
+  const accounts = (config.COMMS_EMAIL_ACCOUNTS ?? "")
+    .split(",")
+    .map((a) => a.trim())
+    .filter(Boolean);
+  const primary =
+    accounts.find((a) => !a.toLowerCase().includes("eddie")) ?? accounts[0];
   if (!primary) return null;
 
   let lastError: string | undefined;
@@ -129,8 +146,12 @@ export function createGoogleCalendarProvider(): ChannelProvider | null {
 // Returns formatted upcoming events for display (used by /calendar command)
 export async function getUpcomingCalendarEvents(days = 1): Promise<string> {
   if (!hasGoogleAuth()) return "Google Calendar not configured.";
-  const accounts = (config.COMMS_EMAIL_ACCOUNTS ?? "").split(",").map((a) => a.trim()).filter(Boolean);
-  const primary = accounts.find((a) => !a.toLowerCase().includes("eddie")) ?? accounts[0];
+  const accounts = (config.COMMS_EMAIL_ACCOUNTS ?? "")
+    .split(",")
+    .map((a) => a.trim())
+    .filter(Boolean);
+  const primary =
+    accounts.find((a) => !a.toLowerCase().includes("eddie")) ?? accounts[0];
   if (!primary) return "No Google account configured.";
 
   try {
@@ -144,10 +165,13 @@ export async function getUpcomingCalendarEvents(days = 1): Promise<string> {
       orderBy: "startTime",
       maxResults: "20",
     });
-    const res = await fetch(`${CALENDAR_API}/calendars/primary/events?${params}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(15_000),
-    });
+    const res = await fetch(
+      `${CALENDAR_API}/calendars/primary/events?${params}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
     if (!res.ok) return `Calendar error: ${res.status}`;
     const data = (await res.json()) as { items?: CalEvent[] };
     const events = (data.items ?? []).filter((e) => e.status !== "cancelled");

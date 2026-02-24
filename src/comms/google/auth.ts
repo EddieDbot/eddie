@@ -128,6 +128,9 @@ async function loadServiceAccount(): Promise<ServiceAccount | null> {
     serviceAccount = JSON.parse(
       await Bun.file(resolved).text(),
     ) as ServiceAccount;
+    logger.info("google:auth:sa-loaded", {
+      client_email: serviceAccount.client_email,
+    });
     return serviceAccount;
   } catch (err) {
     logger.error("google:auth:load-sa", {
@@ -259,7 +262,23 @@ export async function getAccessToken(
   const cached = tokenCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
 
-  // Try OAuth user tokens first (already set up via google-hub)
+  // Prefer service account when configured (no expiry, no re-auth)
+  const sa = await loadServiceAccount();
+  if (sa) {
+    try {
+      const token = await fetchServiceAccountToken(sa, scope, subject);
+      tokenCache.set(cacheKey, { token, expiresAt: Date.now() + 3_500_000 });
+      return token;
+    } catch (err) {
+      logger.warn("google:auth:sa-fallback", {
+        error: err instanceof Error ? err.message : String(err),
+        subject,
+      });
+      // fall through to OAuth
+    }
+  }
+
+  // Fall back to OAuth user tokens
   const oauth = await loadOAuthTokens();
   if (oauth) {
     const token = await refreshOAuthToken(oauth.tokens, oauth.creds);
@@ -267,16 +286,9 @@ export async function getAccessToken(
     return token;
   }
 
-  // Fall back to service account
-  const sa = await loadServiceAccount();
-  if (!sa) {
-    throw new Error(
-      "No Google auth configured. Set GOOGLE_OAUTH_TOKENS_PATH + GOOGLE_OAUTH_CREDENTIALS_PATH, or GOOGLE_SERVICE_ACCOUNT_PATH.",
-    );
-  }
-  const token = await fetchServiceAccountToken(sa, scope, subject);
-  tokenCache.set(cacheKey, { token, expiresAt: Date.now() + 3_500_000 });
-  return token;
+  throw new Error(
+    "No Google auth configured. Set GOOGLE_SERVICE_ACCOUNT_PATH or GOOGLE_OAUTH_TOKENS_PATH + GOOGLE_OAUTH_CREDENTIALS_PATH.",
+  );
 }
 
 export function hasGoogleAuth(): boolean {

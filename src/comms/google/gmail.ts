@@ -5,7 +5,7 @@ import { config } from "../../config.ts";
 import { logger } from "../../utils/logger.ts";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1";
-const GMAIL_SCOPES = "https://www.googleapis.com/auth/gmail.readonly";
+const GMAIL_SCOPES = "https://www.googleapis.com/auth/gmail.modify";
 const POLL_INTERVAL_MS = 60_000;
 
 interface GmailMessage {
