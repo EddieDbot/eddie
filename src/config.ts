@@ -129,6 +129,8 @@ const envSchema = z.object({
     .preprocess((v) => String(v ?? "false") === "true", z.boolean())
     .default(false),
   BOOK_INBOX_POLL_INTERVAL_MS: z.coerce.number().default(300_000),
+  IA_S3_ACCESS_KEY: z.string().optional(),
+  IA_S3_SECRET_KEY: z.string().optional(),
   CONTACT_SYNC_ENABLED: z
     .preprocess((v) => String(v ?? "false") === "true", z.boolean())
     .default(false),
