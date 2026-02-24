@@ -123,6 +123,10 @@ const envSchema = z.object({
     .preprocess((v) => String(v ?? "false") === "true", z.boolean())
     .default(false),
   BOOK_INBOX_POLL_INTERVAL_MS: z.coerce.number().default(300_000),
+  CONTACT_SYNC_ENABLED: z
+    .preprocess((v) => String(v ?? "false") === "true", z.boolean())
+    .default(false),
+  CONTACT_SYNC_TIME: z.string().default("03:00"),
 });
 
 export type Config = z.infer<typeof envSchema>;

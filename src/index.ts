@@ -86,6 +86,11 @@ if (config.BOOK_INGEST_ENABLED) {
   startBookWatcher(bot);
 }
 
+if (config.CONTACT_SYNC_ENABLED) {
+  const { startContactSync } = await import("./comms/imessage/contact-sync.ts");
+  startContactSync();
+}
+
 bot.api
   .sendMessage({
     chat_id: config.OWNER_TELEGRAM_ID,

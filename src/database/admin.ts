@@ -403,6 +403,33 @@ export async function ensureMigrations(): Promise<void> {
     });
   }
 
+  // Contacts table (synced from Apple AddressBook via iMessage relay)
+  try {
+    await runSQL(`
+      CREATE TABLE IF NOT EXISTS contacts (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        first_name text,
+        last_name text,
+        full_name text NOT NULL,
+        organization text,
+        phones jsonb NOT NULL DEFAULT '[]',
+        emails jsonb NOT NULL DEFAULT '[]',
+        source text NOT NULL DEFAULT 'apple-contacts',
+        last_synced timestamptz DEFAULT now(),
+        created_at timestamptz DEFAULT now(),
+        UNIQUE (source, full_name)
+      );
+      CREATE INDEX IF NOT EXISTS idx_contacts_full_name ON contacts (full_name);
+      CREATE INDEX IF NOT EXISTS idx_contacts_source ON contacts (source);
+      ALTER TABLE contacts DISABLE ROW LEVEL SECURITY;
+    `);
+    logger.info("db:migrate:contacts");
+  } catch (err) {
+    logger.warn("db:migrate:contacts-skip", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   logger.info("db:migrate:done");
 }
 
