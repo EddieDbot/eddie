@@ -32,4 +32,5 @@ export type Job = {
   parallelGroupId?: string;
   parallelRole?: "primary" | "specialist";
   systemPromptHash?: string;
+  qaGate?: { passed: boolean; issues: string[] };
 };

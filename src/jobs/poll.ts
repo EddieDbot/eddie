@@ -24,10 +24,52 @@ import { homedir } from "node:os";
 import { parseStreamJson } from "../claude/parser.ts";
 import { logUsage } from "../memory/usage.ts";
 import { parseStepMarkers, extractLastStepContext } from "./steps.ts";
-import { tickTool, parseToolInvocationsFromOutput } from "../memory/tool-ticker.ts";
+import {
+  tickTool,
+  parseToolInvocationsFromOutput,
+} from "../memory/tool-ticker.ts";
 import { runPrompt, parseJsonFromOutput } from "../claude/run-prompt.ts";
+import { redactSecrets } from "../security/output-scan.ts";
 
 const ZOMBIE_THRESHOLD_MS = 5 * 60_000; // 5 minutes with 0 bytes output = dead
+
+async function runQAGate(
+  job: import("./types.ts").Job,
+  output: string,
+  outcome: string,
+  artifactCheck: import("./artifact-check.ts").ArtifactCheckResult | undefined,
+): Promise<{ passed: boolean; issues: string[] }> {
+  const issues: string[] = [];
+
+  if (!output.includes("STEP_COMPLETE")) {
+    issues.push("STEP_COMPLETE marker not found in output");
+  }
+
+  if (artifactCheck && !artifactCheck.allFound) {
+    const missing = artifactCheck.specs
+      .filter((s) => !s.found)
+      .map((s) => s.description);
+    issues.push(...missing.map((d) => `Missing artifact: ${d}`));
+  }
+
+  const { detectJobType } = await import("./settings.ts");
+  const jobType = detectJobType(job.prompt, job.tmuxSession);
+  if (jobType === "code") {
+    const tscProc = Bun.spawn(["bun", "run", "tsc", "--noEmit"], {
+      cwd: process.env.HOME ? `${process.env.HOME}/eddie` : "/home/na/eddie",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const exitCode = await tscProc.exited;
+    if (exitCode !== 0) {
+      const stderr = await new Response(tscProc.stderr).text();
+      const errorLines = stderr.trim().split("\n").slice(0, 3).join("; ");
+      issues.push(`TypeScript errors: ${errorLines || "tsc failed"}`);
+    }
+  }
+
+  return { passed: issues.length === 0, issues };
+}
 
 const PERF_LOG = resolve(
   homedir(),
@@ -52,12 +94,16 @@ async function assessOutcome(
   try {
     const snippet = output.slice(-3000);
     const { text, ok } = await runPrompt({
-      system: 'Assess this agentic job output. Reply with a JSON object: {"outcome":"success"|"partial"|"failed","summary":"one sentence what was accomplished or why it failed"}. Nothing else.',
+      system:
+        'Assess this agentic job output. Reply with a JSON object: {"outcome":"success"|"partial"|"failed","summary":"one sentence what was accomplished or why it failed"}. Nothing else.',
       prompt: `Task: ${prompt.slice(0, 300)}\n\nOutput tail:\n${snippet}`,
       model: "claude-haiku-4-5-20251001",
     });
     if (!ok) return { outcome: "unknown", summary: "" };
-    const parsed = parseJsonFromOutput<{ outcome?: string; summary?: string }>(text, {});
+    const parsed = parseJsonFromOutput<{ outcome?: string; summary?: string }>(
+      text,
+      {},
+    );
     return {
       outcome: parsed.outcome ?? "unknown",
       summary: parsed.summary ?? "",
@@ -332,13 +378,26 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
   const { outcome, summary } = await assessOutcome(job?.prompt ?? "", output);
   // Tick model usage on completion
   const succeeded = outcome === "success" || outcome === "partial";
-  tickTool({ tool_type: "model", tool_name: job?.model ?? "claude", job_id: jobId, duration_ms: durationMs, success: succeeded, context: "complete" }).catch(() => {});
+  tickTool({
+    tool_type: "model",
+    tool_name: job?.model ?? "claude",
+    job_id: jobId,
+    duration_ms: durationMs,
+    success: succeeded,
+    context: "complete",
+  }).catch(() => {});
   // Parse and tick any MCP/agent tool invocations found in output
   if (output) {
     const extraTools = parseToolInvocationsFromOutput(output);
     for (const tool of extraTools) {
       const [type, name] = tool.split(":");
-      if (type && name) tickTool({ tool_type: type, tool_name: name, job_id: jobId, success: true }).catch(() => {});
+      if (type && name)
+        tickTool({
+          tool_type: type,
+          tool_name: name,
+          job_id: jobId,
+          success: true,
+        }).catch(() => {});
     }
   }
 
@@ -362,6 +421,11 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
     }
   }
 
+  // Redact secrets from output before persisting or transmitting
+  const safeOutput = config.OUTPUT_SCAN_ENABLED
+    ? redactSecrets(output)
+    : output;
+
   // Save output to Brain Vault
   const date = completedAt.slice(0, 10);
   const brainVaultDir = config.BRAIN_VAULT_JOBS_DIR.replace(
@@ -373,13 +437,51 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
   try {
     await Bun.write(
       outputPath,
-      `# Job ${jobId}\n\nCompleted: ${completedAt}\nOutcome: ${outcome}${summary ? ` — ${summary}` : ""}\n\n## Output\n\n${output}`,
+      `# Job ${jobId}\n\nCompleted: ${completedAt}\nOutcome: ${outcome}${summary ? ` — ${summary}` : ""}\n\n## Output\n\n${safeOutput}`,
     );
   } catch (err) {
     logger.warn("jobs:save-output-failed", {
       id: jobId,
       error: err instanceof Error ? err.message : String(err),
     });
+  }
+
+  // QA Gate
+  let qaGateResult: { passed: boolean; issues: string[] } | undefined;
+  if (config.JOB_QA_GATE_ENABLED && job) {
+    const isQaFixJob = job.tmuxSession.startsWith("qafix-");
+    if (!isQaFixJob) {
+      qaGateResult = await runQAGate(job, output, outcome, artifactCheck).catch(
+        () => undefined,
+      );
+      if (
+        qaGateResult &&
+        !qaGateResult.passed &&
+        (outcome === "success" || outcome === "partial")
+      ) {
+        logger.warn("jobs:qa-gate-failed", {
+          id: jobId,
+          issues: qaGateResult.issues,
+        });
+        const fixPrompt = `# QA Fix for job ${jobId}\n\nThe following job had quality issues:\n\nOriginal task:\n${job.prompt.slice(0, 500)}\n\nIssues found:\n${qaGateResult.issues.map((i) => `- ${i}`).join("\n")}\n\nPlease fix these issues.`;
+        try {
+          const { createJob } = await import("./manager.ts");
+          const { spawnJob } = await import("./tmux.ts");
+          const fixJob = await createJob("claude", fixPrompt, {
+            tmuxPrefix: "qafix",
+          });
+          await spawnJob(fixJob);
+          logger.info("jobs:qa-fix-spawned", {
+            id: jobId,
+            fixJobId: fixJob.id,
+          });
+        } catch (err) {
+          logger.warn("jobs:qa-fix-spawn-failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
   }
 
   await updateJob(jobId, {
@@ -393,6 +495,7 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
     lastStep: lastStepCtx.lastStep > 0 ? lastStepCtx.lastStep : undefined,
     lastStepName: lastStepCtx.lastStepName || undefined,
     artifactCheck: artifactCheck ?? undefined,
+    qaGate: qaGateResult ?? undefined,
   });
 
   // Append to performance log
@@ -460,7 +563,7 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
             error: summary || "job failed",
             timestamp: Date.now(),
             jobId,
-            outputTail: output.slice(-2000),
+            outputTail: safeOutput.slice(-2000),
             steps: stepErrors.length > 0 ? stepErrors : undefined,
             lastStep:
               lastStepCtx.lastStep > 0 ? lastStepCtx.lastStep : undefined,

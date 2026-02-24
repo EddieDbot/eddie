@@ -66,6 +66,7 @@ type WorldModel = {
   };
   summary: string;
   dailyWork?: DailyWork;
+  modelPerformance?: Partial<Record<string, number>>;
 };
 
 const STATE_DIR = resolve(homedir(), "brain-vault/90 - Agent Memory/State");
@@ -220,6 +221,19 @@ export function generateWorldIndex(model: WorldModel): string {
     ``,
     `summary: "${model.summary.replace(/"/g, "'")}"`,
   ];
+
+  if (
+    model.modelPerformance &&
+    Object.keys(model.modelPerformance).length > 0
+  ) {
+    const topModel = Object.entries(model.modelPerformance).sort(
+      ([, a], [, b]) => (b ?? 0) - (a ?? 0),
+    )[0];
+    if (topModel) {
+      lines.push(``, `model_performance:`);
+      lines.push(`  top: ${topModel[0]} (${topModel[1]}%)`);
+    }
+  }
 
   if (model.dailyWork && model.dailyWork.built.length > 0) {
     lines.push(``, `today:`);
@@ -659,6 +673,43 @@ export async function runNightlyOrchestrate(): Promise<void> {
     if (signals.length > 0) {
       const { updateVisionPreferences } = await import("./vision.ts");
       await updateVisionPreferences(signals).catch(() => {});
+    }
+  }
+
+  if (config.SELF_IMPROVE_ENABLED) {
+    const { getWinRates } = await import("../routing/comparisons.ts");
+    const winRates = await getWinRates(30).catch(() => ({}));
+    worldModel.modelPerformance = winRates;
+    await Bun.write(WORLD_MODEL_PATH, JSON.stringify(worldModel, null, 2));
+  }
+
+  if (config.KANBAN_ENABLED && proactiveActions.length > 0) {
+    const { addTask, getQueuedTasks } = await import("./task-queue.ts");
+    const existing = await getQueuedTasks({ state: "planned" });
+    const existingTitles = new Set(existing.map((t) => t.title));
+
+    for (const action of proactiveActions) {
+      if (existingTitles.has(action.description)) continue;
+      const priority =
+        action.priority === "high" ? 2 : action.priority === "medium" ? 5 : 8;
+      let visionScore: number | undefined;
+      if (config.VISION_ENABLED) {
+        const { evaluateTaskAlignment } = await import("./vision.ts");
+        const alignment = await evaluateTaskAlignment(action.description).catch(
+          () => ({ aligned: true, score: 5, reason: "" }),
+        );
+        visionScore = alignment.score;
+      }
+      const task = await addTask(action.description, action.suggestedAgent, {
+        priority,
+        source: "nightly-orchestrate",
+        projectSlug: action.targetProject,
+        visionScore,
+      });
+      if (task && visionScore !== undefined && visionScore >= 5) {
+        const { updateTaskState } = await import("./task-queue.ts");
+        await updateTaskState(task.id, "ready");
+      }
     }
   }
 

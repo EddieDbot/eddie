@@ -32,6 +32,11 @@ const SENSITIVE_VARS = [
   "COMMS_WHATSAPP_TOKEN",
   "COMMS_IMESSAGE_RELAY_KEY",
   "ICLOUD_APP_PASSWORD",
+  "IA_S3_ACCESS_KEY",
+  "IA_S3_SECRET_KEY",
+  "GITHUB_PAT",
+  "CHATGPT_PASSWORD",
+  "SLACK_SIGNING_SECRET",
 ];
 
 export function getRelayEnv(): Record<string, string> {

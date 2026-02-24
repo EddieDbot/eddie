@@ -33,6 +33,9 @@ function rowToJob(row: Record<string, unknown>): Job {
     parallelRole:
       (row.parallel_role as "primary" | "specialist" | null) ?? undefined,
     systemPromptHash: (row.system_prompt_hash as string | null) ?? undefined,
+    qaGate:
+      (row.qa_gate as { passed: boolean; issues: string[] } | null) ??
+      undefined,
   };
 }
 
@@ -65,6 +68,7 @@ function jobToRow(
   if (job.parallelRole !== undefined) row.parallel_role = job.parallelRole;
   if (job.systemPromptHash !== undefined)
     row.system_prompt_hash = job.systemPromptHash;
+  if (job.qaGate !== undefined) row.qa_gate = job.qaGate;
   return row;
 }
 

@@ -120,6 +120,11 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
       ? `## MCP Tools Available\n${getMcpHints(routing.mcps)}`
       : "";
 
+  const toolSection =
+    routing.contextHints && routing.contextHints.length > 0
+      ? `## Script Tools Available\nUse these script commands for this task:\n${routing.contextHints.map((h) => `- ${h}`).join("\n")}`
+      : "";
+
   const base = [
     "You are EDDIE, running as a background job on Nicholas's homelab server (debianhomelabX).",
     "Full file system access, full agent access (~/.claude/agents/), take as long as needed.",
@@ -135,6 +140,7 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
     "Spawn agents for parallel tracks. Do sequential tasks directly.",
     "",
     ...(mcpSection ? [mcpSection, ""] : []),
+    ...(toolSection ? [toolSection, ""] : []),
     "## Brain Vault Paths",
     `Projects: ${BRAIN_VAULT}/10 - Projects/`,
     `State files: ${STATE_DIR}/`,
@@ -145,8 +151,17 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
     "## Output",
     "Write a clear summary of what you did and what's left. Update the project state file.",
     "",
-    "## Progress Tracking",
-    "Emit STEP:N:name markers in output to track progress (e.g. STEP:1:fetch-data). On error: STEP_ERROR:N:name:message. When complete: STEP_COMPLETE.",
+    "## Execution Protocol (PDAC)",
+    "Follow Plan → Do → Assess → Correct cycle for each major step:",
+    "1. PLAN: Before acting, identify the specific files/commands needed and expected outcome",
+    "2. DO: Execute the step. Emit STEP:N:name at start (e.g. STEP:1:fetch-data)",
+    "3. ASSESS: After each step, verify the output matches expectation. Emit STEP_ERROR:N:name:message if it doesn't",
+    "4. CORRECT: If assessment fails, fix the issue before proceeding to next step",
+    "Self-verification checklist before emitting STEP_COMPLETE:",
+    "- [ ] All requested files exist and are non-empty",
+    "- [ ] TypeScript compiles (for code tasks: bun run tsc --noEmit)",
+    "- [ ] Output matches the task description",
+    "Emit STEP_COMPLETE only when ALL checklist items pass.",
     "",
     "## Autonomy Patterns",
     "Step N+1 unblocking: when stuck on step N, skip to step N+1 and return to N later — self-unblock by making progress elsewhere.",

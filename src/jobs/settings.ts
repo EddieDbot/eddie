@@ -17,14 +17,16 @@ export function detectJobType(prompt: string, tmuxPrefix?: string): JobType {
     lower.includes("modify ") ||
     lower.includes("typescript") ||
     lower.includes(".ts")
-  ) return "code";
+  )
+    return "code";
   if (
     lower.includes("research") ||
     lower.includes("analyze") ||
     lower.includes("playlist") ||
     lower.includes("report") ||
     lower.includes("transcript")
-  ) return "research";
+  )
+    return "research";
   return "general";
 }
 
@@ -36,7 +38,7 @@ export function resolveJobSettings(opts?: {
   const settingsMap: Record<JobType, string> = {
     heal: resolve(SETTINGS_DIR, "heal-job.json"),
     code: resolve(SETTINGS_DIR, "code-job.json"),
-    research: resolve(SETTINGS_DIR, "job-default.json"),
+    research: resolve(SETTINGS_DIR, "research-job.json"),
     general: resolve(SETTINGS_DIR, "job-default.json"),
   };
   return settingsMap[jobType];

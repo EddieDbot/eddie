@@ -203,6 +203,23 @@ async function runCheck(bot: Bot): Promise<void> {
     ...(await checkMcpConfigs()),
   ];
 
+  if (config.INTEGRITY_CHECK_ENABLED) {
+    const { checkIntegrity } = await import("../security/integrity.ts");
+    const integrityIssues = await checkIntegrity().catch(() => [] as never[]);
+    for (const issue of integrityIssues) {
+      logger.warn("integrity:changed", {
+        file: issue.file,
+        status: issue.status,
+      });
+      bot.api
+        .sendMessage({
+          chat_id: config.OWNER_TELEGRAM_ID,
+          text: `[integrity] ${issue.status}: ${issue.detail}`,
+        })
+        .catch(() => {});
+    }
+  }
+
   if (issues.length === 0) {
     logger.info("claude-health:healthy");
     return;
@@ -262,6 +279,13 @@ async function runCheck(bot: Bot): Promise<void> {
 
 export function startClaudeHealth(bot: Bot): void {
   logger.info("claude-health:scheduled", { intervalMs: INTERVAL_MS });
+  if (config.INTEGRITY_CHECK_ENABLED) {
+    import("../security/integrity.ts").then(({ initBaseline }) =>
+      initBaseline().catch((err) =>
+        logger.warn("integrity:baseline-error", { error: String(err) }),
+      ),
+    );
+  }
   runCheck(bot).catch((err) =>
     logger.warn("claude-health:error", { error: String(err) }),
   );

@@ -8,7 +8,9 @@ const LEARNINGS_DIR = resolve(HOME, "brain-vault/90 - Agent Memory/Learnings");
 function getWeekNumber(): { year: number; week: number } {
   const now = new Date();
   const jan1 = new Date(now.getFullYear(), 0, 1);
-  const week = Math.ceil(((now.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7);
+  const week = Math.ceil(
+    ((now.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7,
+  );
   return { year: now.getFullYear(), week };
 }
 
@@ -19,7 +21,14 @@ export async function gatherWeeklyData(): Promise<{
   healCount: number;
   avgDurationMin: number;
 }> {
-  if (!memoryEnabled) return { successRate: 0, totalJobs: 0, topFailures: [], healCount: 0, avgDurationMin: 0 };
+  if (!memoryEnabled)
+    return {
+      successRate: 0,
+      totalJobs: 0,
+      topFailures: [],
+      healCount: 0,
+      avgDurationMin: 0,
+    };
 
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -32,13 +41,19 @@ export async function gatherWeeklyData(): Promise<{
 
     const total = jobs?.length ?? 0;
     const success = jobs?.filter((j) => j.outcome === "success").length ?? 0;
-    const failures = jobs
-      ?.filter((j) => j.outcome === "failed")
-      .map((j) => (j.outcome_summary || j.error || "unknown").slice(0, 80))
-      .slice(0, 5) ?? [];
+    const failures =
+      jobs
+        ?.filter((j) => j.outcome === "failed")
+        .map((j) => (j.outcome_summary || j.error || "unknown").slice(0, 80))
+        .slice(0, 5) ?? [];
 
-    const durations = jobs?.filter((j) => j.duration_ms).map((j) => j.duration_ms as number) ?? [];
-    const avgMs = durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : 0;
+    const durations =
+      jobs?.filter((j) => j.duration_ms).map((j) => j.duration_ms as number) ??
+      [];
+    const avgMs =
+      durations.length > 0
+        ? durations.reduce((a, b) => a + b, 0) / durations.length
+        : 0;
 
     const { data: heals } = await getSupabase()
       .from("self_heal_log")
@@ -53,16 +68,33 @@ export async function gatherWeeklyData(): Promise<{
       avgDurationMin: Math.round(avgMs / 60000),
     };
   } catch {
-    return { successRate: 0, totalJobs: 0, topFailures: [], healCount: 0, avgDurationMin: 0 };
+    return {
+      successRate: 0,
+      totalJobs: 0,
+      topFailures: [],
+      healCount: 0,
+      avgDurationMin: 0,
+    };
   }
 }
 
-export async function writeWeeklyReport(data: Awaited<ReturnType<typeof gatherWeeklyData>>): Promise<string> {
+export async function writeWeeklyReport(
+  data: Awaited<ReturnType<typeof gatherWeeklyData>>,
+  extras?: {
+    winRates?: Partial<Record<string, number>>;
+    taskWinners?: Array<{ taskType: string; winner: string; count: number }>;
+    healPatterns?: {
+      total: number;
+      resolved: number;
+      bySource: Array<{ source: string; total: number; resolved: number }>;
+    };
+  },
+): Promise<string> {
   const { year, week } = getWeekNumber();
   const weekStr = String(week).padStart(2, "0");
   const path = resolve(LEARNINGS_DIR, `${year}-W${weekStr}-weekly-analysis.md`);
 
-  const content = [
+  const lines = [
     `# Weekly Analysis — ${year} W${weekStr}`,
     "",
     `**Generated:** ${new Date().toISOString()}`,
@@ -77,7 +109,38 @@ export async function writeWeeklyReport(data: Awaited<ReturnType<typeof gatherWe
     data.topFailures.length > 0
       ? data.topFailures.map((f) => `- ${f}`).join("\n")
       : "- None this week",
-  ].join("\n");
+    ...(extras?.winRates && Object.keys(extras.winRates).length > 0
+      ? [
+          "",
+          "## Model Win Rates (30d)",
+          ...Object.entries(extras.winRates)
+            .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0))
+            .map(([m, r]) => `- ${m}: ${r}%`),
+        ]
+      : []),
+    ...(extras?.taskWinners && extras.taskWinners.length > 0
+      ? [
+          "",
+          "## Task Type Winners",
+          ...extras.taskWinners
+            .slice(0, 5)
+            .map((w) => `- ${w.taskType}: ${w.winner} (${w.count}x)`),
+        ]
+      : []),
+    ...(extras?.healPatterns && extras.healPatterns.total > 0
+      ? [
+          "",
+          "## Heal Effectiveness",
+          `- Total heals: ${extras.healPatterns.total}`,
+          `- Resolved: ${extras.healPatterns.resolved}/${extras.healPatterns.total}`,
+          ...extras.healPatterns.bySource.map(
+            (b) => `- ${b.source}: ${b.resolved}/${b.total}`,
+          ),
+        ]
+      : []),
+  ];
+
+  const content = lines.join("\n");
 
   await Bun.write(path, content);
   logger.info("outcome-analysis:written", { path });

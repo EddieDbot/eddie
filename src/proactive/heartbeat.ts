@@ -13,6 +13,7 @@ import { homedir } from "node:os";
 import { readdir } from "node:fs/promises";
 import { buildUsageBlock } from "../memory/usage.ts";
 import { evaluateTaskAlignment } from "./vision.ts";
+import { getQueueStats, getNextTask } from "./task-queue.ts";
 
 const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 const STATE_DIR = resolve(homedir(), "brain-vault/90 - Agent Memory/State");
@@ -56,11 +57,12 @@ async function getProjectStates(): Promise<string> {
 }
 
 type HeartbeatDecision = {
-  action: "ok" | "message" | "call" | "task" | "personal";
+  action: "ok" | "message" | "call" | "task" | "personal" | "queue-task";
   text?: string;
   callReason?: string;
   taskGoal?: string;
   taskDescription?: string;
+  queueTaskId?: string;
 };
 
 function nowInTimezone(timezone: string): Date {
@@ -262,6 +264,8 @@ async function buildHeartbeatContext(): Promise<string> {
     projectStates,
     usageBlock,
     proactiveActions,
+    queueStats,
+    nextTask,
   ] = await Promise.all([
     loadChecklist(),
     getLastHeartbeats(),
@@ -274,6 +278,8 @@ async function buildHeartbeatContext(): Promise<string> {
       () => "Usage data unavailable.",
     ),
     getPendingProactiveActions(),
+    config.KANBAN_ENABLED ? getQueueStats().catch(() => null) : null,
+    config.KANBAN_ENABLED ? getNextTask().catch(() => null) : null,
   ]);
 
   const agentSummary = `## Agent Routing
@@ -312,6 +318,18 @@ Platform agents: clay, dripify, instantly, attio, n8n, cal-com — triggered by 
     agentSummary,
     "",
     ...(proactiveActions ? [proactiveActions, ""] : []),
+    ...(config.KANBAN_ENABLED
+      ? [
+          "",
+          "## Task Queue",
+          `Stats: ${JSON.stringify(queueStats ?? {})}`,
+          nextTask
+            ? `Next ready task: [${nextTask.id}] ${nextTask.title}${nextTask.description ? ` — ${nextTask.description}` : ""}`
+            : "No ready tasks.",
+          `To execute a queued task: respond with HEARTBEAT_QUEUE_TASK:{"taskId":"<uuid>"}`,
+          "",
+        ]
+      : []),
     "## Goal Task Option",
     'You may also respond with HEARTBEAT_TASK:{"goal":"<active goal>","task":"<specific task prompt>"} to spawn an autonomous background job. Write the task prompt as a full briefing — include which agent(s) to use by slug, what project path to work in, and what done looks like. Base your decision on the CURRENT project states above, not assumptions. Only spawn if there is clear actionable mechanical work, no job is already running for this goal, and you haven\'t spawned one today.',
   ].join("\n");
@@ -344,6 +362,16 @@ export function parseResponse(text: string): HeartbeatDecision {
         taskGoal: payload.goal,
         taskDescription: payload.task,
       };
+    } catch {
+      return { action: "ok" };
+    }
+  }
+  if (trimmed.startsWith("HEARTBEAT_QUEUE_TASK:")) {
+    try {
+      const payload = JSON.parse(
+        trimmed.slice("HEARTBEAT_QUEUE_TASK:".length).trim(),
+      ) as { taskId: string };
+      return { action: "queue-task", queueTaskId: payload.taskId };
     } catch {
       return { action: "ok" };
     }
@@ -555,10 +583,20 @@ async function tick(bot: Bot): Promise<void> {
       return;
     }
     if (config.VISION_ENABLED) {
-      const alignment = await evaluateTaskAlignment(decision.taskDescription).catch(() => ({ aligned: true, score: 5, reason: "" }));
+      const alignment = await evaluateTaskAlignment(
+        decision.taskDescription,
+      ).catch(() => ({ aligned: true, score: 5, reason: "" }));
       if (!alignment.aligned) {
-        logger.info("heartbeat:goal-task-vision-skip", { score: alignment.score, reason: alignment.reason });
-        await logHeartbeat("ok", `vision-skip: ${alignment.reason}`, null, durationMs);
+        logger.info("heartbeat:goal-task-vision-skip", {
+          score: alignment.score,
+          reason: alignment.reason,
+        });
+        await logHeartbeat(
+          "ok",
+          `vision-skip: ${alignment.reason}`,
+          null,
+          durationMs,
+        );
         return;
       }
     }
@@ -581,6 +619,36 @@ async function tick(bot: Bot): Promise<void> {
       logger.error("heartbeat:goal-task-error", {
         error: err instanceof Error ? err.message : String(err),
       });
+    }
+    return;
+  }
+
+  if (
+    decision.action === "queue-task" &&
+    decision.queueTaskId &&
+    config.KANBAN_ENABLED
+  ) {
+    const { getQueuedTasks, updateTaskState } = await import("./task-queue.ts");
+    const tasks = await getQueuedTasks();
+    const task = tasks.find((t) => t.id === decision.queueTaskId);
+    if (task && task.state === "ready") {
+      const prompt = task.description || task.title;
+      try {
+        const { createJob } = await import("../jobs/manager.ts");
+        const { spawnJob } = await import("../jobs/tmux.ts");
+        const job = await createJob("claude", prompt);
+        await spawnJob(job);
+        await updateTaskState(task.id, "running", { jobId: job.id });
+        await bot.api.sendMessage({
+          chat_id: config.OWNER_TELEGRAM_ID,
+          text: `Queue task started: ${task.title}\nJob #${job.id}`,
+        });
+        await logHeartbeat("queue-task", task.title, null, durationMs);
+      } catch (err) {
+        logger.error("heartbeat:queue-task-error", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
     return;
   }

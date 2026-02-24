@@ -1224,6 +1224,24 @@ export const CAPABILITIES: Capability[] = [
     priority: 8,
   },
   {
+    id: "script:enable-context-drift",
+    type: "script",
+    name: "Enable Context Drift",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "enable context drift",
+          "context drift threshold",
+          "auto-enable drift",
+        ],
+        weight: 0.9,
+      },
+    ],
+    invoke: `bun run ~/eddie/src/scripts/enable-context-drift.ts`,
+    priority: 5,
+  },
+  {
     id: "script:vision-score",
     type: "script",
     name: "Vision Score Roadmap",
@@ -1242,6 +1260,26 @@ export const CAPABILITIES: Capability[] = [
     ],
     invoke: `bun run ~/eddie/src/scripts/vision-score.ts --top 10`,
     priority: 7,
+  },
+  {
+    id: "script:task-queue",
+    type: "script",
+    name: "Task Queue",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "task queue",
+          "queued tasks",
+          "queue stats",
+          "what's queued",
+          "kanban",
+        ],
+        weight: 0.9,
+      },
+    ],
+    invoke: `# Task queue is managed programmatically via src/proactive/task-queue.ts\n# addTask(), getNextTask(), getQueueStats(), updateTaskState()`,
+    priority: 6,
   },
   // ── MCPs ──
   {

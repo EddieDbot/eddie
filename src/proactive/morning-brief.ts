@@ -200,7 +200,10 @@ async function getRoadmapPicks(): Promise<string> {
   if (!config.VISION_ENABLED) return "";
   try {
     const { filterRoadmap } = await import("./vision.ts");
-    const roadmapPath = resolve(homedir(), "brain-vault/90 - Agent Memory/Plans/consolidated-roadmap-2026-02-24.md");
+    const roadmapPath = resolve(
+      homedir(),
+      "brain-vault/90 - Agent Memory/Plans/consolidated-roadmap-2026-02-24.md",
+    );
     let items: string[] = [];
     try {
       const raw = await Bun.file(roadmapPath).text();
@@ -304,6 +307,16 @@ export async function buildBriefText(): Promise<string> {
 
 export async function runMorningBrief(bot: Bot): Promise<void> {
   logger.info("morning-brief:start");
+  if (config.GATHER_BEFORE_BRIEF) {
+    const { gatherFreshData } = await import("./gather.ts");
+    const gathered = await gatherFreshData().catch(() => null);
+    if (gathered) {
+      logger.info("morning-brief:gathered", {
+        gmail: gathered.gmailCount,
+        calendar: gathered.calendarCount,
+      });
+    }
+  }
   const brief = await buildBriefText();
   await bot.api.sendMessage({
     chat_id: config.OWNER_TELEGRAM_ID,

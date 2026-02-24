@@ -240,6 +240,21 @@ export async function runDreamCycle(): Promise<void> {
   // Rotate project archives
   await rotateArchives();
 
+  // Self-improvement: extract rejection learnings nightly, weekly analysis on configured day
+  if (config.SELF_IMPROVE_ENABLED) {
+    const { extractRejectionLearnings, runWeeklyAnalysis } =
+      await import("./self-improve.ts");
+    await extractRejectionLearnings().catch((err) =>
+      logger.warn("dream:rejection-learnings-error", { error: String(err) }),
+    );
+    const dayOfWeek = new Date().getDay();
+    if (dayOfWeek === config.SELF_IMPROVE_WEEKLY_DAY) {
+      await runWeeklyAnalysis().catch((err) =>
+        logger.warn("dream:weekly-analysis-error", { error: String(err) }),
+      );
+    }
+  }
+
   logger.info("dream:cycle-done", {
     total: insights.length,
     stored: novel.length,

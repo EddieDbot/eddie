@@ -153,6 +153,13 @@ const envSchema = z.object({
   CONTEXT_DRIFT_ENABLED: z.coerce.boolean().default(false),
   CONTEXT_DRIFT_THRESHOLD: z.coerce.number().default(0.1),
   CONTEXT_DRIFT_MIN_SAMPLE: z.coerce.number().int().default(10),
+  JOB_QA_GATE_ENABLED: z.coerce.boolean().default(false),
+  OUTPUT_SCAN_ENABLED: z.coerce.boolean().default(false),
+  INTEGRITY_CHECK_ENABLED: z.coerce.boolean().default(false),
+  SELF_IMPROVE_ENABLED: z.coerce.boolean().default(false),
+  SELF_IMPROVE_WEEKLY_DAY: z.coerce.number().default(0),
+  KANBAN_ENABLED: z.coerce.boolean().default(false),
+  GATHER_BEFORE_BRIEF: z.coerce.boolean().default(false),
 });
 
 export type Config = z.infer<typeof envSchema>;
