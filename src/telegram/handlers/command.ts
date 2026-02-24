@@ -33,6 +33,7 @@ import {
   getRevenueSummary,
   formatRevenueSummary,
 } from "../../proactive/revenue.ts";
+import { runPrompt } from "../../claude/run-prompt.ts";
 
 type MessageContext = ContextType<BotLike, "message">;
 
@@ -1194,10 +1195,6 @@ export async function handleAlign(context: MessageContext): Promise<void> {
     await context.send("Usage: /align <idea or project>");
     return;
   }
-  if (!config.ANTHROPIC_API_KEY) {
-    await context.send("API key not configured.");
-    return;
-  }
   try {
     const visionPath = `${process.env.HOME ?? "/home/na"}/brain-vault/20 - Areas/Master Vision.md`;
     let vision = "";
@@ -1206,24 +1203,14 @@ export async function handleAlign(context: MessageContext): Promise<void> {
       vision = vision.slice(0, 2000);
     } catch {}
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": config.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 200,
-        system: vision
-          ? `You are an alignment advisor. Score how well an idea aligns with this vision:\n\n${vision}\n\nReply with: Score: X/100\n[2-3 sentence reasoning]`
-          : "You are an alignment advisor. Score how well the idea aligns with a creative technologist/director's vision. Reply with: Score: X/100\n[2-3 sentence reasoning]",
-        messages: [{ role: "user", content: `Idea: ${idea}` }],
-      }),
+    const { text, ok } = await runPrompt({
+      system: vision
+        ? `You are an alignment advisor. Score how well an idea aligns with this vision:\n\n${vision}\n\nReply with: Score: X/100\n[2-3 sentence reasoning]`
+        : "You are an alignment advisor. Score how well the idea aligns with a creative technologist/director's vision. Reply with: Score: X/100\n[2-3 sentence reasoning]",
+      prompt: `Idea: ${idea}`,
+      model: "claude-haiku-4-5-20251001",
     });
-    const data = (await res.json()) as { content: Array<{ text: string }> };
-    await context.send(data.content?.[0]?.text ?? "Could not score.");
+    await context.send(ok && text ? text : "Could not score.");
   } catch {
     await context.send("Align check failed.");
   }

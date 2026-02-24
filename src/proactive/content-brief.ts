@@ -1,4 +1,4 @@
-import { config } from "../config.ts";
+import { runPrompt } from "../claude/run-prompt.ts";
 import { logger } from "../utils/logger.ts";
 import { mkdir } from "node:fs/promises";
 
@@ -33,8 +33,6 @@ export async function generateContentBrief(
   topic: string,
   voiceNote?: string,
 ): Promise<string> {
-  if (!config.ANTHROPIC_API_KEY) return "API key not configured.";
-
   const searchResults = await searchWeb(
     `${topic} content ideas 2026`,
   ).catch(() => "");
@@ -45,17 +43,8 @@ export async function generateContentBrief(
   const prompt = contextParts.join("\n\n");
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": config.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 600,
-        system: `You are a creative content strategist for Nicholas, a creative technologist and director.
+    const { text: briefText, ok } = await runPrompt({
+      system: `You are a creative content strategist for Nicholas, a creative technologist and director.
 Generate a structured content brief with these sections:
 **Hook Options** (2-3 hooks)
 **Angle** (the unique POV)
@@ -64,12 +53,11 @@ Generate a structured content brief with these sections:
 **Call to Action**
 
 Be punchy, specific, and actionable. Avoid generic advice.`,
-        messages: [{ role: "user", content: `Create a content brief for: ${prompt}` }],
-      }),
-      signal: AbortSignal.timeout(20_000),
+      prompt: `Create a content brief for: ${prompt}`,
+      model: "claude-haiku-4-5-20251001",
+      maxWaitMs: 20_000,
     });
-    const data = (await res.json()) as { content: Array<{ text: string }> };
-    const briefText = data.content?.[0]?.text ?? "Could not generate brief.";
+    if (!ok) return "Could not generate brief.";
 
     // Write to Brain Vault
     const date = new Date().toISOString().slice(0, 10);

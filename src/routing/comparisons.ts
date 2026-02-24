@@ -1,5 +1,5 @@
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
-import { config } from "../config.ts";
+import { runPrompt } from "../claude/run-prompt.ts";
 import { logger } from "../utils/logger.ts";
 import type { ModelId } from "../jobs/types.ts";
 
@@ -97,7 +97,7 @@ export async function scoreOutputsAndStore(
   outputs: Array<{ model: ModelId; output: string; durationMs?: number }>,
   synthesisAddedValue: boolean,
 ): Promise<void> {
-  if (!config.ANTHROPIC_API_KEY || outputs.length < 2) return;
+  if (outputs.length < 2) return;
 
   const scores: Partial<Record<ModelId, number>> = {};
   const durations: Partial<Record<ModelId, number>> = {};
@@ -107,25 +107,13 @@ export async function scoreOutputsAndStore(
     if (!o.output.trim()) { scores[o.model] = 1; continue; }
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": config.ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 50,
-          system: "Score this AI response 1-5 for quality, accuracy, and completeness. Reply with just the number.",
-          messages: [{
-            role: "user",
-            content: `Task: ${prompt.slice(0, 200)}\n\nResponse: ${o.output.slice(-1500)}`,
-          }],
-        }),
+      const { text, ok } = await runPrompt({
+        system: "Score this AI response 1-5 for quality, accuracy, and completeness. Reply with just the number.",
+        prompt: `Task: ${prompt.slice(0, 200)}\n\nResponse: ${o.output.slice(-1500)}`,
+        model: "claude-haiku-4-5-20251001",
       });
-      const data = await res.json() as { content: Array<{ text: string }> };
-      const score = parseInt(data.content?.[0]?.text?.trim() ?? "3", 10);
+      if (!ok) { scores[o.model] = 3; continue; }
+      const score = parseInt(text.trim(), 10);
       scores[o.model] = isNaN(score) ? 3 : Math.min(5, Math.max(1, score));
     } catch {
       scores[o.model] = 3;

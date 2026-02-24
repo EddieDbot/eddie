@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import { createJob } from "../jobs/manager.ts";
 import { spawnJob } from "../jobs/tmux.ts";
+import { logProvenance } from "../memory/provenance.ts";
 import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 
@@ -75,7 +76,8 @@ export async function findBook(
     proc.stdout.on("data", (d) => (stdout += d));
     proc.stderr.on("data", (d) => (stderr += d));
     proc.on("close", () => {
-      if (stderr) logger.debug("book-finder:stderr", { stderr: stderr.slice(0, 500) });
+      if (stderr)
+        logger.debug("book-finder:stderr", { stderr: stderr.slice(0, 500) });
       try {
         resolve(JSON.parse(stdout.trim()));
       } catch {
@@ -92,9 +94,7 @@ export async function findBook(
   });
 }
 
-async function scanBookInbox(): Promise<
-  Array<{ path: string; hash: string }>
-> {
+async function scanBookInbox(): Promise<Array<{ path: string; hash: string }>> {
   try {
     await mkdir(RAW_DIR, { recursive: true });
     const files = await readdir(RAW_DIR);
@@ -162,11 +162,25 @@ export async function ingestBook(
   bookPath: string,
   opts?: { title?: string; hash?: string },
 ): Promise<{ jobId: string; session: string }> {
-  const title = opts?.title ?? bookPath.split("/").pop()?.replace(/\.[^.]+$/, "") ?? "Unknown";
+  const title =
+    opts?.title ??
+    bookPath
+      .split("/")
+      .pop()
+      ?.replace(/\.[^.]+$/, "") ??
+    "Unknown";
   const prompt = buildBookJobPrompt(bookPath, title, opts);
   const job = await createJob("claude", prompt);
   await spawnJob(job);
   logger.info("book-ingest:spawned", { bookPath, title, jobId: job.id });
+  logProvenance({
+    feature_name: title,
+    source_type: "book",
+    source_ref: opts?.hash,
+    source_title: title,
+    job_id: job.id,
+    status: "in_progress",
+  }).catch(() => {});
   return { jobId: job.id, session: job.tmuxSession };
 }
 
@@ -187,7 +201,10 @@ export async function checkBookInbox(): Promise<{ spawned: number }> {
 
   try {
     const title =
-      book.path.split("/").pop()?.replace(/\.[^.]+$/, "") ?? "Unknown";
+      book.path
+        .split("/")
+        .pop()
+        ?.replace(/\.[^.]+$/, "") ?? "Unknown";
     await ingestBook(book.path, { title, hash: book.hash });
     await markProcessed(book.hash, title);
     return { spawned: 1 };

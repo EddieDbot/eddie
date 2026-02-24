@@ -1,8 +1,10 @@
 import { config } from "../config.ts";
+import { runPrompt } from "../claude/run-prompt.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
 import { storeFact } from "../memory/store.ts";
 import { logger } from "../utils/logger.ts";
 import { resolve } from "node:path";
+import { formatToolUsageSummary } from "../memory/tool-ticker.ts";
 
 const HOME = process.env.HOME ?? "/home/na";
 const STATE_FILE = `${HOME}/brain-vault/90 - Agent Memory/State/eddie-current.md`;
@@ -52,8 +54,6 @@ async function summarizeWithHaiku(
   conversations: string,
   terminal: string,
 ): Promise<string | null> {
-  if (!config.ANTHROPIC_API_KEY) return null;
-
   const parts: string[] = [];
   if (conversations)
     parts.push("## Telegram/Relay Conversations\n" + conversations);
@@ -67,32 +67,12 @@ async function summarizeWithHaiku(
     parts.join("\n\n"),
   ].join("\n");
 
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": config.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 512,
-        messages: [{ role: "user", content: userContent }],
-      }),
-    });
-
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      content: { type: string; text: string }[];
-    };
-    return data.content
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join("");
-  } catch {
-    return null;
-  }
+  const { text, ok } = await runPrompt({
+    prompt: userContent,
+    model: "claude-haiku-4-5-20251001",
+  });
+  if (!ok) return null;
+  return text;
 }
 
 async function writeStateFile(
@@ -120,6 +100,11 @@ async function writeStateFile(
 
   if (terminal) {
     sections.push("", "## Terminal Activity", terminal);
+  }
+
+  const toolUsage = await formatToolUsageSummary(7).catch(() => "");
+  if (toolUsage && toolUsage !== "No tool usage data.") {
+    sections.push("", "## Tool Usage", toolUsage);
   }
 
   await Bun.write(STATE_FILE, sections.join("\n"));

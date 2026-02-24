@@ -1,4 +1,5 @@
 import { config } from "../../config.ts";
+import { runPrompt } from "../../claude/run-prompt.ts";
 import { logger } from "../../utils/logger.ts";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
@@ -64,29 +65,15 @@ export async function handleSlashAlign(
   text: string,
 ): Promise<{ text: string }> {
   if (!text.trim()) return { text: "Usage: /align <idea>" };
-  if (!config.ANTHROPIC_API_KEY) return { text: "API key not configured." };
 
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": config.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 150,
-        system:
-          "Score how well this idea aligns with a creative technologist/director vision. Reply: Score: X/100\n[1-2 sentence reason]",
-        messages: [{ role: "user", content: `Idea: ${text}` }],
-      }),
-    });
-    const data = (await res.json()) as { content: Array<{ text: string }> };
-    return { text: data.content?.[0]?.text ?? "Could not score." };
-  } catch {
-    return { text: "Align check failed." };
-  }
+  const { text: result, ok } = await runPrompt({
+    system:
+      "Score how well this idea aligns with a creative technologist/director vision. Reply: Score: X/100\n[1-2 sentence reason]",
+    prompt: `Idea: ${text}`,
+    model: "claude-haiku-4-5-20251001",
+  });
+  if (!ok) return { text: "Align check failed." };
+  return { text: result || "Could not score." };
 }
 
 export async function handleSlackCommand(

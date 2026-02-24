@@ -40,6 +40,14 @@ type ProactiveAction = {
   targetProject?: string;
 };
 
+type DailyWork = {
+  built: string[];
+  decided: string[];
+  changed: string[];
+  newBlockers: string[];
+  consolidationSources: string[];
+};
+
 type WorldModel = {
   version: 1;
   generatedAt: string;
@@ -57,6 +65,7 @@ type WorldModel = {
     newStaleProjects: string[];
   };
   summary: string;
+  dailyWork?: DailyWork;
 };
 
 const STATE_DIR = resolve(homedir(), "brain-vault/90 - Agent Memory/State");
@@ -92,6 +101,92 @@ function msUntilTime(hour: number, minute: number, timezone: string): number {
   return target.getTime() - nowLocal.getTime();
 }
 
+async function readDailyConsolidations(): Promise<string> {
+  const HOME = homedir();
+  const tz = "America/Chicago";
+  const localNow = new Date(
+    new Date().toLocaleString("en-US", { timeZone: tz }),
+  );
+  const today = localNow.toISOString().slice(0, 10);
+  const activityPath = resolve(
+    HOME,
+    `brain-vault/90 - Agent Memory/Learnings/${today}-eddie-activity.md`,
+  );
+  try {
+    return await Bun.file(activityPath).text();
+  } catch {
+    return "";
+  }
+}
+
+async function parseTodayActivityLog(): Promise<string> {
+  const HOME = homedir();
+  const tz = "America/Chicago";
+  const localNow = new Date(
+    new Date().toLocaleString("en-US", { timeZone: tz }),
+  );
+  const today = localNow.toISOString().slice(0, 10);
+  try {
+    const statePath = resolve(
+      HOME,
+      "brain-vault/90 - Agent Memory/State/eddie-current.md",
+    );
+    const content = await Bun.file(statePath).text();
+    const lines = content.split("\n");
+    const todayLines = lines.filter((l) => l.includes(today));
+    return todayLines.join("\n");
+  } catch {
+    return "";
+  }
+}
+
+async function extractDailyDeltas(text: string): Promise<DailyWork> {
+  const empty: DailyWork = {
+    built: [],
+    decided: [],
+    changed: [],
+    newBlockers: [],
+    consolidationSources: [],
+  };
+  if (!text.trim()) return empty;
+
+  const built: string[] = [];
+  const decided: string[] = [];
+  const changed: string[] = [];
+  const newBlockers: string[] = [];
+  const consolidationSources: string[] = [];
+
+  const lines = text.split("\n");
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+    if (
+      lower.includes("built") ||
+      lower.includes("created") ||
+      lower.includes("added")
+    ) {
+      const match = line.match(/[-*]\s*(.+)/);
+      if (match?.[1]) built.push(match[1].slice(0, 100));
+    } else if (lower.includes("decided") || lower.includes("decision")) {
+      const match = line.match(/[-*]\s*(.+)/);
+      if (match?.[1]) decided.push(match[1].slice(0, 100));
+    } else if (lower.includes("blocked") || lower.includes("waiting on")) {
+      const match = line.match(/[-*]\s*(.+)/);
+      if (match?.[1]) newBlockers.push(match[1].slice(0, 100));
+    } else if (lower.includes("session") || lower.includes("agentic")) {
+      const match = line.match(/[-*|]\s*(.+)/);
+      if (match?.[1]) consolidationSources.push(match[1].slice(0, 80));
+    }
+  }
+
+  return {
+    built: built.slice(0, 10),
+    decided: decided.slice(0, 5),
+    changed,
+    newBlockers: newBlockers.slice(0, 5),
+    consolidationSources: consolidationSources.slice(0, 5),
+  };
+}
+
 export function generateWorldIndex(model: WorldModel): string {
   const services = Object.entries(model.services)
     .map(([k, v]) => `${k}=${v ? "up" : "DOWN"}`)
@@ -125,6 +220,14 @@ export function generateWorldIndex(model: WorldModel): string {
     ``,
     `summary: "${model.summary.replace(/"/g, "'")}"`,
   ];
+
+  if (model.dailyWork && model.dailyWork.built.length > 0) {
+    lines.push(``, `today:`);
+    if (model.dailyWork.built.length > 0)
+      lines.push(`  built: [${model.dailyWork.built.slice(0, 3).join(", ")}]`);
+    if (model.dailyWork.newBlockers.length > 0)
+      lines.push(`  new_blockers: [${model.dailyWork.newBlockers.join(", ")}]`);
+  }
 
   return lines.join("\n");
 }
@@ -382,6 +485,7 @@ function generateSummary(
   deltas: WorldModel["deltas"],
   services: ServiceHealth[],
   proactiveActions: ProactiveAction[],
+  dailyWork?: DailyWork,
 ): string {
   const unhealthy = services.filter((s) => !s.healthy);
 
@@ -392,7 +496,9 @@ function generateSummary(
     proactiveActions.length === 0 &&
     unhealthy.length === 0
   ) {
-    return "No changes detected overnight. All active projects stable.";
+    const base = "No changes detected overnight. All active projects stable.";
+    if (dailyWork?.built.length) return `${base} Today: ${dailyWork.built[0]}`;
+    return base;
   }
 
   const parts: string[] = [];
@@ -410,6 +516,9 @@ function generateSummary(
   if (proactiveActions.length > 0) {
     parts.push(`${proactiveActions.length} proactive action(s) identified`);
   }
+  if (dailyWork?.built.length) {
+    parts.push(`Today: ${dailyWork.built[0]}`);
+  }
 
   return parts.join(". ") + ".";
 }
@@ -418,13 +527,24 @@ export async function runNightlyOrchestrate(): Promise<void> {
   const start = Date.now();
   logger.info("nightly-orchestrate:start");
 
-  const [previousModel, snapshots, services, unroutedAgents] =
-    await Promise.all([
-      loadWorldModel(),
-      scanStateFiles(),
-      checkServiceHealth(),
-      getUnroutedAgents(),
-    ]);
+  const [
+    previousModel,
+    snapshots,
+    services,
+    unroutedAgents,
+    activityFile,
+    todayLog,
+  ] = await Promise.all([
+    loadWorldModel(),
+    scanStateFiles(),
+    checkServiceHealth(),
+    getUnroutedAgents(),
+    readDailyConsolidations(),
+    parseTodayActivityLog(),
+  ]);
+
+  const combinedText = [activityFile, todayLog].filter(Boolean).join("\n\n");
+  const dailyWork = await extractDailyDeltas(combinedText);
 
   const blockers: Blocker[] = snapshots
     .filter((s) => s.hasBlocker)
@@ -457,7 +577,12 @@ export async function runNightlyOrchestrate(): Promise<void> {
   }
 
   const deltas = computeDeltas(snapshots, previousModel);
-  const summary = generateSummary(deltas, services, proactiveActions);
+  const summary = generateSummary(
+    deltas,
+    services,
+    proactiveActions,
+    dailyWork,
+  );
 
   const activeShelf = previousModel?.activeShelf ?? [];
   const drawer = previousModel?.drawer ?? [];
@@ -479,10 +604,63 @@ export async function runNightlyOrchestrate(): Promise<void> {
     proactiveActions,
     deltas,
     summary,
+    dailyWork,
   };
 
   await Bun.write(WORLD_MODEL_PATH, JSON.stringify(worldModel, null, 2));
   await writeWorldIndex(worldModel);
+
+  // Phase 3 stitch: feed daily signals → vision preference updates
+  if (config.VISION_ENABLED) {
+    const today = new Date().toISOString().slice(0, 10);
+    const signals: { date: string; signal: string; context: string }[] = [];
+
+    if (dailyWork) {
+      for (const item of dailyWork.built.slice(0, 3)) {
+        signals.push({
+          date: today,
+          signal: `built: ${item}`,
+          context: "daily-work",
+        });
+      }
+      for (const blocker of dailyWork.newBlockers.slice(0, 2)) {
+        signals.push({
+          date: today,
+          signal: `blocker: ${blocker}`,
+          context: "daily-work",
+        });
+      }
+    }
+
+    if (config.PROVENANCE_ENABLED) {
+      const { getProvenanceSummary } = await import("../memory/provenance.ts");
+      const prov = await getProvenanceSummary(1);
+      for (const r of prov.recent.slice(0, 2)) {
+        signals.push({
+          date: today,
+          signal: `shipped: ${r.feature_name}`,
+          context: `from ${r.source_type}`,
+        });
+      }
+    }
+
+    if (config.TOOL_TICKER_ENABLED) {
+      const { getToolUsageSummary } = await import("../memory/tool-ticker.ts");
+      const { topTools } = await getToolUsageSummary(1);
+      if (topTools[0]) {
+        signals.push({
+          date: today,
+          signal: `top-tool: ${topTools[0].tool_name}`,
+          context: `${topTools[0].count}x today`,
+        });
+      }
+    }
+
+    if (signals.length > 0) {
+      const { updateVisionPreferences } = await import("./vision.ts");
+      await updateVisionPreferences(signals).catch(() => {});
+    }
+  }
 
   emitEvent("nightly-orchestrate", {
     projectCount: snapshots.length,

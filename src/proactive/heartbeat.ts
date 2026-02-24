@@ -12,6 +12,7 @@ import { resolve } from "node:path";
 import { homedir } from "node:os";
 import { readdir } from "node:fs/promises";
 import { buildUsageBlock } from "../memory/usage.ts";
+import { evaluateTaskAlignment } from "./vision.ts";
 
 const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 const STATE_DIR = resolve(homedir(), "brain-vault/90 - Agent Memory/State");
@@ -552,6 +553,14 @@ async function tick(bot: Bot): Promise<void> {
         durationMs,
       );
       return;
+    }
+    if (config.VISION_ENABLED) {
+      const alignment = await evaluateTaskAlignment(decision.taskDescription).catch(() => ({ aligned: true, score: 5, reason: "" }));
+      if (!alignment.aligned) {
+        logger.info("heartbeat:goal-task-vision-skip", { score: alignment.score, reason: alignment.reason });
+        await logHeartbeat("ok", `vision-skip: ${alignment.reason}`, null, durationMs);
+        return;
+      }
     }
     try {
       const { createJob } = await import("../jobs/manager.ts");

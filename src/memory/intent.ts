@@ -1,4 +1,4 @@
-import { config } from "../config.ts";
+import { runPrompt, parseJsonFromOutput } from "../claude/run-prompt.ts";
 import { storeFact } from "./store.ts";
 import { logger } from "../utils/logger.ts";
 
@@ -24,36 +24,14 @@ The "content" should be a clean, third-person statement suitable for memory stor
 If category is "none", set content to "".`;
 
 export async function classifyIntent(msg: string): Promise<IntentResult> {
-  if (!config.ANTHROPIC_API_KEY) {
-    return { category: "none", content: "" };
-  }
-
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": config.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 128,
-        system: INTENT_SYSTEM,
-        messages: [{ role: "user", content: msg }],
-      }),
-      signal: AbortSignal.timeout(10_000),
-    });
-
-    if (!res.ok) return { category: "none", content: "" };
-
-    const data = (await res.json()) as { content: { type: string; text: string }[] };
-    const text = data.content.find((c) => c.type === "text")?.text ?? "";
-    const parsed = JSON.parse(text.trim()) as IntentResult;
-    return parsed;
-  } catch {
-    return { category: "none", content: "" };
-  }
+  const { text, ok } = await runPrompt({
+    system: INTENT_SYSTEM,
+    prompt: msg,
+    model: "claude-haiku-4-5-20251001",
+    maxWaitMs: 10_000,
+  });
+  if (!ok) return { category: "none", content: "" };
+  return parseJsonFromOutput<IntentResult>(text, { category: "none", content: "" });
 }
 
 export async function detectAndStore(msg: string): Promise<void> {

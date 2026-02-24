@@ -136,6 +136,15 @@ const envSchema = z.object({
   CLAUDE_HEALTH_ENABLED: z
     .preprocess((v) => String(v ?? "false") === "true", z.boolean())
     .default(false),
+  PROVENANCE_ENABLED: z
+    .preprocess((v) => String(v ?? "false") === "true", z.boolean())
+    .default(false),
+  TOOL_TICKER_ENABLED: z
+    .preprocess((v) => String(v ?? "false") === "true", z.boolean())
+    .default(false),
+  VISION_ENABLED: z
+    .preprocess((v) => String(v ?? "false") === "true", z.boolean())
+    .default(false),
 });
 
 export type Config = z.infer<typeof envSchema>;

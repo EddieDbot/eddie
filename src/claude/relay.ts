@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { buildMemoryContext } from "../memory/context.ts";
 import { getRelayEnv } from "./env.ts";
 import { logUsage } from "../memory/usage.ts";
+import { runPrompt } from "./run-prompt.ts";
 
 const OPUS_SIGNALS = [
   /\b(architect|refactor|redesign|rewrite|complex|analysis|analyze|compare|tradeoff|trade-off|review|audit|explain why|deep dive|debug|diagnose|investigate|comprehensive|strategy|strategic|full|complete|entire|all of)\b/i,
@@ -281,54 +282,15 @@ export async function relayVoice(prompt: string): Promise<ParsedResponse> {
 export async function relayVoiceDirect(
   prompt: string,
 ): Promise<ParsedResponse> {
-  if (!config.ANTHROPIC_API_KEY) {
+  const { text, ok } = await runPrompt({
+    system: VOICE_SYSTEM_PROMPT,
+    prompt,
+    model: "claude-haiku-4-5-20251001",
+    maxWaitMs: 15_000,
+  });
+  if (!ok || !text) {
     return relayVoice(prompt);
   }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
-
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": config.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 256,
-        system: VOICE_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: prompt }],
-      }),
-      signal: controller.signal,
-    });
-
-    if (!res.ok) {
-      const errBody = await res.text();
-      logger.error("relay:voice-direct-error", {
-        status: res.status,
-        body: errBody,
-      });
-      return relayVoice(prompt);
-    }
-
-    const data = (await res.json()) as {
-      content: { type: string; text: string }[];
-    };
-    const text = data.content
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join("");
-
-    logger.debug("relay:voice-direct", { textLen: text.length });
-    return { text, toolUses: [] };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error("relay:voice-direct-fallback", { error: message });
-    return relayVoice(prompt);
-  } finally {
-    clearTimeout(timeout);
-  }
+  logger.debug("relay:voice-direct", { textLen: text.length });
+  return { text, toolUses: [] };
 }

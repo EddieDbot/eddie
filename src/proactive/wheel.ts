@@ -1,5 +1,6 @@
 import type { Bot } from "gramio";
 import { config } from "../config.ts";
+import { runPrompt, parseJsonFromOutput } from "../claude/run-prompt.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
 import { listAgents } from "../agents/registry.ts";
 import { createJob } from "../jobs/manager.ts";
@@ -43,8 +44,6 @@ async function planTasks(
   topic: string,
   agentSlugs: string[],
 ): Promise<string[]> {
-  if (!config.ANTHROPIC_API_KEY) return [`Work on: ${topic}`];
-
   const agentList = agentSlugs.slice(0, 20).join(", ");
   const system = `You are EDDIE's autonomous planning engine. Given a topic or goal, generate 1-3 specific, actionable task prompts to spawn as background jobs. Available specialized agents: ${agentList}.
 
@@ -53,33 +52,15 @@ Each task should be self-contained — a complete prompt that a background Claud
 Respond with ONLY a JSON array of strings (the task prompts): ["task 1 prompt", "task 2 prompt"]
 Generate at most ${config.WHEEL_MAX_JOBS} tasks.`;
 
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": config.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 1024,
-        system,
-        messages: [{ role: "user", content: `Plan tasks for: ${topic}` }],
-      }),
-      signal: AbortSignal.timeout(20_000),
-    });
-
-    if (!res.ok) return [`Work on: ${topic}`];
-    const data = (await res.json()) as {
-      content: { type: string; text: string }[];
-    };
-    const text = data.content.find((c) => c.type === "text")?.text ?? "[]";
-    const tasks = JSON.parse(text.trim()) as string[];
-    return tasks.filter((t) => typeof t === "string" && t.length > 10);
-  } catch {
-    return [`Work on: ${topic}`];
-  }
+  const { text, ok } = await runPrompt({
+    system,
+    prompt: `Plan tasks for: ${topic}`,
+    model: "claude-haiku-4-5-20251001",
+    maxWaitMs: 20_000,
+  });
+  if (!ok) return [`Work on: ${topic}`];
+  const tasks = parseJsonFromOutput<string[]>(text, []);
+  return tasks.filter((t) => typeof t === "string" && t.length > 10);
 }
 
 export async function startWheel(bot: Bot, topic?: string): Promise<void> {

@@ -2,6 +2,7 @@ import type { Bot } from "gramio";
 import { homedir } from "node:os";
 import { createJob } from "../jobs/manager.ts";
 import { spawnJob } from "../jobs/tmux.ts";
+import { logProvenance } from "../memory/provenance.ts";
 import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 
@@ -335,6 +336,14 @@ export async function checkPlaylists(): Promise<{
           const job = await createJob("claude", prompt);
           await spawnJob(job);
           await markProcessed(item.videoId, item.title);
+          logProvenance({
+            feature_name: item.title,
+            source_type: "video",
+            source_ref: item.videoId,
+            source_title: item.title,
+            job_id: job.id,
+            status: "in_progress",
+          }).catch(() => {});
           spawned++;
         }),
       );

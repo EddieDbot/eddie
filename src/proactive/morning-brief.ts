@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { homedir } from "node:os";
 import type { Bot } from "gramio";
 import { config } from "../config.ts";
+import { runPrompt } from "../claude/run-prompt.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
 import { logger } from "../utils/logger.ts";
 
@@ -195,35 +196,50 @@ async function getWorldIndex(): Promise<string> {
   }
 }
 
-async function generateBrief(context: string): Promise<string> {
-  if (!config.ANTHROPIC_API_KEY) return context;
-
+async function getRoadmapPicks(): Promise<string> {
+  if (!config.VISION_ENABLED) return "";
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": config.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 512,
-        system:
-          "You are EDDIE, a chill AI assistant giving a casual morning briefing to Nicholas. Keep it short, warm, and useful — highlight what matters today. 3-5 sentences max. Casual surfer-ish tone but substantive.",
-        messages: [{ role: "user", content: context }],
-      }),
-      signal: AbortSignal.timeout(15_000),
-    });
-
-    if (!res.ok) return `Morning brief context:\n${context}`;
-    const data = (await res.json()) as {
-      content: { type: string; text: string }[];
-    };
-    return data.content.find((c) => c.type === "text")?.text ?? context;
+    const { filterRoadmap } = await import("./vision.ts");
+    const roadmapPath = resolve(homedir(), "brain-vault/90 - Agent Memory/Plans/consolidated-roadmap-2026-02-24.md");
+    let items: string[] = [];
+    try {
+      const raw = await Bun.file(roadmapPath).text();
+      items = raw
+        .split("\n")
+        .filter((l) => l.match(/^[-*]\s+/))
+        .map((l) => l.replace(/^[-*]\s+/, "").trim())
+        .filter((l) => l.length > 10)
+        .slice(0, 20);
+    } catch {
+      return "";
+    }
+    if (items.length === 0) return "";
+    const ranked = await filterRoadmap(items, 3);
+    return ranked.map((r) => `- ${r.score}/10 ${r.description}`).join("\n");
   } catch {
-    return `Morning brief:\n${context}`;
+    return "";
   }
+}
+
+async function getRecentlyShipped(): Promise<string> {
+  try {
+    const { formatProvenanceSummary } = await import("../memory/provenance.ts");
+    const summary = await formatProvenanceSummary(7);
+    return summary || "";
+  } catch {
+    return "";
+  }
+}
+
+async function generateBrief(context: string): Promise<string> {
+  const { text, ok } = await runPrompt({
+    system:
+      "You are EDDIE, a chill AI assistant giving a casual morning briefing to Nicholas. Keep it short, warm, and useful — highlight what matters today. 3-5 sentences max. Casual surfer-ish tone but substantive.",
+    prompt: context,
+    model: "claude-haiku-4-5-20251001",
+  });
+  if (!ok) return context;
+  return text;
 }
 
 export async function buildBriefText(): Promise<string> {
@@ -244,6 +260,8 @@ export async function buildBriefText(): Promise<string> {
     youtube,
     revenue,
     worldModel,
+    recentlyShipped,
+    roadmapPicks,
   ] = await Promise.all([
     getActiveGoals(),
     getYesterdayActivity(),
@@ -254,6 +272,8 @@ export async function buildBriefText(): Promise<string> {
     getYoutubeSnapshot().catch(() => ""),
     getRevenueSnapshot().catch(() => ""),
     getWorldIndex().catch(() => ""),
+    getRecentlyShipped().catch(() => ""),
+    getRoadmapPicks().catch(() => ""),
   ]);
 
   const context = [
@@ -272,7 +292,9 @@ export async function buildBriefText(): Promise<string> {
     pillarData ? `\n## Yesterday's Pillars\n${pillarData}` : "",
     youtube ? `\n## YouTube\n${youtube}` : "",
     revenue ? `\n## Revenue (30d)\n${revenue}` : "",
+    recentlyShipped ? `\n## Recently Shipped\n${recentlyShipped}` : "",
     worldModel ? `\n## Project Pulse\n${worldModel}` : "",
+    roadmapPicks ? `\n## Roadmap Picks\n${roadmapPicks}` : "",
   ]
     .filter(Boolean)
     .join("\n");

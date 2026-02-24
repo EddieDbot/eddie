@@ -11,6 +11,8 @@ import { routeCapabilities } from "../routing/router.ts";
 import { getMcpHints } from "../routing/mcp-hints.ts";
 import { buildDelegationGuidance } from "../routing/model-kb.ts";
 import type { Job, ModelId } from "./types.ts";
+import { tickTool } from "../memory/tool-ticker.ts";
+import { getCondensedVision } from "../proactive/vision.ts";
 
 const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 const HOME = process.env.HOME ?? "/home/na";
@@ -77,9 +79,10 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
   const briefingData = parseRawTask(prompt);
   const structuredBriefing = await buildBriefing(briefingData);
 
-  const [memCtx, relevantProjects] = await Promise.all([
+  const [memCtx, relevantProjects, visionCtx] = await Promise.all([
     buildMemoryContext(prompt).catch(() => ""),
     findRelevantProjects(prompt),
+    config.VISION_ENABLED ? getCondensedVision().catch(() => "") : Promise.resolve(""),
   ]);
 
   // Load full state + CLAUDE.md for each matched project
@@ -149,6 +152,9 @@ async function buildJobSystemPrompt(prompt: string): Promise<string> {
   ].join("\n");
 
   const parts = [structuredBriefing, base];
+  if (visionCtx) {
+    parts.push(`\n## Nicholas's Vision & Priorities\n${visionCtx}`);
+  }
   if (projectContextParts.length > 0) {
     parts.push("\n## Project Context (live from Brain Vault)");
     parts.push(projectContextParts.join("\n\n"));
@@ -275,6 +281,7 @@ export async function spawnJob(job: Job): Promise<void> {
     `bash "${runnerFile}"`,
   ]);
   await proc.exited;
+  tickTool({ tool_type: "model", tool_name: job.model, job_id: job.id, context: "spawn" }).catch(() => {});
 
   if (worktreeResult) {
     const { updateJob } = await import("./manager.ts");

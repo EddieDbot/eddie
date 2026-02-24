@@ -1,4 +1,5 @@
 import { config } from "../config.ts";
+import { runPrompt, parseJsonFromOutput } from "../claude/run-prompt.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
 import { storeFact } from "../memory/store.ts";
 import { searchMemory } from "../memory/search.ts";
@@ -46,8 +47,6 @@ async function getYesterdayConversations(limit = 200): Promise<string> {
 }
 
 async function extractLearnings(conversations: string): Promise<string[]> {
-  if (!config.ANTHROPIC_API_KEY) return [];
-
   const system = `You are EDDIE's dream cycle processor. Analyze today's conversations and extract valuable insights worth remembering long-term.
 
 Extract 3-7 atomic insights as a JSON array of strings. Each insight should be:
@@ -58,34 +57,14 @@ Extract 3-7 atomic insights as a JSON array of strings. Each insight should be:
 Respond with ONLY a JSON array: ["insight 1", "insight 2", ...]
 If there are no valuable insights, return [].`;
 
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": config.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 1024,
-        system,
-        messages: [
-          { role: "user", content: `Today's conversations:\n${conversations}` },
-        ],
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-
-    if (!res.ok) return [];
-    const data = (await res.json()) as {
-      content: { type: string; text: string }[];
-    };
-    const text = data.content.find((c) => c.type === "text")?.text ?? "[]";
-    return JSON.parse(text.trim()) as string[];
-  } catch {
-    return [];
-  }
+  const { text, ok } = await runPrompt({
+    system,
+    prompt: `Today's conversations:\n${conversations}`,
+    model: "claude-haiku-4-5-20251001",
+    maxWaitMs: 30_000,
+  });
+  if (!ok) return [];
+  return parseJsonFromOutput<string[]>(text, []);
 }
 
 async function deduplicateInsights(insights: string[]): Promise<string[]> {

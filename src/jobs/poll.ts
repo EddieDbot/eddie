@@ -24,6 +24,8 @@ import { homedir } from "node:os";
 import { parseStreamJson } from "../claude/parser.ts";
 import { logUsage } from "../memory/usage.ts";
 import { parseStepMarkers, extractLastStepContext } from "./steps.ts";
+import { tickTool, parseToolInvocationsFromOutput } from "../memory/tool-ticker.ts";
+import { runPrompt, parseJsonFromOutput } from "../claude/run-prompt.ts";
 
 const ZOMBIE_THRESHOLD_MS = 5 * 60_000; // 5 minutes with 0 bytes output = dead
 
@@ -47,37 +49,15 @@ async function assessOutcome(
   // No output = failed
   if (!output.trim())
     return { outcome: "failed", summary: "No output produced" };
-  if (!config.ANTHROPIC_API_KEY) return { outcome: "unknown", summary: "" };
   try {
     const snippet = output.slice(-3000);
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": config.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 150,
-        system:
-          'Assess this agentic job output. Reply with a JSON object: {"outcome":"success"|"partial"|"failed","summary":"one sentence what was accomplished or why it failed"}. Nothing else.',
-        messages: [
-          {
-            role: "user",
-            content: `Task: ${prompt.slice(0, 300)}\n\nOutput tail:\n${snippet}`,
-          },
-        ],
-      }),
+    const { text, ok } = await runPrompt({
+      system: 'Assess this agentic job output. Reply with a JSON object: {"outcome":"success"|"partial"|"failed","summary":"one sentence what was accomplished or why it failed"}. Nothing else.',
+      prompt: `Task: ${prompt.slice(0, 300)}\n\nOutput tail:\n${snippet}`,
+      model: "claude-haiku-4-5-20251001",
     });
-    const data = (await res.json()) as {
-      content: Array<{ text: string }>;
-    };
-    const text = data.content?.[0]?.text ?? "{}";
-    const parsed = JSON.parse(text) as {
-      outcome?: string;
-      summary?: string;
-    };
+    if (!ok) return { outcome: "unknown", summary: "" };
+    const parsed = parseJsonFromOutput<{ outcome?: string; summary?: string }>(text, {});
     return {
       outcome: parsed.outcome ?? "unknown",
       summary: parsed.summary ?? "",
@@ -350,6 +330,17 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
 
   // Assess outcome via haiku
   const { outcome, summary } = await assessOutcome(job?.prompt ?? "", output);
+  // Tick model usage on completion
+  const succeeded = outcome === "success" || outcome === "partial";
+  tickTool({ tool_type: "model", tool_name: job?.model ?? "claude", job_id: jobId, duration_ms: durationMs, success: succeeded, context: "complete" }).catch(() => {});
+  // Parse and tick any MCP/agent tool invocations found in output
+  if (output) {
+    const extraTools = parseToolInvocationsFromOutput(output);
+    for (const tool of extraTools) {
+      const [type, name] = tool.split(":");
+      if (type && name) tickTool({ tool_type: type, tool_name: name, job_id: jobId, success: true }).catch(() => {});
+    }
+  }
 
   // Artifact verification
   let artifactCheck:

@@ -1,8 +1,8 @@
-import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 import { createJob, updateJob } from "./manager.ts";
 import { spawnJob, readOutput, wrapPromptForModel } from "./tmux.ts";
 import type { Job, ModelId } from "./types.ts";
+import { runPrompt } from "../claude/run-prompt.ts";
 
 export type ParallelResult = {
   groupId: string;
@@ -153,12 +153,9 @@ export async function synthesizeResults(
   prompt: string,
   outputs: Array<{ model: ModelId; output: string; outcome?: string }>,
 ): Promise<string> {
-  const apiKey = config.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return outputs
-      .map((o) => `## ${o.model}\n${o.output.slice(-2000)}`)
-      .join("\n\n---\n\n");
-  }
+  const fallback = outputs
+    .map((o) => `## ${o.model}\n${o.output.slice(-2000)}`)
+    .join("\n\n---\n\n");
 
   const outputSummaries = outputs
     .filter((o) => o.output.trim())
@@ -168,34 +165,12 @@ export async function synthesizeResults(
     )
     .join("\n\n");
 
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 500,
-        system:
-          "You are synthesizing outputs from multiple AI models for the same task. Identify the best elements from each response, note where they agree/disagree, and produce a concise synthesis. Be direct — no preamble.",
-        messages: [
-          {
-            role: "user",
-            content: `Original task: ${prompt.slice(0, 300)}\n\nModel outputs:\n${outputSummaries}`,
-          },
-        ],
-      }),
-    });
-    const data = (await res.json()) as {
-      content: Array<{ text: string }>;
-    };
-    return data.content?.[0]?.text ?? outputSummaries;
-  } catch {
-    return outputs
-      .map((o) => `## ${o.model}\n${o.output.slice(-2000)}`)
-      .join("\n\n---\n\n");
-  }
+  const { text, ok } = await runPrompt({
+    system:
+      "You are synthesizing outputs from multiple AI models for the same task. Identify the best elements from each response, note where they agree/disagree, and produce a concise synthesis. Be direct — no preamble.",
+    prompt: `Original task: ${prompt.slice(0, 300)}\n\nModel outputs:\n${outputSummaries}`,
+    model: "claude-haiku-4-5-20251001",
+  });
+  if (!ok) return fallback;
+  return text || fallback;
 }

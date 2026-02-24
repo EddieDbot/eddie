@@ -1163,6 +1163,48 @@ export const CAPABILITIES: Capability[] = [
     invoke: `bun run ~/eddie/src/scripts/create-gpt.ts --name "..." --content-type [book|transcript|tutorial|instructions|database] --topic "..." [--file ./knowledge.pdf]\n# Or manual: --instructions "..." or --instructions-file ./prompt.txt`,
     priority: 8,
   },
+  {
+    id: "script:log-provenance",
+    type: "script",
+    name: "Log Provenance",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: ["log provenance", "track feature origin", "record where this came from", "provenance"],
+        weight: 0.9,
+      },
+    ],
+    invoke: `bun run ~/eddie/src/scripts/log-provenance.ts --feature "..." --source-type [video|book|session|manual] --source-title "..."`,
+    priority: 6,
+  },
+  {
+    id: "script:tool-usage-report",
+    type: "script",
+    name: "Tool Usage Report",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: ["tool usage", "which tools", "tool report", "unused tools", "tool ticker"],
+        weight: 0.9,
+      },
+    ],
+    invoke: `bun run ~/eddie/src/scripts/tool-usage-report.ts --days 7`,
+    priority: 6,
+  },
+  {
+    id: "script:vision-score",
+    type: "script",
+    name: "Vision Score Roadmap",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: ["vision score", "roadmap score", "align roadmap", "top priorities", "score tasks"],
+        weight: 0.9,
+      },
+    ],
+    invoke: `bun run ~/eddie/src/scripts/vision-score.ts --top 10`,
+    priority: 7,
+  },
   // ── MCPs ──
   {
     id: "mcp:instantly",
