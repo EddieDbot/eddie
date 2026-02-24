@@ -1480,6 +1480,33 @@ export async function handleYoutube(context: MessageContext): Promise<void> {
   await context.send(lines.join("\n"));
 }
 
+// ── Milestone Celebration ──────────────────────────────────────────────
+export async function handleMilestone(context: MessageContext): Promise<void> {
+  const text = context.text?.replace(/^\/milestone\s*/, "").trim();
+  if (!text) {
+    await context.send(
+      "Usage: /milestone <name> [— description]\n\nExamples:\n/milestone Revenue $5K\n/milestone First Client — signed and paid",
+    );
+    return;
+  }
+
+  const dashIdx = text.indexOf(" — ");
+  const name = dashIdx >= 0 ? text.slice(0, dashIdx).trim() : text;
+  const description = dashIdx >= 0 ? text.slice(dashIdx + 3).trim() : undefined;
+
+  await context.send("Logging milestone...");
+
+  const { markMilestoneReached } = await import("../../proactive/goals.ts");
+  const result = await markMilestoneReached(name, description);
+
+  if (result.alreadyReached) {
+    await context.send(`Already logged: ${result.message}`);
+    return;
+  }
+
+  await context.send(`Milestone reached: ${name}\n\n${result.message}`);
+}
+
 // ── Automate Browser ──────────────────────────────────────────────────
 export async function handleAutomate(context: MessageContext): Promise<void> {
   const task = context.text?.replace(/^\/automate\s*/, "").trim();

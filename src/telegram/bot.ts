@@ -44,6 +44,7 @@ import {
   handleBook,
   handleGptCustom,
   handleCompare,
+  handleMilestone,
 } from "./handlers/command.ts";
 import { handleText } from "./handlers/text.ts";
 import { handleVoice } from "./handlers/voice.ts";
@@ -98,6 +99,7 @@ export function createBot(): Bot {
   bot.command("book", (context) => handleBook(context));
   bot.command("gptcustom", (context) => handleGptCustom(context));
   bot.command("compare", (context) => handleCompare(context));
+  bot.command("milestone", (context) => handleMilestone(context));
 
   bot.on("message", (context) => {
     if (context.voice) return handleVoice(context);
