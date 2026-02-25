@@ -55,6 +55,7 @@ import {
   handleWaitingOn,
 } from "./handlers/tracking-commands.ts";
 import { handleDashboard } from "./handlers/dashboard-commands.ts";
+import { handleView } from "./handlers/view-command.ts";
 import { handleText } from "./handlers/text.ts";
 import { handleVoice } from "./handlers/voice.ts";
 import { handlePhoto, handleDocument } from "./handlers/media.ts";
@@ -118,6 +119,7 @@ export function createBot(): Bot {
   bot.command("dashboard", (context) => handleDashboard(context));
   bot.command("remote", (context) => handleRemote(context));
   bot.command("stopremote", (context) => handleStopRemote(context));
+  bot.command("view", (context) => handleView(context));
 
   registerCallbackQueryHandlers(bot);
 

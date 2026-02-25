@@ -1,4 +1,5 @@
 import { memoryEnabled, getSupabase } from "../memory/client.ts";
+import { getAgentSessions } from "./agent-watcher.ts";
 import { getRecentJobs, getJob } from "../jobs/manager.ts";
 import { readOutput, isSessionAlive } from "../jobs/tmux.ts";
 import { listReportsMeta, getReportContent } from "../proactive/playlist.ts";
@@ -61,6 +62,8 @@ export function handleApi(path: string): Response {
       return handleAsync(getJobPerformance);
     case "/api/context-budget":
       return handleAsync(getContextBudget);
+    case "/api/agents":
+      return handleAsync(async () => getAgentSessions());
     default: {
       if (path === "/api/reports") {
         return handleAsync(listReportsMeta);
@@ -72,6 +75,17 @@ export function handleApi(path: string): Response {
           const content = await getReportContent(filename);
           if (content === null) return { error: "not found" };
           return { filename, content };
+        });
+      }
+      // Agent session detail: GET /api/agents/:uuid
+      const agentMatch = path.match(/^\/api\/agents\/([^/]+)$/);
+      if (agentMatch) {
+        const uuid = agentMatch[1]!;
+        return handleAsync(async () => {
+          const all = getAgentSessions();
+          const session = all.find((s) => s.uuid === uuid);
+          if (!session) return { error: "not found" };
+          return session;
         });
       }
       // Job output endpoint: GET /api/jobs/:id/output

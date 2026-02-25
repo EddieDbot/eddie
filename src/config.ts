@@ -199,6 +199,14 @@ const envSchema = z.object({
   // Video Pipeline
   VIDEO_PIPELINE_ENABLED: z.coerce.boolean().default(false),
   VIDEO_PIPELINE_TIME: z.string().default("13:00"), // 13:00 UTC = 7am CST
+  // Contra Intake Flow
+  CONTRA_INTAKE_ENABLED: z.coerce.boolean().default(false),
+  CONTRA_AUTO_REPLY_ENABLED: z.coerce.boolean().default(false),
+  VIDEO_QA_ENABLED: z.coerce.boolean().default(false),
+  VIDEO_ANALYTICS_ENABLED: z.coerce.boolean().default(false),
+  VIDEO_QA_MAX_ATTEMPTS: z.coerce.number().default(3),
+  AGENT_DASHBOARD_ENABLED: z.coerce.boolean().default(false),
+  AGENT_DASHBOARD_POLL_MS: z.coerce.number().default(5_000),
 });
 
 export type Config = z.infer<typeof envSchema>;

@@ -111,6 +111,7 @@ function connectSSE() {
     es.close();
     setTimeout(connectSSE, 5000);
   };
+  es.addEventListener("agent:update", () => refreshAgents());
 }
 
 async function refreshHeartbeat() {
@@ -696,6 +697,77 @@ async function refreshJobPerformance() {
   }
 }
 
+async function refreshAgents() {
+  try {
+    const data = await fetchJson("/api/agents");
+    if (!data || !Array.isArray(data)) return;
+
+    const working = data.filter((s) => s.status === "working").length;
+    const idle = data.filter((s) => s.status === "idle").length;
+    const totalSubs = data.reduce((n, s) => n + (s.subAgents?.length || 0), 0);
+    const totalTokens = data.reduce(
+      (n, s) =>
+        n +
+        (s.tokenUsage?.inputTokens || 0) +
+        (s.tokenUsage?.outputTokens || 0),
+      0,
+    );
+
+    const summaryEl = $("agents-summary");
+    if (summaryEl) {
+      summaryEl.innerHTML = [
+        `<div class="stat"><span class="stat-value">${working}</span><span class="stat-label">Working</span></div>`,
+        `<div class="stat"><span class="stat-value">${idle}</span><span class="stat-label">Idle</span></div>`,
+        `<div class="stat"><span class="stat-value">${totalSubs}</span><span class="stat-label">Sub-agents</span></div>`,
+        `<div class="stat"><span class="stat-value">${formatNumber(totalTokens)}</span><span class="stat-label">Tokens</span></div>`,
+      ].join("");
+    }
+
+    const listEl = $("agents-list");
+    if (!listEl) return;
+    if (!data.length) {
+      listEl.innerHTML = '<div class="empty">No active agent sessions</div>';
+      return;
+    }
+    listEl.innerHTML = data
+      .map((s) => {
+        const tool = s.currentTool
+          ? `<span class="agent-tool-tag">${escapeHtml(s.currentTool.name)}</span>`
+          : "";
+        const worktree = s.isWorktree
+          ? '<span class="agent-worktree-badge">worktree</span>'
+          : "";
+        const subs = s.subAgents?.length
+          ? `<div class="agent-sub-list">${s.subAgents.map((a) => `<div class="agent-sub-item">↳ ${escapeHtml(a.model)} — ${escapeHtml(a.status)}</div>`).join("")}</div>`
+          : "";
+        const dur = s.lastTurnDurationMs
+          ? ` · ${(s.lastTurnDurationMs / 1000).toFixed(1)}s`
+          : "";
+        return `<div class="agent-card">
+        <div class="agent-card-header">
+          <span class="agent-status-dot ${escapeHtml(s.status)}"></span>
+          <strong>${escapeHtml(s.slug)}</strong>
+          <span class="agent-model-tag">${escapeHtml(shortModel(s.model))}</span>
+          ${tool}${worktree}
+        </div>
+        <div class="agent-meta">${s.turnCount} turns${dur} · last active ${formatTime(s.lastActivity)}</div>
+        ${subs}
+      </div>`;
+      })
+      .join("");
+  } catch (e) {
+    // silent fail
+  }
+}
+
+function shortModel(model) {
+  if (!model) return "?";
+  if (model.includes("haiku")) return "haiku";
+  if (model.includes("sonnet")) return "sonnet";
+  if (model.includes("opus")) return "opus";
+  return model.split("-")[0] || model;
+}
+
 async function refresh() {
   await Promise.all([
     refreshHealth(),
@@ -715,6 +787,7 @@ async function refresh() {
     refreshGoals(),
     refreshRevenue(),
     refreshJobPerformance(),
+    refreshAgents(),
   ]);
 }
 

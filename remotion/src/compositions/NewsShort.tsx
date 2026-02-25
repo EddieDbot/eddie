@@ -11,32 +11,39 @@ import { z } from "zod";
 import { AnimatedText } from "../components/AnimatedText";
 import { ProgressBar } from "../components/ProgressBar";
 
-const ScriptSectionSchema = z.object({
-  text: z.string(),
-  durationSec: z.number(),
-  visual: z.string(),
-});
-
 export const NewsShortSchema = z.object({
   hook: z.string(),
-  sections: z.array(ScriptSectionSchema),
-  cta: z.string(),
+  foreshadow: z.string(),
+  body: z.array(z.string()),
+  payoff: z.string(),
   title: z.string(),
   source: z.string(),
+  emotionTarget: z.enum(["LOL", "WTF", "OMG", "Wow", "Finally"]).optional(),
 });
 
 type Props = z.infer<typeof NewsShortSchema>;
-type Section = z.infer<typeof ScriptSectionSchema>;
+
+const WORDS_PER_SEC = 2.5;
+const MIN_HOOK_SEC = 4;
+const MIN_FORESHADOW_SEC = 3;
+const MIN_BODY_SEC = 3;
+const MIN_PAYOFF_SEC = 2.5;
+
+function estimateSec(text: string, min: number): number {
+  return Math.max(min, text.split(/\s+/).length / WORDS_PER_SEC);
+}
 
 export const calculateMetadata: CalculateMetadataFunction<Props> = ({
   props,
 }) => {
-  const hookSec = 3;
-  const ctaSec = 3;
-  const totalSec =
-    props.sections.reduce((acc, s) => acc + s.durationSec, 0) +
-    hookSec +
-    ctaSec;
+  const hookSec = estimateSec(props.hook, MIN_HOOK_SEC);
+  const foreshadowSec = estimateSec(props.foreshadow, MIN_FORESHADOW_SEC);
+  const bodySec = props.body.reduce(
+    (acc, s) => acc + estimateSec(s, MIN_BODY_SEC),
+    0
+  );
+  const payoffSec = estimateSec(props.payoff, MIN_PAYOFF_SEC);
+  const totalSec = hookSec + foreshadowSec + bodySec + payoffSec;
   return { durationInFrames: Math.ceil(totalSec * 30) };
 };
 
@@ -48,15 +55,12 @@ const GridBackground: React.FC<{ frame: number }> = ({ frame }) => {
 
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>
-      {/* Base gradient */}
       <AbsoluteFill
         style={{
           background:
             "radial-gradient(ellipse at 50% 20%, #0a0a2e 0%, #050510 60%, #020208 100%)",
         }}
       />
-
-      {/* Animated grid SVG */}
       <AbsoluteFill style={{ opacity: 0.12 }}>
         <svg
           width="1080"
@@ -82,8 +86,6 @@ const GridBackground: React.FC<{ frame: number }> = ({ frame }) => {
           <rect width="1080" height="1920" fill="url(#grid)" />
         </svg>
       </AbsoluteFill>
-
-      {/* Top glow orb */}
       <div
         style={{
           position: "absolute",
@@ -98,8 +100,6 @@ const GridBackground: React.FC<{ frame: number }> = ({ frame }) => {
           filter: "blur(40px)",
         }}
       />
-
-      {/* Bottom glow orb */}
       <div
         style={{
           position: "absolute",
@@ -117,7 +117,6 @@ const GridBackground: React.FC<{ frame: number }> = ({ frame }) => {
   );
 };
 
-// Glowing divider line
 const GlowDivider: React.FC<{ frame: number; fps: number; delay?: number }> = ({
   frame,
   fps,
@@ -148,27 +147,21 @@ const GlowDivider: React.FC<{ frame: number; fps: number; delay?: number }> = ({
 };
 
 // Hook section — full screen impact title
-const HookSection: React.FC<{ hook: string; frame: number; fps: number }> = ({
-  hook,
-  frame,
-  fps,
-}) => {
-  const bgProgress = spring({
-    frame,
-    fps,
-    config: { damping: 300 },
-  });
-
+const HookSection: React.FC<{
+  hook: string;
+  emotionTarget?: string;
+  frame: number;
+  fps: number;
+}> = ({ hook, emotionTarget, frame, fps }) => {
+  const bgProgress = spring({ frame, fps, config: { damping: 300 } });
   const scaleIn = interpolate(bgProgress, [0, 1], [1.08, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-
   const opacity = interpolate(frame, [0, 8], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-
   const accentSlide = spring({
     frame: Math.max(0, frame - 6),
     fps,
@@ -178,6 +171,8 @@ const HookSection: React.FC<{ hook: string; frame: number; fps: number }> = ({
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
+
+  const label = emotionTarget ?? "Breaking";
 
   return (
     <AbsoluteFill
@@ -196,7 +191,6 @@ const HookSection: React.FC<{ hook: string; frame: number; fps: number }> = ({
           boxSizing: "border-box",
         }}
       >
-        {/* BREAKING label */}
         <div
           style={{
             display: "flex",
@@ -227,7 +221,7 @@ const HookSection: React.FC<{ hook: string; frame: number; fps: number }> = ({
                 textTransform: "uppercase",
               }}
             >
-              Breaking
+              {label}
             </span>
           </div>
           <div
@@ -238,8 +232,6 @@ const HookSection: React.FC<{ hook: string; frame: number; fps: number }> = ({
             }}
           />
         </div>
-
-        {/* Hook text */}
         <div style={{ overflow: "hidden", marginBottom: 40 }}>
           <AnimatedText
             text={hook}
@@ -251,40 +243,105 @@ const HookSection: React.FC<{ hook: string; frame: number; fps: number }> = ({
             fontWeight={800}
           />
         </div>
-
-        {/* Divider */}
         <GlowDivider frame={frame} fps={fps} delay={10} />
       </div>
     </AbsoluteFill>
   );
 };
 
-// Individual content section
-const ContentSection: React.FC<{
-  section: Section;
-  index: number;
+// Foreshadow section — teaser/mechanism
+const ForeshadowSection: React.FC<{
+  foreshadow: string;
   frame: number;
   fps: number;
-  totalSections: number;
-}> = ({ section, index, frame, fps, totalSections }) => {
+}> = ({ foreshadow, frame, fps }) => {
+  const slideProgress = spring({
+    frame,
+    fps,
+    config: { damping: 200, stiffness: 140 },
+  });
+  const translateY = interpolate(slideProgress, [0, 1], [50, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const opacity = interpolate(slideProgress, [0, 1], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  return (
+    <AbsoluteFill
+      style={{
+        paddingLeft: 64,
+        paddingRight: 64,
+        justifyContent: "center",
+        boxSizing: "border-box",
+      }}
+    >
+      <div style={{ transform: `translateY(${translateY}px)`, opacity }}>
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            backgroundColor: "rgba(0, 212, 255, 0.08)",
+            border: "1px solid rgba(0, 212, 255, 0.3)",
+            borderRadius: 8,
+            paddingLeft: 16,
+            paddingRight: 16,
+            paddingTop: 8,
+            paddingBottom: 8,
+            marginBottom: 32,
+          }}
+        >
+          <span
+            style={{
+              color: "#00D4FF",
+              fontSize: 22,
+              fontWeight: 600,
+              fontFamily: "system-ui, -apple-system, sans-serif",
+              letterSpacing: "0.04em",
+            }}
+          >
+            WHAT HAPPENS NEXT
+          </span>
+        </div>
+        <AnimatedText
+          text={foreshadow}
+          frame={frame}
+          fps={fps}
+          delay={4}
+          color="rgba(255,255,255,0.9)"
+          fontSize={58}
+          fontWeight={600}
+        />
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+// Body sentence section
+const BodySection: React.FC<{
+  text: string;
+  index: number;
+  total: number;
+  frame: number;
+  fps: number;
+}> = ({ text, index, total, frame, fps }) => {
   const cardProgress = spring({
     frame,
     fps,
     config: { damping: 200, stiffness: 140 },
   });
-
   const translateY = interpolate(cardProgress, [0, 1], [60, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-
   const opacity = interpolate(cardProgress, [0, 1], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
-  // Section indicator dots
-  const dots = Array.from({ length: totalSections }, (_, i) => i);
+  const dots = Array.from({ length: total }, (_, i) => i);
 
   return (
     <AbsoluteFill
@@ -297,7 +354,6 @@ const ContentSection: React.FC<{
         boxSizing: "border-box",
       }}
     >
-      {/* Section number indicator */}
       <div
         style={{
           display: "flex",
@@ -315,113 +371,43 @@ const ContentSection: React.FC<{
               height: 8,
               borderRadius: 4,
               backgroundColor:
-                i === index ? "#00D4FF" : "rgba(255,255,255,0.2)",
-              boxShadow: i === index ? "0 0 8px #00D4FF" : "none",
-              transition: "none",
+                i === index ? "#7B61FF" : "rgba(255,255,255,0.2)",
+              boxShadow: i === index ? "0 0 8px #7B61FF" : "none",
             }}
           />
         ))}
       </div>
-
-      {/* Main content card */}
-      <div
-        style={{
-          transform: `translateY(${translateY}px)`,
-          opacity,
-        }}
-      >
-        {/* Visual hint badge */}
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            backgroundColor: "rgba(123, 97, 255, 0.15)",
-            border: "1px solid rgba(123, 97, 255, 0.4)",
-            borderRadius: 8,
-            paddingLeft: 16,
-            paddingRight: 16,
-            paddingTop: 8,
-            paddingBottom: 8,
-            marginBottom: 32,
-          }}
-        >
-          <div
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: "#7B61FF",
-              marginRight: 10,
-              boxShadow: "0 0 6px #7B61FF",
-            }}
-          />
-          <span
-            style={{
-              color: "#7B61FF",
-              fontSize: 24,
-              fontWeight: 600,
-              fontFamily: "system-ui, -apple-system, sans-serif",
-            }}
-          >
-            {section.visual}
-          </span>
-        </div>
-
-        {/* Section text */}
-        <div
-          style={{
-            fontSize: 54,
-            fontWeight: 700,
-            color: "#FFFFFF",
-            fontFamily:
-              "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-            lineHeight: 1.4,
-          }}
-        >
-          <AnimatedText
-            text={section.text}
-            frame={frame}
-            fps={fps}
-            delay={4}
-            color="#FFFFFF"
-            fontSize={54}
-            fontWeight={700}
-          />
-        </div>
+      <div style={{ transform: `translateY(${translateY}px)`, opacity }}>
+        <AnimatedText
+          text={text}
+          frame={frame}
+          fps={fps}
+          delay={4}
+          color="#FFFFFF"
+          fontSize={54}
+          fontWeight={700}
+        />
       </div>
     </AbsoluteFill>
   );
 };
 
-// CTA section
-const CTASection: React.FC<{ cta: string; frame: number; fps: number }> = ({
-  cta,
-  frame,
-  fps,
-}) => {
-  const pulseProgress = spring({
+// Payoff section — the reveal
+const PayoffSection: React.FC<{
+  payoff: string;
+  frame: number;
+  fps: number;
+}> = ({ payoff, frame, fps }) => {
+  const revealProgress = spring({
     frame,
     fps,
     config: { damping: 120, stiffness: 100 },
   });
-
-  const scale = interpolate(pulseProgress, [0, 1], [0.85, 1], {
+  const scale = interpolate(revealProgress, [0, 1], [0.88, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-
-  const opacity = interpolate(pulseProgress, [0, 1], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  // Secondary pulse ring effect
-  const ringPulse = interpolate(frame % 30, [0, 15, 30], [1, 1.06, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  const ringOpacity = interpolate(frame % 30, [0, 15, 30], [0.6, 0.2, 0.6], {
+  const opacity = interpolate(revealProgress, [0, 1], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
@@ -438,97 +424,42 @@ const CTASection: React.FC<{ cta: string; frame: number; fps: number }> = ({
         boxSizing: "border-box",
       }}
     >
-      <div style={{ textAlign: "center" }}>
-        {/* Arrow icon */}
+      <div style={{ width: "100%" }}>
         <div
           style={{
-            fontSize: 72,
-            marginBottom: 32,
-            transform: `scale(${ringPulse})`,
+            height: 3,
+            background: "linear-gradient(90deg, #7B61FF 0%, #00D4FF 100%)",
+            boxShadow: "0 0 16px #7B61FF80",
+            borderRadius: 2,
+            marginBottom: 48,
           }}
-        >
-          👆
-        </div>
-
-        {/* CTA button */}
-        <div
-          style={{
-            position: "relative",
-            display: "inline-block",
-            marginBottom: 40,
-          }}
-        >
-          {/* Pulse ring */}
-          <div
-            style={{
-              position: "absolute",
-              inset: -12,
-              borderRadius: 20,
-              border: "2px solid #00D4FF",
-              opacity: ringOpacity,
-              transform: `scale(${ringPulse})`,
-            }}
-          />
-          {/* Button */}
-          <div
-            style={{
-              backgroundColor: "#00D4FF",
-              borderRadius: 16,
-              paddingLeft: 56,
-              paddingRight: 56,
-              paddingTop: 24,
-              paddingBottom: 24,
-              boxShadow: "0 0 40px #00D4FF60",
-            }}
-          >
-            <span
-              style={{
-                color: "#050510",
-                fontSize: 44,
-                fontWeight: 800,
-                fontFamily: "system-ui, -apple-system, sans-serif",
-                letterSpacing: "0.01em",
-              }}
-            >
-              {cta}
-            </span>
-          </div>
-        </div>
-
-        {/* Subtext */}
-        <div
-          style={{
-            color: "rgba(255,255,255,0.5)",
-            fontSize: 32,
-            fontWeight: 400,
-            fontFamily: "system-ui, -apple-system, sans-serif",
-          }}
-        >
-          New AI news every day
-        </div>
+        />
+        <AnimatedText
+          text={payoff}
+          frame={frame}
+          fps={fps}
+          delay={3}
+          color="#FFFFFF"
+          fontSize={80}
+          fontWeight={900}
+        />
       </div>
     </AbsoluteFill>
   );
 };
 
-// Source badge — always visible
+// Source badge
 const SourceBadge: React.FC<{
   source: string;
   title: string;
   frame: number;
   fps: number;
 }> = ({ source, title, frame, fps }) => {
-  const entryProgress = spring({
-    frame,
-    fps,
-    config: { damping: 200 },
-  });
-
+  const entryProgress = spring({ frame, fps, config: { damping: 200 } });
   const translateX = interpolate(entryProgress, [0, 1], [80, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-
   const opacity = interpolate(entryProgress, [0, 1], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
@@ -588,82 +519,88 @@ const SourceBadge: React.FC<{
 
 export const NewsShort: React.FC<Props> = ({
   hook,
-  sections,
-  cta,
+  foreshadow,
+  body,
+  payoff,
   title,
   source,
+  emotionTarget,
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
 
-  const HOOK_SEC = 3;
-  const CTA_SEC = 3;
-  const HOOK_FRAMES = Math.ceil(HOOK_SEC * fps);
-  const CTA_FRAMES = Math.ceil(CTA_SEC * fps);
+  const hookFrames = Math.ceil(estimateSec(hook, MIN_HOOK_SEC) * fps);
+  const foreshadowFrames = Math.ceil(estimateSec(foreshadow, MIN_FORESHADOW_SEC) * fps);
+  const bodyFrames = body.map((s) => Math.ceil(estimateSec(s, MIN_BODY_SEC) * fps));
+  const payoffFrames = Math.ceil(estimateSec(payoff, MIN_PAYOFF_SEC) * fps);
 
-  // Build cumulative frame offsets for each section
-  const sectionOffsets: number[] = [];
-  let cursor = HOOK_FRAMES;
-  for (const section of sections) {
-    sectionOffsets.push(cursor);
-    cursor += Math.ceil(section.durationSec * fps);
-  }
+  // Build offsets
+  let cursor = 0;
+  const hookFrom = cursor;
+  cursor += hookFrames;
+  const foreshadowFrom = cursor;
+  cursor += foreshadowFrames;
+  const bodyFroms = body.map((_, i) => {
+    const from = cursor;
+    cursor += bodyFrames[i] ?? 0;
+    return from;
+  });
+  const payoffFrom = durationInFrames - payoffFrames;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#050510", overflow: "hidden" }}>
-      {/* Layer 0: Background (always rendered) */}
       <GridBackground frame={frame} />
+      <ProgressBar frame={frame} totalFrames={durationInFrames} color="#00D4FF" />
 
-      {/* Layer 1: Progress bar (always rendered) */}
-      <ProgressBar
-        frame={frame}
-        totalFrames={durationInFrames}
-        color="#00D4FF"
-      />
-
-      {/* Layer 2: Hook section */}
-      <Sequence from={0} durationInFrames={HOOK_FRAMES}>
-        <HookSection hook={hook} frame={frame - 0} fps={fps} />
-      </Sequence>
-
-      {/* Layer 3: Content sections */}
-      {sections.map((section, i) => (
-        <Sequence
-          key={i}
-          from={sectionOffsets[i]}
-          durationInFrames={Math.ceil(section.durationSec * fps)}
-        >
-          <ContentSection
-            section={section}
-            index={i}
-            frame={frame - sectionOffsets[i]}
-            fps={fps}
-            totalSections={sections.length}
-          />
-        </Sequence>
-      ))}
-
-      {/* Layer 4: CTA section */}
-      <Sequence
-        from={durationInFrames - CTA_FRAMES}
-        durationInFrames={CTA_FRAMES}
-      >
-        <CTASection
-          cta={cta}
-          frame={frame - (durationInFrames - CTA_FRAMES)}
+      <Sequence from={hookFrom} durationInFrames={hookFrames}>
+        <HookSection
+          hook={hook}
+          emotionTarget={emotionTarget}
+          frame={frame - hookFrom}
           fps={fps}
         />
       </Sequence>
 
-      {/* Layer 5: Source badge (fades in after hook, stays visible) */}
+      <Sequence from={foreshadowFrom} durationInFrames={foreshadowFrames}>
+        <ForeshadowSection
+          foreshadow={foreshadow}
+          frame={frame - foreshadowFrom}
+          fps={fps}
+        />
+      </Sequence>
+
+      {body.map((text, i) => (
+        <Sequence
+          key={i}
+          from={bodyFroms[i] ?? 0}
+          durationInFrames={bodyFrames[i] ?? 0}
+        >
+          <BodySection
+            text={text}
+            index={i}
+            total={body.length}
+            frame={frame - (bodyFroms[i] ?? 0)}
+            fps={fps}
+          />
+        </Sequence>
+      ))}
+
+      <Sequence from={payoffFrom} durationInFrames={payoffFrames}>
+        <PayoffSection
+          payoff={payoff}
+          frame={frame - payoffFrom}
+          fps={fps}
+        />
+      </Sequence>
+
       <Sequence
-        from={HOOK_FRAMES}
-        durationInFrames={durationInFrames - HOOK_FRAMES}
+        from={hookFrames}
+        durationInFrames={durationInFrames - hookFrames}
       >
         <SourceBadge
           source={source}
           title={title}
-          frame={frame - HOOK_FRAMES}
+          frame={frame - hookFrames}
           fps={fps}
         />
       </Sequence>

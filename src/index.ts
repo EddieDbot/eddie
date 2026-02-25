@@ -47,6 +47,11 @@ if (config.DASHBOARD_ENABLED) {
   startDashboard();
 }
 
+if (config.AGENT_DASHBOARD_ENABLED) {
+  const { startAgentWatcher } = await import("./dashboard/agent-watcher.ts");
+  startAgentWatcher();
+}
+
 if (config.TWILIO_ACCOUNT_SID) {
   startWebhookServer(config.TWILIO_WEBHOOK_PORT);
 }

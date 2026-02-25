@@ -2,12 +2,19 @@ import { logger } from "../utils/logger.ts";
 import { config } from "../config.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
 import { gatherAINews, pickTopStory, markStoryUsed } from "./news-gatherer.ts";
-import { generateNewsShortScript, saveScript } from "./script-generator.ts";
+import {
+  generateNewsShortScript,
+  saveScript,
+  regenerateScript,
+} from "./script-generator.ts";
 import { synthesize } from "../voice/tts.ts";
 import { renderVideo } from "./renderer.ts";
 import { mixAudioVideo } from "./mixer.ts";
 import { uploadVideo } from "./uploader.ts";
 import { mkdir } from "node:fs/promises";
+import { runVideoQA, logQAResult } from "./qa-gate.ts";
+import { appendVideoEntry } from "./working-doc.ts";
+import { scheduleAnalyticsPull } from "./analytics-tracker.ts";
 
 const RENDERS_DIR = "/home/na/eddie/data/renders";
 
@@ -83,7 +90,7 @@ export async function runDailyShortPipeline(): Promise<{
     await updateRenderStatus(renderId, "scripting");
 
     // Step 4: Generate script
-    const script = await generateNewsShortScript(story);
+    let script = await generateNewsShortScript(story);
     if (!script) {
       await updateRenderStatus(renderId, "failed", {
         error_message: "Script generation failed",
@@ -98,8 +105,9 @@ export async function runDailyShortPipeline(): Promise<{
     // Step 5: Synthesize voiceover
     const voiceText = [
       script.hook,
-      ...script.sections.map((s) => s.text),
-      script.cta,
+      script.foreshadow,
+      ...script.body,
+      script.payoff,
     ].join(" ");
 
     const voicePath = `${RENDERS_DIR}/${renderId}-voice.mp3`;
@@ -123,10 +131,12 @@ export async function runDailyShortPipeline(): Promise<{
       composition: "NewsShort",
       props: {
         hook: script.hook,
-        sections: script.sections,
-        cta: script.cta,
+        foreshadow: script.foreshadow,
+        body: script.body,
+        payoff: script.payoff,
         title: script.title,
         source: story.source,
+        emotionTarget: script.emotionTarget,
       },
       outputPath: silentPath,
     });
@@ -149,11 +159,110 @@ export async function runDailyShortPipeline(): Promise<{
       await Bun.write(finalPath, Bun.file(silentPath));
     }
 
+    // QA gate loop
+    let finalVideoPath = finalPath;
+    let qaResult: {
+      pass: boolean;
+      attempt: number;
+      issues: string[];
+      fixInstructions: string[];
+    } | null = null;
+    let qaAttempts = 0;
+
+    if (config.VIDEO_QA_ENABLED) {
+      for (
+        let attempt = 1;
+        attempt <= config.VIDEO_QA_MAX_ATTEMPTS;
+        attempt++
+      ) {
+        qaAttempts = attempt;
+        await updateRenderStatus(renderId, `qa-attempt-${attempt}`);
+        const qa = await runVideoQA(finalVideoPath, script, attempt);
+        await logQAResult(renderId, qa);
+        qaResult = qa;
+
+        if (qa.pass) {
+          logger.info("pipeline:qa-passed", { renderId, attempt });
+          break;
+        }
+
+        logger.warn("pipeline:qa-failed", {
+          renderId,
+          attempt,
+          issues: qa.issues,
+        });
+
+        if (attempt < config.VIDEO_QA_MAX_ATTEMPTS) {
+          const revisedScript = await regenerateScript(
+            script,
+            qa.fixInstructions,
+          );
+          if (revisedScript) {
+            script = revisedScript;
+            await saveScript(renderId, script);
+
+            // Re-synthesize voice
+            const revisedVoiceText = [
+              script.hook,
+              script.foreshadow,
+              ...script.body,
+              script.payoff,
+            ].join(" ");
+            const revisedVoicePath = `${RENDERS_DIR}/${renderId}-voice-${attempt}.mp3`;
+            try {
+              const audioBuffer = await synthesize(revisedVoiceText);
+              await Bun.write(revisedVoicePath, audioBuffer);
+            } catch (err) {
+              logger.warn("pipeline:qa-revoice-failed", {
+                attempt,
+                error: String(err),
+              });
+            }
+
+            // Re-render
+            const revisedSilentPath = `${RENDERS_DIR}/${renderId}-silent-${attempt}.mp4`;
+            await renderVideo({
+              composition: "NewsShort",
+              props: {
+                hook: script.hook,
+                foreshadow: script.foreshadow,
+                body: script.body,
+                payoff: script.payoff,
+                title: script.title,
+                source: story.source,
+                emotionTarget: script.emotionTarget,
+              },
+              outputPath: revisedSilentPath,
+            });
+
+            // Re-mix
+            const revisedFinalPath = `${RENDERS_DIR}/${renderId}-qa${attempt}.mp4`;
+            const revisedVoiceFile = Bun.file(revisedVoicePath);
+            if (await revisedVoiceFile.exists()) {
+              await mixAudioVideo(
+                revisedSilentPath,
+                revisedVoicePath,
+                revisedFinalPath,
+              );
+            } else {
+              await Bun.write(revisedFinalPath, Bun.file(revisedSilentPath));
+            }
+            finalVideoPath = revisedFinalPath;
+          }
+        } else {
+          logger.warn("pipeline:qa-max-attempts", {
+            renderId,
+            posting: "anyway",
+          });
+        }
+      }
+    }
+
     await updateRenderStatus(renderId, "uploading");
 
     // Step 7: Upload to YouTube
     const uploadResult = await uploadVideo({
-      videoPath: finalPath,
+      videoPath: finalVideoPath,
       title: script.title,
       description: script.description,
       tags: script.tags,
@@ -171,6 +280,31 @@ export async function runDailyShortPipeline(): Promise<{
       youtube_video_id: uploadResult.videoId,
       completed_at: new Date().toISOString(),
     });
+
+    // Append to working doc
+    await appendVideoEntry({
+      renderId,
+      headline: story.headline,
+      hook: script.hook,
+      emotionTarget: script.emotionTarget,
+      node: script.node,
+      qaAttempts,
+      qaIssues: qaResult?.issues ?? [],
+      qaFinalPass: qaResult?.pass ?? true,
+      youtubeUrl: uploadResult.url,
+      youtubeVideoId: uploadResult.videoId,
+      postedAt: new Date().toISOString(),
+    });
+
+    // Schedule analytics pulls (48h + 7 days) if enabled
+    if (config.VIDEO_ANALYTICS_ENABLED) {
+      scheduleAnalyticsPull(
+        uploadResult.videoId,
+        renderId,
+        story.headline,
+        new Date(),
+      );
+    }
 
     logger.info("pipeline:complete", {
       renderId,

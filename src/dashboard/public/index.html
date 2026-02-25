@@ -18,6 +18,7 @@
     <button class="tab-btn" data-tab="command">Command</button>
     <button class="tab-btn" data-tab="memory">Memory</button>
     <button class="tab-btn" data-tab="jobs">Jobs</button>
+    <button class="tab-btn" data-tab="agents">Agents</button>
   </nav>
 
   <main>
@@ -208,6 +209,17 @@
           <h3>Model Performance</h3>
           <div id="job-perf-content">Loading...</div>
         </div>
+      </div>
+    </div>
+
+    <!-- Agents Tab -->
+    <div class="tab-pane" id="tab-agents">
+      <div class="panel-grid">
+        <section class="panel panel-full">
+          <h2>Active Agent Sessions</h2>
+          <div id="agents-summary" class="stats-grid" style="margin-bottom:1rem"></div>
+          <div id="agents-list" class="scrollable"></div>
+        </section>
       </div>
     </div>
 

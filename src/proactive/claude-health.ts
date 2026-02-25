@@ -210,13 +210,8 @@ async function runCheck(bot: Bot): Promise<void> {
       logger.warn("integrity:changed", {
         file: issue.file,
         status: issue.status,
+        detail: issue.detail,
       });
-      bot.api
-        .sendMessage({
-          chat_id: config.OWNER_TELEGRAM_ID,
-          text: `[integrity] ${issue.status}: ${issue.detail}`,
-        })
-        .catch(() => {});
     }
   }
 
@@ -229,12 +224,7 @@ async function runCheck(bot: Bot): Promise<void> {
         approved: hooksResult.approved,
       });
       for (const hook of hooksResult.suspicious) {
-        bot.api
-          .sendMessage({
-            chat_id: config.OWNER_TELEGRAM_ID,
-            text: `[hooks] suspicious: ${hook}`,
-          })
-          .catch(() => {});
+        logger.warn("claude-health:suspicious-hook-detail", { hook });
       }
     }
   }

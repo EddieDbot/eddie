@@ -16,11 +16,12 @@ import {
 } from "../../security/scan.ts";
 import { detectAndStore } from "../../memory/intent.ts";
 import { config } from "../../config.ts";
-import { pendingFeedbackReason } from "./callback-query.ts";
+import { pendingFeedbackReason, pendingContraEdit } from "./callback-query.ts";
 import {
   getSupabase,
   memoryEnabled as feedbackMemoryEnabled,
 } from "../../memory/client.ts";
+import { updateDraft } from "../../comms/contra-intake.ts";
 
 type MessageContext = ContextType<BotLike, "message">;
 
@@ -121,6 +122,16 @@ export async function handleText(context: MessageContext): Promise<void> {
       } catch {}
     }
     await context.send("Got it, noted.");
+    return;
+  }
+
+  if (userId && pendingContraEdit.has(userId)) {
+    const threadId = pendingContraEdit.get(userId)!;
+    pendingContraEdit.delete(userId);
+    await updateDraft(threadId, text);
+    await context.send(
+      "Draft updated. Use the original buttons to approve or skip.",
+    );
     return;
   }
 

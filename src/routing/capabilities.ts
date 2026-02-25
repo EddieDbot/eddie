@@ -1741,6 +1741,41 @@ export const CAPABILITIES: Capability[] = [
     priority: 6,
   },
   {
+    id: "script:contra-list-services",
+    type: "script",
+    name: "Contra List Services",
+    invoke:
+      "bun run ~/eddie/src/scripts/contra-list-services.ts\n# Discovery mode: bun run ~/eddie/src/scripts/contra-list-services.ts --discover",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "contra services",
+          "list services",
+          "post services",
+          "contra listing",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 7,
+  },
+  {
+    id: "script:send-email",
+    type: "script",
+    name: "Send Email (Gmail)",
+    invoke:
+      "# Programmatic: import { sendGmail } from '~/eddie/src/comms/google/gmail-send.ts'\n# sendGmail(account, { to, subject, body, threadId?, inReplyTo?, references? })",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: ["send email", "reply to email", "email reply", "gmail send"],
+        weight: 0.9,
+      },
+    ],
+    priority: 7,
+  },
+  {
     id: "script:roadmap-dedup",
     type: "script",
     name: "Roadmap Dedup Check",
@@ -1814,6 +1849,49 @@ export const CAPABILITIES: Capability[] = [
           "transcript watcher",
           "watch transcripts",
           "inbox transcripts",
+        ],
+        weight: 0.9,
+      },
+    ],
+    priority: 5,
+  },
+  {
+    id: "script:code-server",
+    type: "script",
+    name: "code-server (browser VS Code + Pixel Agents)",
+    invoke:
+      "systemctl --user start code-server  # URL: http://debianhomelabx.tail48df71.ts.net:8888 — password in CODE_SERVER_PASSWORD. Use /view Telegram command.",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "code-server",
+          "code server",
+          "browser vscode",
+          "pixel agents",
+          "vscode browser",
+          "/view",
+        ],
+        weight: 0.9,
+      },
+    ],
+    priority: 4,
+  },
+  {
+    id: "script:agent-dashboard",
+    type: "script",
+    name: "Agent Dashboard",
+    invoke:
+      "open http://debianhomelabx.tail48df71.ts.net:3000  # Agents tab shows active Claude sessions",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "agent dashboard",
+          "active sessions",
+          "agent sessions",
+          "what agents are running",
+          "agent activity",
         ],
         weight: 0.9,
       },
