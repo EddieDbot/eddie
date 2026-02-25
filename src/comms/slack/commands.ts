@@ -2,6 +2,7 @@ import { config } from "../../config.ts";
 import { runPrompt } from "../../claude/run-prompt.ts";
 import { logger } from "../../utils/logger.ts";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { getSupabase, memoryEnabled } from "../../memory/client.ts";
 
 export function verifySlackSignature(
   signingSecret: string,
@@ -76,6 +77,80 @@ export async function handleSlashAlign(
   return { text: result || "Could not score." };
 }
 
+export async function handleSlashStatus(): Promise<{ text: string }> {
+  try {
+    if (!memoryEnabled) return { text: "Status: memory not configured." };
+    const { data, error } = await getSupabase()
+      .from("jobs")
+      .select("id, status")
+      .in("status", ["running", "pending"]);
+    if (error) return { text: `Status check failed: ${error.message}` };
+    const running = (data ?? []).filter((j) => j.status === "running").length;
+    const pending = (data ?? []).filter((j) => j.status === "pending").length;
+    return {
+      text: `Running: ${running} | Pending: ${pending} | Service: healthy`,
+    };
+  } catch (err) {
+    logger.error("slack-cmd:status-error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { text: "Status check failed." };
+  }
+}
+
+export async function handleSlashJobs(): Promise<{ text: string }> {
+  try {
+    if (!memoryEnabled) return { text: "Jobs: memory not configured." };
+    const { data, error } = await getSupabase()
+      .from("jobs")
+      .select("id, model, status, started_at")
+      .in("status", ["running", "pending"])
+      .order("started_at", { ascending: false })
+      .limit(10);
+    if (error) return { text: `Jobs query failed: ${error.message}` };
+    if (!data || data.length === 0) return { text: "No active jobs." };
+    const lines = data.map(
+      (j) =>
+        `• ${j.id.slice(0, 8)} | ${j.model} | ${j.status} | ${j.started_at ?? "—"}`,
+    );
+    return { text: `Active jobs:\n${lines.join("\n")}` };
+  } catch (err) {
+    logger.error("slack-cmd:jobs-error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { text: "Jobs query failed." };
+  }
+}
+
+export async function handleSlashBookmark(
+  text: string,
+): Promise<{ text: string }> {
+  if (!text.trim())
+    return { text: "Usage: /bookmark <url or label | content>" };
+  if (!memoryEnabled) return { text: "Bookmark: memory not configured." };
+
+  const pipeIdx = text.indexOf("|");
+  let label: string, content: string;
+  if (pipeIdx > 0) {
+    label = text.slice(0, pipeIdx).trim();
+    content = text.slice(pipeIdx + 1).trim();
+  } else {
+    label = `bookmark-${Date.now()}`;
+    content = text.trim();
+  }
+
+  const { error } = await getSupabase()
+    .from("bookmarks")
+    .insert({ label, content });
+  if (error) return { text: `Bookmark error: ${error.message}` };
+  return { text: `Bookmarked: "${label}"` };
+}
+
+export async function handleSlashDashboard(): Promise<{ text: string }> {
+  const port = config.DASHBOARD_PORT;
+  return { text: `Dashboard: http://localhost:${port}` };
+}
+
 export async function handleSlackCommand(
   command: string,
   text: string,
@@ -88,6 +163,14 @@ export async function handleSlackCommand(
       return handleSlashBrief();
     case "/align":
       return handleSlashAlign(text);
+    case "/status":
+      return handleSlashStatus();
+    case "/jobs":
+      return handleSlashJobs();
+    case "/bookmark":
+      return handleSlashBookmark(text);
+    case "/dashboard":
+      return handleSlashDashboard();
     default:
       return { text: `Unknown command: ${command}` };
   }

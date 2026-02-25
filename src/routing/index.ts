@@ -20,4 +20,5 @@ export type RoutingResult = {
   agents: string[];
   mcps: string[];
   contextHints: string[];
+  confidence?: number;
 };

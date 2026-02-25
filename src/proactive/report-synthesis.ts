@@ -3,9 +3,7 @@ import { createJob } from "../jobs/manager.ts";
 import { spawnJob } from "../jobs/tmux.ts";
 import { logger } from "../utils/logger.ts";
 
-const HOME = homedir();
-const BRAIN_VAULT = `${HOME}/brain-vault`;
-const PLANS_DIR = `${BRAIN_VAULT}/90 - Agent Memory/Plans`;
+import { PLANS_DIR } from "../memory/brain-vault-paths.ts";
 const ROADMAP_PATH = `${PLANS_DIR}/execution-roadmap.md`;
 
 let scheduledSynthesis: ReturnType<typeof setTimeout> | null = null;

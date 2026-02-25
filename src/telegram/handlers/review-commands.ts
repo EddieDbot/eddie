@@ -1,5 +1,5 @@
 import type { MessageContext } from "./shared.ts";
-import { BRAIN_VAULT_ROOT } from "../../memory/brain-vault-paths.ts";
+import { STATE_DIR } from "../../memory/brain-vault-paths.ts";
 import { runPrompt } from "../../claude/run-prompt.ts";
 
 export async function handleApprove(context: MessageContext): Promise<void> {
@@ -160,7 +160,7 @@ export async function handleAlign(context: MessageContext): Promise<void> {
     return;
   }
   try {
-    const visionPath = `${BRAIN_VAULT_ROOT}/20 - Areas/Master Vision.md`;
+    const visionPath = `${STATE_DIR}/vision.md`;
     let vision = "";
     try {
       vision = await Bun.file(visionPath).text();

@@ -191,7 +191,7 @@ async function writeJournal(
   }
 }
 
-export async function runDreamCycle(): Promise<void> {
+export async function runDreamCycle(bot?: import("gramio").Bot): Promise<void> {
   logger.info("dream:cycle-start");
   const conversations = await getYesterdayConversations();
   const insights = await extractLearnings(conversations);
@@ -209,8 +209,42 @@ export async function runDreamCycle(): Promise<void> {
     await storeFact(insight, "learning", "dream-cycle");
   }
 
+  // Verify vector facts were stored by searching for a recent insight
+  if (memoryEnabled && novel.length > 0) {
+    try {
+      const probe = novel[0]!.slice(0, 60);
+      const results = await searchMemory(probe, 1, 0.7);
+      if (results.length === 0) {
+        logger.warn("dream:vector-store-verify-failed", {
+          probe: probe.slice(0, 40),
+          message: "0 results returned after storing facts",
+        });
+      }
+    } catch (err) {
+      logger.warn("dream:vector-store-verify-error", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   const date = new Date().toISOString().split("T")[0]!;
   await writeJournal(date, conversations, insights, novel);
+
+  // Verify journal file was written
+  {
+    const journalPath = resolve(
+      BRAIN_VAULT,
+      "90 - Agent Memory/Learnings",
+      `${date}-eddie-journal.md`,
+    );
+    const exists = await Bun.file(journalPath).exists();
+    if (!exists) {
+      logger.warn("dream:journal-verify-failed", {
+        path: journalPath,
+        message: "Journal file not found after write",
+      });
+    }
+  }
   await cleanStaleHourlyFacts();
 
   // Archive old daily brief files (> 7 days)
@@ -239,6 +273,24 @@ export async function runDreamCycle(): Promise<void> {
 
   // Rotate project archives
   await rotateArchives();
+
+  // Weekly outcome analysis — runs every Sunday regardless of SELF_IMPROVE_ENABLED
+  const dayOfWeek = new Date().getDay();
+  if (dayOfWeek === 0) {
+    const { runOutcomeAnalysis } = await import("./outcome-analysis.ts");
+    await runOutcomeAnalysis().catch((err) =>
+      logger.warn("dream:outcome-analysis-error", { error: String(err) }),
+    );
+
+    if (bot) {
+      const { runRejectionLearning } = await import("./rejection-learning.ts");
+      await runRejectionLearning(bot).catch((e) =>
+        logger.warn("dream:rejection-learning-failed", {
+          e: e instanceof Error ? e.message : String(e),
+        }),
+      );
+    }
+  }
 
   // Self-improvement: extract rejection learnings nightly, weekly analysis on configured day
   if (config.SELF_IMPROVE_ENABLED) {
@@ -306,11 +358,11 @@ export function startDreamCycle(
   };
 
   setTimeout(() => {
-    runDreamCycle().catch(handleDreamError);
+    runDreamCycle(bot).catch(handleDreamError);
     runMonthlyIfNeeded();
     setInterval(
       () => {
-        runDreamCycle().catch(handleDreamError);
+        runDreamCycle(bot).catch(handleDreamError);
         runMonthlyIfNeeded();
       },
       24 * 60 * 60 * 1000,

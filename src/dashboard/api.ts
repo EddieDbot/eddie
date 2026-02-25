@@ -59,6 +59,8 @@ export function handleApi(path: string): Response {
       return handleAsync(getBooks);
     case "/api/job-performance":
       return handleAsync(getJobPerformance);
+    case "/api/context-budget":
+      return handleAsync(getContextBudget);
     default: {
       if (path === "/api/reports") {
         return handleAsync(listReportsMeta);
@@ -558,6 +560,68 @@ async function getJobPerformance() {
         successRate30d: 0,
         avgDurationMs7d: 0,
       },
+    };
+  }
+}
+
+async function getContextBudget() {
+  if (!memoryEnabled)
+    return {
+      topHeavyJobs: [],
+      avgDurationByModel: {},
+      generatedAt: new Date().toISOString(),
+    };
+  try {
+    const sb = getSupabase();
+    const since7d = new Date(
+      Date.now() - 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    const [topRes, allRes] = await Promise.all([
+      sb
+        .from("jobs")
+        .select("id, model, duration_ms, prompt")
+        .gte("started_at", since7d)
+        .not("duration_ms", "is", null)
+        .order("duration_ms", { ascending: false })
+        .limit(5),
+      sb
+        .from("jobs")
+        .select("model, duration_ms")
+        .gte("started_at", since7d)
+        .not("duration_ms", "is", null)
+        .limit(500),
+    ]);
+
+    const topHeavyJobs = (topRes.data ?? []).map((j) => ({
+      id: j.id,
+      model: j.model,
+      duration_ms: j.duration_ms,
+      prompt_preview: j.prompt ? j.prompt.slice(0, 120) : "",
+    }));
+
+    const byModel: Record<string, number[]> = {};
+    for (const row of allRes.data ?? []) {
+      const m = row.model ?? "unknown";
+      (byModel[m] = byModel[m] ?? []).push(row.duration_ms as number);
+    }
+    const avgDurationByModel: Record<string, number> = {};
+    for (const [model, durations] of Object.entries(byModel)) {
+      avgDurationByModel[model] = Math.round(
+        durations.reduce((a, b) => a + b, 0) / durations.length,
+      );
+    }
+
+    return {
+      topHeavyJobs,
+      avgDurationByModel,
+      generatedAt: new Date().toISOString(),
+    };
+  } catch {
+    return {
+      topHeavyJobs: [],
+      avgDurationByModel: {},
+      generatedAt: new Date().toISOString(),
     };
   }
 }

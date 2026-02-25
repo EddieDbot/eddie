@@ -45,6 +45,8 @@ import {
   handleGptCustom,
   handleCompare,
   handleMilestone,
+  handleRemote,
+  handleStopRemote,
 } from "./handlers/command.ts";
 import { handleBookmark, handleResume } from "./handlers/bookmark-commands.ts";
 import {
@@ -56,6 +58,7 @@ import { handleDashboard } from "./handlers/dashboard-commands.ts";
 import { handleText } from "./handlers/text.ts";
 import { handleVoice } from "./handlers/voice.ts";
 import { handlePhoto, handleDocument } from "./handlers/media.ts";
+import { registerCallbackQueryHandlers } from "./handlers/callback-query.ts";
 import { logger } from "../utils/logger.ts";
 
 export function createBot(): Bot {
@@ -113,6 +116,10 @@ export function createBot(): Bot {
   bot.command("expense", (context) => handleExpense(context));
   bot.command("waitingon", (context) => handleWaitingOn(context));
   bot.command("dashboard", (context) => handleDashboard(context));
+  bot.command("remote", (context) => handleRemote(context));
+  bot.command("stopremote", (context) => handleStopRemote(context));
+
+  registerCallbackQueryHandlers(bot);
 
   bot.on("message", (context) => {
     if (context.voice) return handleVoice(context);

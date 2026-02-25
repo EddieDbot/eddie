@@ -11,6 +11,7 @@ import { spawnJob } from "../jobs/tmux.ts";
 import { logProvenance } from "../memory/provenance.ts";
 import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
+import { getSupabase, memoryEnabled } from "../memory/client.ts";
 
 const HOME = homedir();
 const PLAYLISTS_CONFIG = `${INBOX_DIR}/transcripts/playlists.json`;
@@ -54,18 +55,33 @@ function slugify(title: string): string {
 }
 
 async function loadProcessed(): Promise<Set<string>> {
+  const ids = new Set<string>();
   try {
     const text = await Bun.file(PROCESSED_LOG).text();
-    const ids = new Set<string>();
     for (const line of text.split("\n")) {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith("#")) continue;
       ids.add(trimmed.split("|")[0]!.trim());
     }
-    return ids;
   } catch {
-    return new Set();
+    // flat file missing — continue
   }
+  try {
+    if (memoryEnabled) {
+      const { data } = await getSupabase()
+        .from("facts")
+        .select("content")
+        .eq("category", "processed-video");
+      if (data) {
+        for (const row of data) {
+          ids.add(row.content as string);
+        }
+      }
+    }
+  } catch {
+    // Supabase unavailable — flat file results are enough
+  }
+  return ids;
 }
 
 async function markProcessed(videoId: string, title: string): Promise<void> {
@@ -74,6 +90,18 @@ async function markProcessed(videoId: string, title: string): Promise<void> {
     .text()
     .catch(() => "");
   await Bun.write(PROCESSED_LOG, existing + entry);
+  try {
+    if (memoryEnabled) {
+      await getSupabase()
+        .from("facts")
+        .upsert(
+          { category: "processed-video", content: videoId, active: true },
+          { onConflict: "category,content" },
+        );
+    }
+  } catch {
+    // Supabase insert failed — flat file is primary, this is supplemental
+  }
 }
 
 async function fetchPlaylistItems(

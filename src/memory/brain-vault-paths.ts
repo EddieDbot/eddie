@@ -5,11 +5,29 @@ const HOME = homedir();
 
 // ── Root constants ────────────────────────────────────────────────
 export const BRAIN_VAULT_ROOT = resolve(HOME, "brain-vault");
-export const STATE_DIR = resolve(BRAIN_VAULT_ROOT, "90 - Agent Memory/State");
-export const LEARNINGS_DIR = resolve(BRAIN_VAULT_ROOT, "90 - Agent Memory/Learnings");
-export const DECISIONS_DIR = resolve(BRAIN_VAULT_ROOT, "90 - Agent Memory/Decisions");
-export const PLANS_DIR = resolve(BRAIN_VAULT_ROOT, "90 - Agent Memory/Plans");
 export const INBOX_DIR = resolve(BRAIN_VAULT_ROOT, "00 - Inbox");
+export const PROJECTS_DIR = resolve(BRAIN_VAULT_ROOT, "10 - Projects");
+export const AREAS_DIR = resolve(BRAIN_VAULT_ROOT, "20 - Areas");
+export const RESOURCES_DIR = resolve(BRAIN_VAULT_ROOT, "30 - Resources");
+export const ARCHIVE_DIR = resolve(BRAIN_VAULT_ROOT, "40 - Archive");
+export const STATE_DIR = resolve(BRAIN_VAULT_ROOT, "90 - Agent Memory/State");
+export const LEARNINGS_DIR = resolve(
+  BRAIN_VAULT_ROOT,
+  "90 - Agent Memory/Learnings",
+);
+export const DECISIONS_DIR = resolve(
+  BRAIN_VAULT_ROOT,
+  "90 - Agent Memory/Decisions",
+);
+export const PLANS_DIR = resolve(BRAIN_VAULT_ROOT, "90 - Agent Memory/Plans");
+export const HANDOVERS_DIR = resolve(
+  BRAIN_VAULT_ROOT,
+  "90 - Agent Memory/Handovers",
+);
+export const MESSAGES_DIR = resolve(
+  BRAIN_VAULT_ROOT,
+  "90 - Agent Memory/Messages",
+);
 export const EDDIE_STATE_FILE = resolve(STATE_DIR, "eddie-current.md");
 
 // ── Tier types ────────────────────────────────────────────────────
@@ -30,7 +48,7 @@ const SLUG_MAP: Record<string, SlugEntry> = {
     tier: "active",
     path: resolve(BRAIN_VAULT_ROOT, "10 - Projects/crabill-leadgen"),
   },
-  "fanways": {
+  fanways: {
     tier: "active",
     path: resolve(BRAIN_VAULT_ROOT, "10 - Projects/fanways"),
   },
@@ -38,27 +56,31 @@ const SLUG_MAP: Record<string, SlugEntry> = {
     tier: "active",
     path: resolve(BRAIN_VAULT_ROOT, "10 - Projects/motion-recreation"),
   },
-  "shur": {
+  shur: {
     tier: "active",
     path: resolve(BRAIN_VAULT_ROOT, "10 - Projects/shur"),
   },
-  "freelance": {
+  freelance: {
     tier: "active",
     path: resolve(BRAIN_VAULT_ROOT, "10 - Projects/freelance"),
   },
+  contra: {
+    tier: "active",
+    path: resolve(BRAIN_VAULT_ROOT, "10 - Projects/contra"),
+  },
 
   // Capability Domains — 20 - Areas/
-  "eddie": {
+  eddie: {
     tier: "domain",
     path: resolve(BRAIN_VAULT_ROOT, "20 - Areas/EDDIE"),
   },
   "eddie-upgrades": {
     tier: "domain",
-    path: resolve(BRAIN_VAULT_ROOT, "20 - Areas/EDDIE"),
+    path: resolve(BRAIN_VAULT_ROOT, "20 - Areas/EDDIE/EDDIE-Upgrades"),
   },
   "EDDIE-Upgrades": {
     tier: "domain",
-    path: resolve(BRAIN_VAULT_ROOT, "20 - Areas/EDDIE"),
+    path: resolve(BRAIN_VAULT_ROOT, "20 - Areas/EDDIE/EDDIE-Upgrades"),
   },
   "agent-forge": {
     tier: "domain",
@@ -135,17 +157,20 @@ export function getSlugTier(slug: string): ProjectTier | null {
 }
 
 export function getEddieLogPath(slug: string): string {
-  const base = resolveSlugPath(slug) ?? resolve(BRAIN_VAULT_ROOT, "10 - Projects", slug);
+  const base =
+    resolveSlugPath(slug) ?? resolve(BRAIN_VAULT_ROOT, "10 - Projects", slug);
   return resolve(base, "EDDIE_LOG.md");
 }
 
 export function getTranscriptDir(slug: string): string {
-  const base = resolveSlugPath(slug) ?? resolve(BRAIN_VAULT_ROOT, "10 - Projects", slug);
+  const base =
+    resolveSlugPath(slug) ?? resolve(BRAIN_VAULT_ROOT, "10 - Projects", slug);
   return resolve(base, "notes/transcripts");
 }
 
 export function getProjectClaude(slug: string): string {
-  const base = resolveSlugPath(slug) ?? resolve(BRAIN_VAULT_ROOT, "10 - Projects", slug);
+  const base =
+    resolveSlugPath(slug) ?? resolve(BRAIN_VAULT_ROOT, "10 - Projects", slug);
   return resolve(base, "CLAUDE.md");
 }
 
@@ -169,7 +194,9 @@ export function listSlugs(tier?: ProjectTier): string[] {
  * Same as resolveSlugPath but falls back to scanning 10 - Projects/ for
  * unregistered slugs (backwards compatibility during migration).
  */
-export async function resolveSlugPathWithFallback(slug: string): Promise<string | null> {
+export async function resolveSlugPathWithFallback(
+  slug: string,
+): Promise<string | null> {
   const known = resolveSlugPath(slug);
   if (known) return known;
 

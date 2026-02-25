@@ -9,7 +9,12 @@ export {
   CHANNEL_LABELS,
 } from "./shared.ts";
 
-export { handleRun, handleJobs, handleKill, handleCompare } from "./job-commands.ts";
+export {
+  handleRun,
+  handleJobs,
+  handleKill,
+  handleCompare,
+} from "./job-commands.ts";
 
 export {
   handleInbox,
@@ -66,3 +71,5 @@ export {
   handleBook,
   handleGptCustom,
 } from "./content-commands.ts";
+
+export { handleRemote, handleStopRemote } from "./remote-control-commands.ts";

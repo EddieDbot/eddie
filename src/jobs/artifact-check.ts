@@ -1,8 +1,9 @@
 import { exists } from "node:fs/promises";
 import { resolve } from "node:path";
-
-const HOME = process.env.HOME ?? "/home/na";
-const BRAIN_VAULT = `${HOME}/brain-vault`;
+import {
+  BRAIN_VAULT_ROOT as BRAIN_VAULT,
+  PLANS_DIR,
+} from "../memory/brain-vault-paths.ts";
 
 export type ArtifactSpec = {
   description: string;
@@ -37,7 +38,7 @@ export function getExpectedArtifacts(
           description: "Playlist report in Plans/",
           check: async () => {
             // Check if any playlist report was created today
-            const plansDir = resolve(BRAIN_VAULT, "90 - Agent Memory/Plans");
+            const plansDir = PLANS_DIR;
             try {
               const { readdir } = await import("node:fs/promises");
               const files = await readdir(plansDir);
@@ -58,10 +59,7 @@ export function getExpectedArtifacts(
         {
           description: "execution-roadmap.md updated",
           check: async () => {
-            const roadmap = resolve(
-              BRAIN_VAULT,
-              "90 - Agent Memory/Plans/execution-roadmap.md",
-            );
+            const roadmap = resolve(PLANS_DIR, "execution-roadmap.md");
             return exists(roadmap);
           },
         },

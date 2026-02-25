@@ -73,6 +73,20 @@ if (config.SECURITY_COUNCIL_ENABLED) {
   startSecurityCouncil(bot);
 }
 
+// Monthly MCP audit (fires on day 1 of month)
+if (config.MCP_AUDIT_LOG_ENABLED) {
+  const { runMcpAudit } = await import("./security/mcp-audit.ts");
+  const scheduleMonthlyAudit = () => {
+    const now = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1, 3, 0, 0, 0);
+    setTimeout(async () => {
+      if (new Date().getDate() === 1) await runMcpAudit(bot);
+      scheduleMonthlyAudit();
+    }, next.getTime() - now.getTime());
+  };
+  scheduleMonthlyAudit();
+}
+
 if (config.MORNING_BRIEF_ENABLED) {
   const { startMorningBrief } = await import("./proactive/morning-brief.ts");
   startMorningBrief(bot, config.MORNING_BRIEF_TIME);
@@ -143,6 +157,12 @@ if (config.CLAUDE_HEALTH_ENABLED) {
   startClaudeHealth(bot);
 }
 
+if (config.ANTHROPIC_MONITOR_ENABLED) {
+  const { startAnthropicMonitor } =
+    await import("./proactive/anthropic-monitor.ts");
+  startAnthropicMonitor(bot);
+}
+
 if (config.ANOMALY_DETECT_ENABLED) {
   const { runAnomalyCheck } = await import("./security/anomaly-detect.ts");
   // Run on startup then every 24h (03:30 slot shared with security council)
@@ -154,6 +174,22 @@ if (config.ANOMALY_DETECT_ENABLED) {
       ),
     24 * 60 * 60 * 1000,
   );
+}
+
+if (config.WEEKLY_CONTENT_ENABLED) {
+  const { startWeeklyContent } = await import("./proactive/weekly-content.ts");
+  startWeeklyContent(bot);
+}
+
+if (config.TRANSCRIPT_WATCHER_ENABLED) {
+  const { startTranscriptWatcher } =
+    await import("./proactive/transcript-watcher.ts");
+  startTranscriptWatcher(bot);
+}
+
+if (config.VIDEO_PIPELINE_ENABLED) {
+  const { startVideoPipelineScheduler } = await import("./video/pipeline.ts");
+  startVideoPipelineScheduler();
 }
 
 bot.api

@@ -71,7 +71,10 @@ export function routeCapabilities(
     }
   }
 
-  return { agents, mcps, contextHints };
+  const topScore = scored[0]?.score ?? 0;
+  const confidence = Math.min(100, Math.round((topScore / 3.0) * 100));
+
+  return { agents, mcps, contextHints, confidence };
 }
 
 function scoreTrigger(

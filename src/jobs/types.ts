@@ -35,4 +35,8 @@ export type Job = {
   systemPromptHash?: string;
   qaGate?: { passed: boolean; issues: string[] };
   channelContext?: ChannelContext;
+  namespace?: string;
+  attachments?: string[];
+  sandboxed?: boolean;
+  trustLevel?: string;
 };

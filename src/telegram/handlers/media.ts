@@ -6,6 +6,10 @@ import { downloadTelegramFile } from "../../utils/files.ts";
 import { logger } from "../../utils/logger.ts";
 import { storeConversation } from "../../memory/store.ts";
 import { memoryEnabled } from "../../memory/client.ts";
+import { createJob } from "../../jobs/manager.ts";
+import { spawnJob } from "../../jobs/tmux.ts";
+import { resolve } from "node:path";
+import { mkdir } from "node:fs/promises";
 import {
   scanInput,
   hasPendingOverride,
@@ -13,6 +17,8 @@ import {
   clearOverride,
   DEFENSE_PREFIX,
 } from "../../security/scan.ts";
+
+const ATTACHMENTS_DIR = resolve(import.meta.dir, "../../../data/attachments");
 
 type MessageContext = ContextType<BotLike, "message">;
 
@@ -79,6 +85,48 @@ export async function handlePhoto(context: MessageContext): Promise<void> {
     const message = err instanceof Error ? err.message : String(err);
     logger.error("handler:photo:download-error", { chatId, error: message });
     await context.send(`Failed to download photo: ${message}`);
+    return;
+  }
+
+  // Background job detection: /run or [BACKGROUND] in caption → spawn job with attachment
+  const isBackgroundJob =
+    /^\/run\b/i.test(effectiveCaption) ||
+    effectiveCaption.includes("[BACKGROUND]");
+  if (isBackgroundJob) {
+    try {
+      await mkdir(ATTACHMENTS_DIR, { recursive: true });
+      const filename = `${Date.now()}.jpg`;
+      const attachmentPath = resolve(ATTACHMENTS_DIR, filename);
+      await Bun.write(attachmentPath, buffer);
+
+      const jobPrompt =
+        effectiveCaption
+          .replace(/^\/run\s*/i, "")
+          .replace(/\[BACKGROUND\][\s\S]*?\[\/BACKGROUND\]/g, (m) =>
+            m.replace("[BACKGROUND]", "").replace("[/BACKGROUND]", "").trim(),
+          )
+          .trim() || "Analyze this image";
+
+      const job = await createJob("claude", jobPrompt, {
+        attachments: [attachmentPath],
+      });
+      await spawnJob(job);
+      logger.info("handler:photo:background-job", {
+        chatId,
+        jobId: job.id,
+        attachment: attachmentPath,
+      });
+      await context.send(
+        `Background job #${job.id} started with image attachment.`,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error("handler:photo:background-job-error", {
+        chatId,
+        error: message,
+      });
+      await context.send(`Failed to create background job: ${message}`);
+    }
     return;
   }
 

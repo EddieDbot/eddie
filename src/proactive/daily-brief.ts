@@ -1,9 +1,7 @@
 import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 import { resolve } from "node:path";
-
-const HOME = process.env.HOME ?? "/home/na";
-const STATE_DIR = resolve(HOME, "brain-vault/90 - Agent Memory/State");
+import { STATE_DIR } from "../memory/brain-vault-paths.ts";
 
 function todayISODate(): string {
   return new Date().toLocaleDateString("sv", { timeZone: config.TIMEZONE });
@@ -23,7 +21,9 @@ export async function gatherBriefData(): Promise<string> {
     if (ratings.length > 0) {
       parts.push("## Pillar Ratings");
       ratings.forEach((r) =>
-        parts.push(`- ${r.pillar}: ${r.score}/10${r.note ? ` — ${r.note}` : ""}`),
+        parts.push(
+          `- ${r.pillar}: ${r.score}/10${r.note ? ` — ${r.note}` : ""}`,
+        ),
       );
       parts.push("");
     }
@@ -31,13 +31,18 @@ export async function gatherBriefData(): Promise<string> {
 
   try {
     const { getTodayNonNegs, getStreaks } = await import("./pillars.ts");
-    const [items, streaks] = await Promise.all([getTodayNonNegs(), getStreaks()]);
+    const [items, streaks] = await Promise.all([
+      getTodayNonNegs(),
+      getStreaks(),
+    ]);
     if (items.length > 0) {
       parts.push("## Non-Negotiables");
       items.forEach((item) => {
         const streak = streaks.get(item.name) ?? 0;
         const check = item.completed ? "✓" : "○";
-        parts.push(`- ${check} ${item.name}${streak > 1 ? ` (${streak}d streak)` : ""}`);
+        parts.push(
+          `- ${check} ${item.name}${streak > 1 ? ` (${streak}d streak)` : ""}`,
+        );
       });
       parts.push("");
     }

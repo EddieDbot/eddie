@@ -1,4 +1,5 @@
 import type { Bot } from "gramio";
+import { InlineKeyboard } from "gramio";
 import { unlink } from "node:fs/promises";
 import { config } from "../config.ts";
 import {
@@ -32,6 +33,22 @@ import { runPrompt, parseJsonFromOutput } from "../claude/run-prompt.ts";
 import { redactSecrets } from "../security/output-scan.ts";
 
 const ZOMBIE_THRESHOLD_MS = 5 * 60_000; // 5 minutes with 0 bytes output = dead
+
+async function verifyPhaseArtifacts(
+  jobId: string,
+  step: number,
+): Promise<void> {
+  logger.info("poll:step-complete", { jobId, step });
+  try {
+    await updateJob(jobId, { lastStep: step });
+  } catch (err) {
+    logger.warn("poll:step-update-failed", {
+      jobId,
+      step,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 
 async function runQAGate(
   job: import("./types.ts").Job,
@@ -88,11 +105,18 @@ async function assessOutcome(
       summary: playlistMatch[1]!.trim().slice(0, 200),
     };
   }
-  // No output = failed
-  if (!output.trim())
+  // Strip the pre-written start marker — it's not real job output.
+  // Without this, a crashed process (only start marker in file) looks non-empty
+  // to the empty-check below, haiku assesses it as something other than
+  // "No output produced", isEnvFailure stays false, and self-heal fires infinitely.
+  const actualOutput = output
+    .replace(/^job:started id=\S+ at=[^\n]+\n?/, "")
+    .trim();
+  // No output = environmental failure (OOM, crash, exec failed) — don't self-heal
+  if (!actualOutput)
     return { outcome: "failed", summary: "No output produced" };
   try {
-    const snippet = output.slice(-3000);
+    const snippet = actualOutput.slice(-3000);
     const { text, ok } = await runPrompt({
       system:
         'Assess this agentic job output. Reply with a JSON object: {"outcome":"success"|"partial"|"failed","summary":"one sentence what was accomplished or why it failed"}. Nothing else.',
@@ -228,6 +252,22 @@ async function pollJobs(bot: Bot): Promise<void> {
     const alive = await isSessionAlive(job.tmuxSession);
     if (!alive) {
       await completeJob(bot, job.id);
+    } else {
+      // Detect STEP_COMPLETE markers in live output for per-phase verification
+      try {
+        const liveOutput = await readOutput(job.id);
+        const stepMatches = liveOutput.matchAll(/STEP_COMPLETE:(\d+)/g);
+        let maxStep = 0;
+        for (const m of stepMatches) {
+          const s = parseInt(m[1]!, 10);
+          if (s > maxStep) maxStep = s;
+        }
+        if (maxStep > 0 && maxStep !== job.lastStep) {
+          await verifyPhaseArtifacts(job.id, maxStep);
+        }
+      } catch {
+        // Non-critical — don't block polling
+      }
     }
   }
 }
@@ -318,26 +358,49 @@ async function timeoutJob(
   if (job) {
     const { isHealJob, triggerSelfHeal } = await import("./self-heal.ts");
     if (!isHealJob(job.tmuxSession)) {
-      // Capture terminal context for self-heal enrichment
-      const paneCapture = await capturePane(job.tmuxSession, 200).catch(
-        () => "",
-      );
+      // Don't self-heal start-marker-only output — env failure (OOM/resource pressure),
+      // not a code bug. Mirrors the same guard in completeJob.
+      const timeoutOutput = await readOutput(jobId);
+      const startMarkerOnly =
+        timeoutOutput
+          .trim()
+          .replace(/^job:started id=\S+ at=\S+$/m, "")
+          .trim().length === 0;
+      if (!startMarkerOnly) {
+        // Capture terminal context for self-heal enrichment
+        const paneCapture = await capturePane(job.tmuxSession, 200).catch(
+          () => "",
+        );
 
-      triggerSelfHeal(
-        {
-          source: "job",
-          name:
-            (job.prompt.split("\n")[0] ?? "")
-              .replace(/^#+\s*/, "")
-              .trim()
-              .slice(0, 60) || jobId,
-          error: `Timeout after ${elapsedMin}m`,
-          timestamp: Date.now(),
-          jobId,
-          paneCapture: paneCapture || undefined,
-        },
-        bot,
-      ).catch(() => {});
+        triggerSelfHeal(
+          {
+            source: "job",
+            name:
+              (job.prompt.split("\n")[0] ?? "")
+                .replace(/^#+\s*/, "")
+                .trim()
+                .slice(0, 60) || jobId,
+            error: `Timeout after ${elapsedMin}m`,
+            timestamp: Date.now(),
+            jobId,
+            paneCapture: paneCapture || undefined,
+          },
+          bot,
+        ).catch(() => {});
+      }
+    }
+  }
+
+  // Cleanup temp files (same as completeJob — timed-out jobs accumulate these otherwise)
+  const tPromptPath = resolve(JOBS_DIR, `job-${jobId}-prompt.txt`);
+  const tOutputPath = resolve(JOBS_DIR, `job-${jobId}-output.txt`);
+  const tSystemPath = resolve(JOBS_DIR, `job-${jobId}-system.txt`);
+  const tRunnerPath = resolve(JOBS_DIR, `job-${jobId}-runner.sh`);
+  for (const p of [tPromptPath, tOutputPath, tSystemPath, tRunnerPath]) {
+    try {
+      await unlink(p);
+    } catch {
+      /* ignore */
     }
   }
 }
@@ -533,13 +596,29 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
       .slice(0, 60) || "unnamed";
 
   const text = `#${jobName} done (${durationSec}s) ${outcomeTag}${summary ? `\n${summary}` : ""}`;
+  const feedbackKb = new InlineKeyboard()
+    .text("\u{1F44D} Good", `jf:good:${jobId}`)
+    .text("\u{1F527} Off", `jf:off:${jobId}`);
   try {
-    await bot.api.sendMessage({ chat_id: config.OWNER_TELEGRAM_ID, text });
+    await bot.api.sendMessage({
+      chat_id: config.OWNER_TELEGRAM_ID,
+      text,
+      reply_markup: feedbackKb,
+    });
   } catch (err) {
     logger.error("jobs:notify-error", {
       id: jobId,
       error: err instanceof Error ? err.message : String(err),
     });
+  }
+
+  if (config.MORNING_BRIEF_ENABLED) {
+    const { refreshBriefDelta } = await import("../proactive/morning-brief.ts");
+    await refreshBriefDelta(
+      bot,
+      `${job?.model ?? "claude"} job completed`,
+      summary || prompt.slice(0, 80),
+    ).catch(() => {});
   }
 
   // Self-heal on failure
@@ -552,7 +631,13 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
       // Don't trigger self-heal for "No output produced" — this indicates environmental failure
       // (resource pressure, OOM kill, process killed) rather than a code bug.
       // Self-healing environmental failures just adds more load.
-      const isEnvFailure = summary === "No output produced";
+      // Also detect when output only contains the pre-written start marker (Claude never ran).
+      const startMarkerOnly =
+        output
+          .trim()
+          .replace(/^job:started id=\S+ at=\S+$/m, "")
+          .trim().length === 0;
+      const isEnvFailure = summary === "No output produced" || startMarkerOnly;
       // Don't trigger self-heal for specialist model failures (non-Claude models don't have tools)
       const isSpecialistFailure = job?.parallelRole === "specialist";
       if (!isEnvFailure && !isSpecialistFailure) {
@@ -671,6 +756,12 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
   }
   try {
     await unlink(systemPath);
+  } catch {
+    /* ignore cleanup errors */
+  }
+  const runnerPath = resolve(JOBS_DIR, `job-${jobId}-runner.sh`);
+  try {
+    await unlink(runnerPath);
   } catch {
     /* ignore cleanup errors */
   }

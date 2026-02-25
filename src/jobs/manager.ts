@@ -2,13 +2,18 @@ import { config } from "../config.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
 import { logger } from "../utils/logger.ts";
 import { resolve } from "node:path";
+import { classifySource, TrustLevel } from "../security/trust.ts";
 import type { Job, ModelId } from "./types.ts";
 
 // Fallback flat-file path used only when Supabase is unavailable
 const JOBS_FILE = resolve(config.JOBS_DATA_DIR, "jobs.json");
 
 // Generate human-readable session name from prompt
-function makeSessionName(prompt: string): string {
+function makeSessionName(
+  prompt: string,
+  prefix = "job",
+  namespace?: string,
+): string {
   const words = prompt
     .trim()
     .split(/\s+/)
@@ -17,14 +22,20 @@ function makeSessionName(prompt: string): string {
     .filter((w) => w.length > 0)
     .slice(0, 3);
 
+  let base: string;
   if (words.length === 0) {
     const suffix = crypto.randomUUID().slice(0, 4);
-    return `job-${suffix}`;
+    base = `${prefix}-${suffix}`;
+  } else {
+    const slug = words.join("-").slice(0, 25);
+    const suffix = crypto.randomUUID().slice(0, 4);
+    base = `${prefix}-${slug}-${suffix}`;
   }
 
-  const slug = words.join("-").slice(0, 25);
-  const suffix = crypto.randomUUID().slice(0, 4);
-  return `job-${slug}-${suffix}`;
+  if (namespace) {
+    return `${namespace}-${base}`.slice(0, 32);
+  }
+  return base;
 }
 
 // Map Supabase snake_case row → Job camelCase
@@ -56,6 +67,10 @@ function rowToJob(row: Record<string, unknown>): Job {
     qaGate:
       (row.qa_gate as { passed: boolean; issues: string[] } | null) ??
       undefined,
+    namespace: (row.namespace as string | null) ?? undefined,
+    attachments: (row.attachments as string[] | null) ?? undefined,
+    sandboxed: (row.sandboxed as boolean | null) ?? undefined,
+    trustLevel: (row.trust_level as string | null) ?? undefined,
   };
 }
 
@@ -89,6 +104,10 @@ function jobToRow(
   if (job.systemPromptHash !== undefined)
     row.system_prompt_hash = job.systemPromptHash;
   if (job.qaGate !== undefined) row.qa_gate = job.qaGate;
+  if (job.namespace !== undefined) row.namespace = job.namespace;
+  if (job.attachments !== undefined) row.attachments = job.attachments;
+  if (job.sandboxed !== undefined) row.sandboxed = job.sandboxed;
+  if (job.trustLevel !== undefined) row.trust_level = job.trustLevel;
   return row;
 }
 
@@ -128,7 +147,14 @@ export async function markFlatFileJobFailed(id: string): Promise<void> {
 export async function createJob(
   model: ModelId,
   prompt: string,
-  opts?: { tmuxPrefix?: string; timeoutMs?: number },
+  opts?: {
+    tmuxPrefix?: string;
+    timeoutMs?: number;
+    namespace?: string;
+    attachments?: string[];
+    sandboxed?: boolean;
+    trustLevel?: string;
+  },
 ): Promise<Job> {
   const running = await getRunningJobs();
   if (running.length >= config.MAX_CONCURRENT_JOBS) {
@@ -141,15 +167,37 @@ export async function createJob(
     );
   }
 
+  // Phase 6: Auto-classify trust level from prompt URLs
+  let sandboxed = opts?.sandboxed ?? false;
+  let trustLevel = opts?.trustLevel;
+  if (config.TRUST_CLASSIFICATION_ENABLED && !trustLevel) {
+    const urls = prompt.match(/https?:\/\/[^\s]+/g) ?? [];
+    for (const url of urls) {
+      const { level } = classifySource(url);
+      if (level === TrustLevel.External || level === TrustLevel.Untrusted) {
+        sandboxed = true;
+        trustLevel = level;
+        break;
+      }
+    }
+  }
+
   const id = crypto.randomUUID().slice(0, 8);
   const job: Job = {
     id,
     model,
     prompt,
     status: "running",
-    tmuxSession: makeSessionName(prompt),
+    tmuxSession: makeSessionName(
+      prompt,
+      opts?.tmuxPrefix ?? "job",
+      opts?.namespace,
+    ),
     startedAt: new Date().toISOString(),
     ...(opts?.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
+    ...(opts?.namespace !== undefined ? { namespace: opts.namespace } : {}),
+    ...(opts?.attachments?.length ? { attachments: opts.attachments } : {}),
+    ...(sandboxed ? { sandboxed, trustLevel } : {}),
   };
 
   if (memoryEnabled) {

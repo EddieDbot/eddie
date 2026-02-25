@@ -228,6 +228,14 @@ async function runCheck(bot: Bot): Promise<void> {
         suspicious: hooksResult.suspicious,
         approved: hooksResult.approved,
       });
+      for (const hook of hooksResult.suspicious) {
+        bot.api
+          .sendMessage({
+            chat_id: config.OWNER_TELEGRAM_ID,
+            text: `[hooks] suspicious: ${hook}`,
+          })
+          .catch(() => {});
+      }
     }
   }
 

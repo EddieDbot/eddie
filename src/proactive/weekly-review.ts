@@ -1,9 +1,7 @@
 import type { Bot } from "gramio";
 import { logger } from "../utils/logger.ts";
 import { resolve } from "node:path";
-
-const HOME = process.env.HOME ?? "/home/na";
-const LEARNINGS_DIR = resolve(HOME, "brain-vault/90 - Agent Memory/Learnings");
+import { LEARNINGS_DIR } from "../memory/brain-vault-paths.ts";
 
 type ReviewStep = "wins" | "losses" | "energy" | "commitments" | "done";
 
@@ -26,13 +24,22 @@ const STEP_PROMPTS: Record<ReviewStep, string> = {
   done: "",
 };
 
-const STEP_ORDER: ReviewStep[] = ["wins", "losses", "energy", "commitments", "done"];
+const STEP_ORDER: ReviewStep[] = [
+  "wins",
+  "losses",
+  "energy",
+  "commitments",
+  "done",
+];
 
 export function isInReview(chatId: number): boolean {
   return activeSessions.has(chatId);
 }
 
-export async function startWeeklyReview(chatId: number, bot: Bot): Promise<void> {
+export async function startWeeklyReview(
+  chatId: number,
+  bot: Bot,
+): Promise<void> {
   if (activeSessions.has(chatId)) {
     await bot.api.sendMessage({
       chat_id: chatId,
@@ -53,10 +60,18 @@ export async function advanceReview(
   if (!session) return;
 
   switch (session.step) {
-    case "wins": session.wins = answer; break;
-    case "losses": session.losses = answer; break;
-    case "energy": session.energy = answer; break;
-    case "commitments": session.commitments = answer; break;
+    case "wins":
+      session.wins = answer;
+      break;
+    case "losses":
+      session.losses = answer;
+      break;
+    case "energy":
+      session.energy = answer;
+      break;
+    case "commitments":
+      session.commitments = answer;
+      break;
   }
 
   const currentIdx = STEP_ORDER.indexOf(session.step);
@@ -107,7 +122,10 @@ async function finalizeReview(
     logger.error("weekly-review:save-error", {
       error: err instanceof Error ? err.message : String(err),
     });
-    await bot.api.sendMessage({ chat_id: chatId, text: "Review captured but failed to save to Brain Vault." });
+    await bot.api.sendMessage({
+      chat_id: chatId,
+      text: "Review captured but failed to save to Brain Vault.",
+    });
   }
 }
 

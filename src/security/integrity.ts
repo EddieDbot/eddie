@@ -15,6 +15,7 @@ const WATCHED_FILES = [
   resolve(HOME, ".claude/settings/code-job.json"),
   resolve(HOME, ".claude/settings/heal-job.json"),
   resolve(HOME, ".claude/settings/research-job.json"),
+  resolve(HOME, ".claude/settings.json"),
 ];
 
 export type IntegrityIssue = {

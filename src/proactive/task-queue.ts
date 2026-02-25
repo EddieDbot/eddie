@@ -17,6 +17,10 @@ export type QueuedTask = {
   completedAt?: string;
   jobId?: string;
   visionScore?: number;
+  blocked?: boolean;
+  blockedReason?: string;
+  blockedSince?: string;
+  needsPing?: boolean;
 };
 
 export async function addTask(
@@ -117,6 +121,48 @@ export async function getQueueStats(): Promise<Record<TaskState, number>> {
   return counts;
 }
 
+const BLOCKED_PING_THRESHOLD_MS = 48 * 60 * 60 * 1000;
+
+export async function getP1Tasks(): Promise<QueuedTask[]> {
+  if (!memoryEnabled) return [];
+  const { data, error } = await getSupabase()
+    .from("task_queue")
+    .select("*")
+    .lte("priority", 3)
+    .neq("state", "done")
+    .order("priority", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (error || !data) return [];
+  const now = Date.now();
+  return data.map((r) => {
+    const task = rowToTask(r as Record<string, unknown>);
+    if (task.blocked && task.blockedSince) {
+      const blockedMs = now - new Date(task.blockedSince).getTime();
+      if (blockedMs > BLOCKED_PING_THRESHOLD_MS) {
+        task.needsPing = true;
+      }
+    }
+    return task;
+  });
+}
+
+export async function markBlocked(
+  taskId: string,
+  reason: string,
+): Promise<void> {
+  if (!memoryEnabled) return;
+  const { error } = await getSupabase()
+    .from("task_queue")
+    .update({
+      blocked: true,
+      blocked_reason: reason,
+      blocked_since: new Date().toISOString(),
+    })
+    .eq("id", taskId);
+  if (error)
+    logger.warn("task-queue:mark-blocked-error", { error: error.message });
+}
+
 function rowToTask(row: Record<string, unknown>): QueuedTask {
   return {
     id: row.id as string,
@@ -132,5 +178,8 @@ function rowToTask(row: Record<string, unknown>): QueuedTask {
     completedAt: (row.completed_at as string | null) ?? undefined,
     jobId: (row.job_id as string | null) ?? undefined,
     visionScore: (row.vision_score as number | null) ?? undefined,
+    blocked: (row.blocked as boolean | null) ?? undefined,
+    blockedReason: (row.blocked_reason as string | null) ?? undefined,
+    blockedSince: (row.blocked_since as string | null) ?? undefined,
   };
 }

@@ -54,9 +54,15 @@ export async function handleBrainstorm(context: MessageContext): Promise<void> {
 
   if (!text) {
     await context.send(
-      "Usage: /brainstorm [--level 1-4] <topic>\nWhile active, send /brainstorm to end.",
+      "Usage: /brainstorm [--level 1-4] [--batch] <topic>\nWhile active, send /brainstorm to end.\n--batch: Generate 10 ideas and save to Brain Vault.",
     );
     return;
+  }
+
+  // Parse --batch flag
+  const isBatch = /--batch\s*/.test(text);
+  if (isBatch) {
+    text = text.replace(/--batch\s*/, "").trim();
   }
 
   // Parse --level N flag
@@ -65,6 +71,53 @@ export async function handleBrainstorm(context: MessageContext): Promise<void> {
   if (levelMatch) {
     level = parseInt(levelMatch[1]!) as typeof level;
     text = text.replace(levelMatch[0], "").trim();
+  }
+
+  if (isBatch) {
+    if (!text) {
+      await context.send("Usage: /brainstorm --batch <topic>");
+      return;
+    }
+    await context.send(`Brainstorm batch started for "${text}"...`);
+    const { runPrompt } = await import("../../claude/run-prompt.ts");
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const { BRAIN_VAULT_ROOT } =
+      await import("../../memory/brain-vault-paths.ts");
+    const date = new Date().toISOString().slice(0, 10);
+    const slug = text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .slice(0, 40);
+    const prompt = `Generate 10 creative, actionable ideas on the topic: "${text}"\n\nFor each idea, provide:\n- A punchy title\n- 2-3 sentence description\n- Why it matters\n\nBe specific and avoid generic advice. Think like a creative technologist.`;
+    const { text: result, ok } = await runPrompt({
+      system: `You are a creative strategist brainstorming for Nicholas, a creative technologist. Level ${level}: ${
+        (level as number) === 1
+          ? "practical, immediately actionable"
+          : (level as number) === 3
+            ? "challenge assumptions, 2nd/3rd order effects"
+            : (level as number) === 4
+              ? "contrarian deep-dive, question the premise"
+              : "mix practical and creative"
+      }.`,
+      prompt,
+      model: "claude-haiku-4-5-20251001",
+      maxWaitMs: 30_000,
+    });
+    if (!ok) {
+      await context.send("Brainstorm batch failed.");
+      return;
+    }
+    const dir = `${BRAIN_VAULT_ROOT}/00 - Inbox`;
+    await mkdir(dir, { recursive: true });
+    const filePath = `${dir}/brainstorm-${slug}-${date}.md`;
+    await writeFile(
+      filePath,
+      `---\ntopic: ${text}\ndate: ${date}\nlevel: ${level}\n---\n\n# Brainstorm: ${text}\n\n${result}\n`,
+    );
+    await context.send(
+      `Brainstorm batch complete. 10 ideas saved to:\n${filePath}`,
+    );
+    return;
   }
 
   startBrainstorm(chatId, text, level);

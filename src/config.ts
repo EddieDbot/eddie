@@ -110,6 +110,8 @@ const envSchema = z.object({
   ICLOUD_APP_PASSWORD: z.string().optional(),
   YOUTUBE_API_KEY: z.string().optional(),
   YOUTUBE_CHANNEL_ID: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_API_KEY: z.string().optional(),
   PLAYLIST_ENABLED: z
     .preprocess((v) => String(v ?? "true") !== "false", z.boolean())
@@ -159,6 +161,8 @@ const envSchema = z.object({
   SELF_IMPROVE_ENABLED: z.coerce.boolean().default(false),
   SELF_IMPROVE_WEEKLY_DAY: z.coerce.number().default(0),
   KANBAN_ENABLED: z.coerce.boolean().default(false),
+  WEEKLY_CONTENT_ENABLED: z.coerce.boolean().default(false),
+  TRANSCRIPT_WATCHER_ENABLED: z.coerce.boolean().default(false),
   GATHER_BEFORE_BRIEF: z.coerce.boolean().default(false),
   // Wave 0B — Persistent Jobs Session
   PERSISTENT_JOBS_SESSION: z.coerce.boolean().default(false),
@@ -191,6 +195,10 @@ const envSchema = z.object({
   // Wave 8 — Final Polish
   CROSS_PROVIDER_ROUTING_ENABLED: z.coerce.boolean().default(false),
   MONOLOGUE_BRIEF_ENABLED: z.coerce.boolean().default(false),
+  ANTHROPIC_MONITOR_ENABLED: z.coerce.boolean().default(false),
+  // Video Pipeline
+  VIDEO_PIPELINE_ENABLED: z.coerce.boolean().default(false),
+  VIDEO_PIPELINE_TIME: z.string().default("13:00"), // 13:00 UTC = 7am CST
 });
 
 export type Config = z.infer<typeof envSchema>;

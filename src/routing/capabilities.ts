@@ -1517,6 +1517,69 @@ export const CAPABILITIES: Capability[] = [
     ],
     priority: 9,
   },
+  // ── Video Production Pipeline ──
+  {
+    id: "script:video-pipeline",
+    type: "script",
+    name: "Video Pipeline",
+    invoke: "bun run /home/na/eddie/src/video/pipeline.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "run video pipeline",
+          "make video",
+          "generate youtube video",
+          "daily short",
+          "ai news video",
+          "produce video",
+          "render short",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 8,
+  },
+  {
+    id: "script:news-gatherer",
+    type: "script",
+    name: "AI News Gatherer",
+    invoke: "bun run /home/na/eddie/src/video/news-gatherer.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "gather ai news",
+          "refresh news",
+          "poll news feeds",
+          "fetch ai stories",
+          "news refresh",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 7,
+  },
+  {
+    id: "script:test-video-pipeline",
+    type: "script",
+    name: "Video Pipeline Test",
+    invoke: "bun run /home/na/eddie/src/scripts/test-video-pipeline.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "test video pipeline",
+          "test render",
+          "video pipeline status",
+          "check video pipeline",
+          "video status",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 6,
+  },
   // ── Wave 4 Content Scripts ──
   {
     id: "script:video-idea-pipeline",
@@ -1625,6 +1688,45 @@ export const CAPABILITIES: Capability[] = [
     priority: 8,
   },
   {
+    id: "script:anthropic-monitor",
+    type: "script",
+    name: "Anthropic Update Monitor",
+    invoke:
+      "# In-process: startAnthropicMonitor(bot) — runs every 4h, checks GitHub Releases Atom + Claude Code changelog + Anthropic release notes",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "anthropic update",
+          "claude update",
+          "new model",
+          "claude code release",
+        ],
+        weight: 0.9,
+      },
+    ],
+    priority: 5,
+  },
+  {
+    id: "script:remote-control",
+    type: "script",
+    name: "Remote Control",
+    invoke: "claude remote-control",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "remote",
+          "connect from phone",
+          "remote session",
+          "mobile access",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 7,
+  },
+  {
     id: "script:observation-log",
     type: "script",
     name: "Observation Logger",
@@ -1637,5 +1739,85 @@ export const CAPABILITIES: Capability[] = [
       },
     ],
     priority: 6,
+  },
+  {
+    id: "script:roadmap-dedup",
+    type: "script",
+    name: "Roadmap Dedup Check",
+    invoke: "bun run ~/eddie/src/scripts/roadmap-dedup.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "roadmap dedup",
+          "what's built",
+          "check roadmap",
+          "already built",
+        ],
+        weight: 0.9,
+      },
+    ],
+    priority: 5,
+  },
+  {
+    id: "script:gen-api-reference",
+    type: "script",
+    name: "API Reference Generator",
+    invoke: "bun run ~/eddie/src/scripts/gen-api-reference.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: ["api reference", "api docs", "route list"],
+        weight: 0.9,
+      },
+    ],
+    priority: 5,
+  },
+  {
+    id: "script:weekly-8020",
+    type: "script",
+    name: "Weekly 80/20 Review",
+    invoke: "bun run ~/eddie/src/proactive/weekly-8020.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: ["80/20 review", "weekly review", "top work"],
+        weight: 0.9,
+      },
+    ],
+    priority: 6,
+  },
+  {
+    id: "script:weekly-content",
+    type: "script",
+    name: "Weekly Content Batch",
+    invoke: "bun run ~/eddie/src/proactive/weekly-content.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: ["weekly content", "content batch", "process bookmarks"],
+        weight: 0.9,
+      },
+    ],
+    priority: 6,
+  },
+  {
+    id: "script:transcript-watcher",
+    type: "script",
+    name: "Transcript Watcher",
+    invoke:
+      "# In-process: startTranscriptWatcher(bot) — polls ~/brain-vault/00 - Inbox/ every 5min for .vtt/.srt files",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "transcript watcher",
+          "watch transcripts",
+          "inbox transcripts",
+        ],
+        weight: 0.9,
+      },
+    ],
+    priority: 5,
   },
 ];

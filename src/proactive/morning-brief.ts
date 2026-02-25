@@ -5,6 +5,7 @@ import { config } from "../config.ts";
 import { runPrompt } from "../claude/run-prompt.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
 import { logger } from "../utils/logger.ts";
+import type { QueuedTask } from "./task-queue.ts";
 
 function parseTime(timeStr: string): { hour: number; minute: number } {
   const [h, m] = timeStr.split(":").map(Number);
@@ -184,6 +185,91 @@ async function getPillarSummary(): Promise<string> {
   }
 }
 
+async function getTrendMetrics(): Promise<string> {
+  if (!memoryEnabled) return "";
+  try {
+    const sb = getSupabase();
+    const now = new Date();
+    const day = now.getUTCDay();
+    const thisMonday = new Date(now);
+    thisMonday.setUTCDate(now.getUTCDate() - ((day + 6) % 7));
+    thisMonday.setUTCHours(0, 0, 0, 0);
+    const lastMonday = new Date(thisMonday);
+    lastMonday.setUTCDate(thisMonday.getUTCDate() - 7);
+
+    const thisWeekISO = thisMonday.toISOString();
+    const lastWeekISO = lastMonday.toISOString();
+
+    const [thisWeekJobs, lastWeekJobs] = await Promise.all([
+      sb
+        .from("jobs")
+        .select("id, status", { count: "exact", head: true })
+        .gte("created_at", thisWeekISO),
+      sb
+        .from("jobs")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", lastWeekISO)
+        .lt("created_at", thisWeekISO),
+    ]);
+
+    const thisCount = thisWeekJobs.count ?? 0;
+    const lastCount = lastWeekJobs.count ?? 0;
+
+    const { count: completedCount } = await sb
+      .from("jobs")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", thisWeekISO)
+      .eq("status", "completed");
+
+    const lines: string[] = [];
+
+    const jobDelta =
+      lastCount > 0
+        ? Math.round(((thisCount - lastCount) / lastCount) * 100)
+        : 0;
+    const deltaStr =
+      lastCount > 0 ? ` (${jobDelta >= 0 ? "+" : ""}${jobDelta}% vs last)` : "";
+    lines.push(`- Jobs: ${thisCount} this week${deltaStr}`);
+
+    // self_heal_log — table may not exist, silently skip on error
+    try {
+      const [thisHeals, lastHeals] = await Promise.all([
+        sb
+          .from("self_heal_log")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", thisWeekISO),
+        sb
+          .from("self_heal_log")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", lastWeekISO)
+          .lt("created_at", thisWeekISO),
+      ]);
+      const thisH = thisHeals.count ?? 0;
+      const lastH = lastHeals.count ?? 0;
+      if (!thisHeals.error) {
+        const healDelta =
+          lastH > 0 ? Math.round(((thisH - lastH) / lastH) * 100) : 0;
+        const healDeltaStr =
+          lastH > 0
+            ? ` (${healDelta >= 0 ? "+" : ""}${healDelta}% vs last)`
+            : "";
+        lines.push(`- Heals: ${thisH} this week${healDeltaStr}`);
+      }
+    } catch {
+      // table doesn't exist — skip
+    }
+
+    if (thisCount > 0) {
+      const rate = Math.round(((completedCount ?? 0) / thisCount) * 100);
+      lines.push(`- Success rate: ${rate}%`);
+    }
+
+    return lines.length > 0 ? `## Trends\n${lines.join("\n")}` : "";
+  } catch {
+    return "";
+  }
+}
+
 async function getWorldIndex(): Promise<string> {
   try {
     const indexPath = resolve(
@@ -291,6 +377,12 @@ export async function buildBriefText(): Promise<string> {
     day: "numeric",
   });
 
+  const p1TasksPromise: Promise<QueuedTask[]> = config.KANBAN_ENABLED
+    ? import("./task-queue.ts")
+        .then(({ getP1Tasks }) => getP1Tasks())
+        .catch(() => [])
+    : Promise.resolve([]);
+
   const [
     goals,
     activity,
@@ -305,6 +397,8 @@ export async function buildBriefText(): Promise<string> {
     roadmapPicks,
     aiNews,
     feedbackTriage,
+    trendMetrics,
+    p1Tasks,
   ] = await Promise.all([
     getActiveGoals(),
     getYesterdayActivity(),
@@ -319,7 +413,16 @@ export async function buildBriefText(): Promise<string> {
     getRoadmapPicks().catch(() => ""),
     getAINewsFeed().catch(() => ""),
     getFeedbackTriage().catch(() => ""),
+    getTrendMetrics().catch(() => ""),
+    p1TasksPromise,
   ]);
+
+  // Defensive check: warn if many core data sources returned empty
+  const coreResults = [goals, activity, crons, usageStats, inbox, pillarData];
+  const emptyCount = coreResults.filter((r) => !r || r.length === 0).length;
+  if (emptyCount >= 3) {
+    logger.warn("morning-brief:gather-incomplete", { errorCount: emptyCount });
+  }
 
   const context = [
     `Good morning! It's ${now}.`,
@@ -342,6 +445,21 @@ export async function buildBriefText(): Promise<string> {
     roadmapPicks ? `\n## Roadmap Picks\n${roadmapPicks}` : "",
     aiNews || "",
     feedbackTriage || "",
+    trendMetrics ? `\n${trendMetrics}` : "",
+    p1Tasks.length > 0
+      ? `\n## P1 Tasks\n${p1Tasks
+          .map((t) => {
+            const prefix =
+              t.blocked && t.blockedSince
+                ? `[blocked ${Math.round((Date.now() - new Date(t.blockedSince).getTime()) / 3_600_000)}h] `
+                : "- ";
+            const suffix = t.blockedReason
+              ? ` (blocked: ${t.blockedReason})`
+              : "";
+            return `- ${prefix}${t.title}${suffix}`;
+          })
+          .join("\n")}`
+      : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -367,6 +485,32 @@ export async function runMorningBrief(bot: Bot): Promise<void> {
     text: brief,
   });
   logger.info("morning-brief:sent");
+
+  if (new Date().getDay() === 1) {
+    const { runWeekly8020 } = await import("./weekly-8020.ts");
+    await runWeekly8020(bot).catch((err) =>
+      logger.error("weekly-8020:error", {
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+  }
+}
+
+let lastDeltaAt = 0;
+const DELTA_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+export async function refreshBriefDelta(
+  bot: Bot,
+  trigger: string,
+  context: string,
+): Promise<void> {
+  const now = Date.now();
+  if (now - lastDeltaAt < DELTA_COOLDOWN_MS) return;
+  lastDeltaAt = now;
+  await bot.api.sendMessage({
+    chat_id: config.OWNER_TELEGRAM_ID,
+    text: `📡 Brief update: ${trigger}\n${context}`,
+  });
 }
 
 export function startMorningBrief(bot: Bot, time = "08:00"): void {

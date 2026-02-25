@@ -16,6 +16,11 @@ import {
 } from "../../security/scan.ts";
 import { detectAndStore } from "../../memory/intent.ts";
 import { config } from "../../config.ts";
+import { pendingFeedbackReason } from "./callback-query.ts";
+import {
+  getSupabase,
+  memoryEnabled as feedbackMemoryEnabled,
+} from "../../memory/client.ts";
 
 type MessageContext = ContextType<BotLike, "message">;
 
@@ -99,6 +104,25 @@ function parseBackgroundTag(
 export async function handleText(context: MessageContext): Promise<void> {
   const text = context.text;
   if (!text || text.startsWith("/")) return;
+
+  const userId = context.from?.id;
+  if (userId && pendingFeedbackReason.has(userId)) {
+    const jobId = pendingFeedbackReason.get(userId)!;
+    pendingFeedbackReason.delete(userId);
+    if (feedbackMemoryEnabled) {
+      try {
+        await getSupabase()
+          .from("job_feedback")
+          .update({ reason: text })
+          .eq("job_id", jobId)
+          .eq("rating", "off")
+          .order("created_at", { ascending: false })
+          .limit(1);
+      } catch {}
+    }
+    await context.send("Got it, noted.");
+    return;
+  }
 
   const chatId = context.chat.id;
   const sessionId = await getOrCreateSession(chatId);
