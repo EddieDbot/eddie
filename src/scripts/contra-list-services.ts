@@ -44,21 +44,85 @@ async function shot(page: Page, name: string) {
   console.log(`📸 ${name} → ${path}`);
 }
 
-async function login(page: Page, context: BrowserContext, creds: Credentials) {
-  await page.goto("https://contra.com", { waitUntil: "networkidle" });
-  await page
+async function isLoggedIn(page: Page): Promise<boolean> {
+  // Logged in = no "Log in" button visible, OR profile avatar visible
+  const logInVisible = await page
     .locator("a, button")
     .filter({ hasText: /^log in$/i })
     .first()
-    .click();
-  await sleep(2000);
-  const [popup] = (await Promise.all([
-    context.waitForEvent("page"),
+    .isVisible({ timeout: 3000 })
+    .catch(() => false);
+  return !logInVisible;
+}
+
+async function login(page: Page, context: BrowserContext, creds: Credentials) {
+  // Contra is a heavy SPA — load then wait for nav to render
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.goto("https://contra.com", { waitUntil: "domcontentloaded" });
+    const loginBtn = page
+      .locator("a, button")
+      .filter({ hasText: /^log in$/i })
+      .first();
+    const errorPage = page.getByText(/having trouble/i);
+    await Promise.race([
+      loginBtn.waitFor({ timeout: 20000 }).catch(() => {}),
+      errorPage.waitFor({ timeout: 20000 }).catch(() => {}),
+    ]);
+    const isErrorPage = await errorPage
+      .isVisible({ timeout: 1000 })
+      .catch(() => false);
+    if (!isErrorPage) break;
+    console.log(
+      `  ⚠️  Contra error page (attempt ${attempt + 1}/3), retrying...`,
+    );
+    await sleep(4000);
+  }
+
+  // If already logged in (session cached), skip the login flow
+  if (await isLoggedIn(page)) {
+    console.log(`  ✅ Already logged in — skipping OAuth`);
+    return;
+  }
+
+  const logInEl = page
+    .locator("a, button")
+    .filter({ hasText: /^log in$/i })
+    .first();
+  await logInEl.waitFor({ timeout: 10000 });
+  await logInEl.click();
+
+  // Wait for Google button OR detect if we're already authenticated post-click
+  const googleBtn = page
+    .locator("button")
+    .filter({ hasText: /continue with google/i })
+    .first();
+  const alreadyAuthed = new Promise<boolean>((resolve) => {
     page
-      .locator("button")
-      .filter({ hasText: /continue with google/i })
-      .first()
-      .click(),
+      .waitForURL(/contra\.com\/(dashboard|community|[a-z_]+\/work)/, {
+        timeout: 8000,
+      })
+      .then(() => resolve(true))
+      .catch(() => resolve(false));
+  });
+  const googleVisible = googleBtn
+    .waitFor({ timeout: 10000 })
+    .then(() => true)
+    .catch(() => false);
+  const result = await Promise.race([alreadyAuthed, googleVisible]);
+
+  if (await isLoggedIn(page)) {
+    console.log(`  ✅ Auth completed automatically`);
+    return;
+  }
+
+  if (!result) {
+    throw new Error("Neither Google button appeared nor auto-auth detected");
+  }
+
+  await sleep(300);
+  const [popup] = (await Promise.all([
+    context.waitForEvent("page", { timeout: 30000 }),
+    googleBtn.click(),
   ])) as [import("playwright").Page, void];
   await popup.waitForLoadState("networkidle");
   await popup
@@ -275,33 +339,95 @@ async function fillService(
     }
     await sleep(300);
 
-    // Upload cover image (Required by Contra) — must click the upload area to trigger file chooser
+    // Upload cover image (Required by Contra)
+    // Flow: click UploadInput → gallery modal opens → click "Upload" → filechooser → set file
+    //       → image appears → click image → click "Add" → cover image set
     const coverImagePath = COVER_IMAGES[index];
     if (coverImagePath && fs.existsSync(coverImagePath)) {
-      try {
-        const uploadArea = page
-          .locator('[data-sentry-component="UploadInput"]')
+      const uploadArea = page
+        .locator('[data-sentry-component="UploadInput"]')
+        .first();
+      await uploadArea.scrollIntoViewIfNeeded();
+
+      // Step 1: Click UploadInput to open cover image gallery modal
+      await uploadArea.click();
+      await sleep(1500);
+
+      // Step 2: In the gallery modal, click "Upload" to get a file chooser
+      const modalEl = page.locator("#modal-v2-overlay-container");
+      const uploadTabBtn = modalEl
+        .locator("button")
+        .filter({ hasText: /^upload$/i })
+        .first();
+      if (await uploadTabBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        // Click Upload button → dropzone appears
+        await uploadTabBtn.click();
+        await sleep(1500);
+        // Now click "browse" button inside dropzone → native file chooser
+        const browseBtn = modalEl
+          .locator("button")
+          .filter({ hasText: /^browse$/i })
           .first();
-        await uploadArea.scrollIntoViewIfNeeded();
-        // Intercept the file chooser that opens when upload area is clicked
-        const [fileChooser] = await Promise.all([
-          page.waitForEvent("filechooser", { timeout: 5000 }),
-          uploadArea.click(),
-        ]);
-        await fileChooser.setFiles(coverImagePath);
+        if (await browseBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+          try {
+            const [fileChooser] = await Promise.all([
+              page.waitForEvent("filechooser", { timeout: 6000 }),
+              browseBtn.click(),
+            ]);
+            await fileChooser.setFiles(coverImagePath);
+            console.log(`  ✅ Cover image uploaded via browse button`);
+            await sleep(4000); // wait for upload + processing
+          } catch {
+            // browse didn't trigger filechooser — try dropzone input directly
+            console.log(
+              `  ⚠️  Browse didn't open filechooser, trying dropzone input`,
+            );
+            const dropzoneInput = page
+              .locator(
+                '#dropzone input[type="file"], #modal-v2-overlay-container input[type="file"]',
+              )
+              .first();
+            await dropzoneInput.setInputFiles(coverImagePath);
+            console.log(`  ✅ Cover image set via dropzone input`);
+            await sleep(5000); // wait longer for upload processing
+          }
+        } else {
+          // No browse button — try dropzone input directly
+          console.log(`  ⚠️  No browse button, trying dropzone file input`);
+          const dropzoneInput = page
+            .locator(
+              '#dropzone input[type="file"], #modal-v2-overlay-container input[type="file"]',
+            )
+            .first();
+          await dropzoneInput.setInputFiles(coverImagePath);
+          console.log(
+            `  ✅ Cover image set via dropzone input (no browse btn)`,
+          );
+          await sleep(5000);
+        }
+      } else {
+        // Modal didn't open or no Upload button — modal might already show images
         console.log(
-          `  ✅ Cover image uploaded via file chooser: ${coverImagePath}`,
+          `  ⚠️  Upload button not found in modal — checking modal state`,
         );
-        await sleep(3000); // wait for upload processing
-      } catch {
-        // Fallback: direct setInputFiles on hidden file input
-        console.log(
-          `  ⚠️  File chooser not triggered, trying direct setInputFiles`,
-        );
-        const fileInput = page.locator('input[type="file"]').first();
-        await fileInput.setInputFiles(coverImagePath);
-        console.log(`  ✅ Cover image set via direct input: ${coverImagePath}`);
-        await sleep(2000);
+        const currentModalInfo = await page.evaluate(() => {
+          const modal = document.getElementById("modal-v2-overlay-container");
+          if (!modal) return { present: false, buttons: [] };
+          return {
+            present: true,
+            buttons: Array.from(modal.querySelectorAll("button")).map((b) =>
+              b.textContent?.trim(),
+            ),
+          };
+        });
+        console.log(`  Modal state: ${JSON.stringify(currentModalInfo)}`);
+        // If modal isn't open at all, try setInputFiles on main form file input
+        if (!currentModalInfo.present) {
+          const fileInput = page.locator('input[type="file"]').first();
+          await fileInput.setInputFiles(coverImagePath);
+          console.log(`  ✅ Cover image set via direct input (no modal)`);
+          await sleep(2000);
+        }
       }
 
       // Handle image gallery modal that appears after upload
@@ -320,76 +446,144 @@ async function fillService(
       console.log(`  ⏳ Modal info: ${JSON.stringify(modalInfo)}`);
 
       if (modalInfo.present) {
+        // Use Playwright native locators (not page.evaluate) so React events fire correctly
+        const modalLocator = page.locator("#modal-v2-overlay-container");
+
         if (modalInfo.hasDropzone && !modalInfo.hasImage) {
-          // Dropzone modal opened (wrong button was clicked previously) — Escape
+          // Dropzone modal — close it
           await page.keyboard.press("Escape");
           await sleep(1000);
           await page.keyboard.press("Escape");
           await sleep(1000);
           console.log(`  ✅ Dropzone modal dismissed`);
         } else if (modalInfo.hasImage) {
-          // Image gallery/preview modal — click the image thumbnail to select it
-          // then look for Save/Done/Apply/Use button (NOT upload)
-          const savedBtn = await page.evaluate(() => {
-            const modal = document.getElementById("modal-v2-overlay-container");
-            if (!modal) return false;
-            const btns = Array.from(modal.querySelectorAll("button"));
-            // Filter out upload-related buttons, click save/done/apply/use/select
-            const confirmBtn = btns.find((b) => {
-              const t = (b.textContent ?? "").toLowerCase().trim();
-              return (
-                (t.includes("save") ||
-                  t.includes("done") ||
-                  t.includes("apply") ||
-                  t.includes("use") ||
-                  t.includes("select") ||
-                  t.includes("choose") ||
-                  t.includes("confirm")) &&
-                !t.includes("upload")
-              );
-            });
-            if (confirmBtn) {
-              (confirmBtn as HTMLElement).click();
-              return confirmBtn.textContent?.trim() ?? "clicked";
+          // Image gallery: click the image thumbnail via Playwright CDP (triggers React events)
+          const imgInModal = modalLocator
+            .locator('img[src*="media.contra.com"]')
+            .first();
+          await imgInModal.click({ force: true });
+          console.log(`  ✅ Thumbnail clicked via Playwright`);
+          await sleep(600);
+          // Click Add button via Playwright
+          const addBtn = modalLocator
+            .locator("button")
+            .filter({ hasText: /^add$/i })
+            .first();
+          if (await addBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await addBtn.click({ force: true });
+            console.log(`  ✅ Add button clicked`);
+          } else {
+            // Try the last button in modal
+            const allBtns = modalLocator.locator("button");
+            const count = await allBtns.count();
+            if (count > 0) {
+              await allBtns.nth(count - 1).click({ force: true });
+              console.log(`  ✅ Last modal button clicked (count=${count})`);
             }
-            // If no confirm button, try clicking the image thumbnail
-            const img = modal.querySelector(
-              'img[src*="media.contra.com"]',
-            ) as HTMLElement | null;
-            if (img) {
-              img.click();
-              return "image-clicked";
-            }
-            return false;
-          });
-          console.log(`  ✅ Gallery action: ${savedBtn}`);
-          await sleep(800);
-          // Now click "Add" to confirm the selected image
-          const addClicked = await page.evaluate(() => {
-            const modal = document.getElementById("modal-v2-overlay-container");
-            if (!modal) return false;
-            const btns = Array.from(modal.querySelectorAll("button"));
-            const addBtn = btns.find((b) => {
-              const t = (b.textContent ?? "").toLowerCase().trim();
-              return (
-                t === "add" || t === "use" || t === "select" || t === "done"
-              );
-            });
-            if (addBtn) {
-              (addBtn as HTMLElement).click();
-              return addBtn.textContent?.trim() ?? "clicked";
-            }
-            return false;
-          });
-          console.log(`  ✅ Add button: ${addClicked}`);
-          await sleep(1500);
+          }
+          await sleep(2000);
         } else {
-          // Unknown modal state — just Escape
           await page.keyboard.press("Escape");
           await sleep(1000);
         }
       }
+      // Wait for UploadInput to show the uploaded image (async Cloudinary upload)
+      let coverImageSet = false;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        await sleep(2000);
+        const uploadState = await page.evaluate(() => {
+          const up = document.querySelector(
+            '[data-sentry-component="UploadInput"]',
+          );
+          // Check for Cloudinary/CDN URL specifically — base64 preview doesn't mean uploaded
+          const allBgStyles = [
+            (up as HTMLElement | null)?.style?.backgroundImage ?? "",
+            ...Array.from(
+              up?.querySelectorAll('[style*="background-image"]') ?? [],
+            ).map((el) => el.getAttribute("style") ?? ""),
+          ].join(" ");
+          const hasCdnImg =
+            allBgStyles.includes("media.contra.com") ||
+            allBgStyles.includes("cloudinary") ||
+            allBgStyles.includes("res.cloudinary");
+          const hasDataUrl = allBgStyles.includes("data:image");
+          return {
+            hasImg:
+              hasCdnImg ||
+              !!up?.querySelector("img[src*='contra']") ||
+              !!up?.querySelector("img[src*='cloudinary']"),
+            hasDataUrl,
+            hasModal: !!document
+              .getElementById("modal-v2-overlay-container")
+              ?.querySelector('[data-sentry-element="BackdropBackground"]'),
+          };
+        });
+        console.log(
+          `  🔄 Upload state [${attempt + 1}/8]: ${JSON.stringify(uploadState)}`,
+        );
+        if (uploadState.hasImg) {
+          coverImageSet = true;
+          break;
+        }
+        // If modal reappeared with image (gallery showing), select it
+        const modalCheck = await page.evaluate(() => {
+          const modal = document.getElementById("modal-v2-overlay-container");
+          if (!modal) return null;
+          return {
+            hasImage: !!modal.querySelector('img[src*="media.contra.com"]'),
+            buttons: Array.from(modal.querySelectorAll("button")).map((b) =>
+              b.textContent?.trim(),
+            ),
+          };
+        });
+        if (modalCheck?.hasImage) {
+          // Gallery showing image — click it and Add
+          const imgInModal2 = page
+            .locator("#modal-v2-overlay-container img")
+            .first();
+          await imgInModal2.click({ force: true });
+          await sleep(500);
+          const addBtn2 = page
+            .locator("#modal-v2-overlay-container button")
+            .filter({ hasText: /^add$/i })
+            .first();
+          if (await addBtn2.isVisible({ timeout: 1000 }).catch(() => false)) {
+            await addBtn2.click({ force: true });
+            console.log(`  ✅ Auto-selected image from gallery`);
+          }
+          await sleep(2000);
+          break;
+        }
+      }
+      console.log(
+        `  ${coverImageSet ? "✅ Cover image confirmed" : "⚠️  Cover image may not be set"}`,
+      );
       console.log(`  ✅ Image upload handling complete`);
+
+      // Diagnose cover image field state after gallery flow
+      const coverState = await page.evaluate(() => {
+        const up = document.querySelector(
+          '[data-sentry-component="UploadInput"]',
+        );
+        const innerHTML = up?.innerHTML?.slice(0, 400) ?? "not found";
+        const allImgs = Array.from(document.querySelectorAll("img")).map((i) =>
+          i.src?.slice(0, 80),
+        );
+        const hasAnyContraImg = allImgs.some(
+          (s) => s.includes("media.contra.com") || s.includes("cloudinary"),
+        );
+        return {
+          innerHTML: innerHTML.replace(/\s+/g, " "),
+          hasAnyContraImg,
+          imgCount: allImgs.length,
+        };
+      });
+      console.log(
+        `  🔍 UploadInput innerHTML: ${coverState.innerHTML.slice(0, 200)}`,
+      );
+      console.log(
+        `  🔍 Any Contra img on page: ${coverState.hasAnyContraImg} (total imgs: ${coverState.imgCount})`,
+      );
     } else {
       console.log(`  ⚠️  No cover image at ${coverImagePath}`);
     }
@@ -432,6 +626,22 @@ async function fillService(
 
     await shot(page, `service-${index}-02-filled`);
 
+    // Dump cover image CDN state before publish
+    const coverCdnState = await page.evaluate(() => {
+      const up = document.querySelector(
+        '[data-sentry-component="UploadInput"]',
+      );
+      const allStyles = Array.from(
+        up?.querySelectorAll('[style*="background-image"]') ?? [],
+      ).map((el) => el.getAttribute("style")?.slice(0, 120));
+      const upStyle = (up as HTMLElement | null)?.style?.backgroundImage?.slice(
+        0,
+        120,
+      );
+      return { upStyle, allStyles };
+    });
+    console.log(`  🔍 Cover CDN state: ${JSON.stringify(coverCdnState)}`);
+
     // Click Publish button explicitly
     const publishBtn = page.getByRole("button", { name: /^publish$/i }).first();
     const publishVisible = await publishBtn
@@ -457,26 +667,23 @@ async function fillService(
     }
 
     // Wait for navigation away from /service/new (success = new URL)
+    // Also check current URL immediately — navigation may have already completed
     try {
-      await page.waitForURL((url) => !url.includes("/service/new"), {
-        timeout: 10000,
-      });
-      console.log(`  ✅ Service ${index + 1} published! URL: ${page.url()}`);
+      if (!page.url().includes("/service/new")) {
+        console.log(`  ✅ Service ${index + 1} published! URL: ${page.url()}`);
+      } else {
+        await page.waitForURL((url) => !url.includes("/service/new"), {
+          timeout: 20000,
+        });
+        console.log(`  ✅ Service ${index + 1} published! URL: ${page.url()}`);
+      }
+      await sleep(1500);
+      await shot(page, `service-${index}-03-published`);
     } catch {
-      // Still on /service/new — dump validation errors
-      const pageText = await page.evaluate(() => document.body.innerText);
-      const errorLines = pageText
-        .split("\n")
-        .filter((l) => /required|error|missing|upload|cover|image/i.test(l))
-        .slice(0, 10)
-        .join(" | ");
-      console.log(
-        `  ⚠️  Still on /service/new. Errors: ${errorLines || "(none found)"}`,
-      );
-      await shot(page, `service-${index}-02b-publish-failed`);
+      console.log(`  ⚠️  Publish timed out — URL: ${page.url()}`);
+      await shot(page, `service-${index}-publish-failed`);
     }
 
-    await shot(page, `service-${index}-03-submitted`);
     return true;
   } catch (err) {
     console.error(`  ❌ Service ${index + 1} failed:`, err);
@@ -496,7 +703,11 @@ const services = JSON.parse(
 
 const browser = await chromium.launch({
   headless: true,
-  args: ["--no-sandbox", "--disable-blink-features=AutomationControlled"],
+  args: [
+    "--no-sandbox",
+    "--disable-blink-features=AutomationControlled",
+    "--disable-popup-blocking",
+  ],
 });
 const context = await browser.newContext({
   userAgent:
