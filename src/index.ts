@@ -194,7 +194,9 @@ if (config.TRANSCRIPT_WATCHER_ENABLED) {
 
 if (config.VIDEO_PIPELINE_ENABLED) {
   const { startVideoPipelineScheduler } = await import("./video/pipeline.ts");
+  const { startAnalyticsPoller } = await import("./video/analytics-tracker.ts");
   startVideoPipelineScheduler();
+  startAnalyticsPoller();
 }
 
 bot.api

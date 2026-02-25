@@ -275,18 +275,59 @@ async function fillService(
     }
     await sleep(300);
 
-    // Upload cover image (Required by Contra) — file input is hidden behind UploadInput
+    // Upload cover image (Required by Contra) — must click the upload area to trigger file chooser
     const coverImagePath = COVER_IMAGES[index];
     if (coverImagePath && fs.existsSync(coverImagePath)) {
-      // Try UploadInput sentry component first, then fall back to first file input
-      const fileInput = page
-        .locator(
-          '[data-sentry-component="UploadInput"] input[type="file"], input[type="file"]',
-        )
+      try {
+        const uploadArea = page
+          .locator('[data-sentry-component="UploadInput"]')
+          .first();
+        await uploadArea.scrollIntoViewIfNeeded();
+        // Intercept the file chooser that opens when upload area is clicked
+        const [fileChooser] = await Promise.all([
+          page.waitForEvent("filechooser", { timeout: 5000 }),
+          uploadArea.click(),
+        ]);
+        await fileChooser.setFiles(coverImagePath);
+        console.log(
+          `  ✅ Cover image uploaded via file chooser: ${coverImagePath}`,
+        );
+        await sleep(3000); // wait for upload processing
+      } catch {
+        // Fallback: direct setInputFiles on hidden file input
+        console.log(
+          `  ⚠️  File chooser not triggered, trying direct setInputFiles`,
+        );
+        const fileInput = page.locator('input[type="file"]').first();
+        await fileInput.setInputFiles(coverImagePath);
+        console.log(`  ✅ Cover image set via direct input: ${coverImagePath}`);
+        await sleep(2000);
+      }
+
+      // Dismiss the image crop/preview modal that appears after upload
+      await sleep(1500);
+      const cropModal = page
+        .locator('[data-sentry-component="ModalDialog"]')
         .first();
-      await fileInput.setInputFiles(coverImagePath);
-      console.log(`  ✅ Cover image uploaded: ${coverImagePath}`);
-      await sleep(2500);
+      if (await cropModal.isVisible({ timeout: 4000 }).catch(() => false)) {
+        console.log(
+          `  ⏳ Image crop modal detected, looking for confirm button...`,
+        );
+        // Try Save/Apply/Done/Continue/Crop buttons inside modal
+        const confirmBtn = cropModal
+          .locator("button")
+          .filter({ hasText: /save|apply|done|continue|crop|confirm|ok/i })
+          .first();
+        if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await confirmBtn.click();
+          console.log(`  ✅ Crop modal confirmed`);
+        } else {
+          // Press Escape to dismiss
+          await page.keyboard.press("Escape");
+          console.log(`  ✅ Crop modal dismissed via Escape`);
+        }
+        await sleep(1500);
+      }
     } else {
       console.log(`  ⚠️  No cover image at ${coverImagePath}`);
     }

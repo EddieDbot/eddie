@@ -703,23 +703,29 @@ async function refreshAgents() {
     if (!data || !Array.isArray(data)) return;
 
     const working = data.filter((s) => s.status === "working").length;
-    const idle = data.filter((s) => s.status === "idle").length;
-    const totalSubs = data.reduce((n, s) => n + (s.subAgents?.length || 0), 0);
+    const active = data.filter(
+      (s) => s.status === "working" || s.status === "idle",
+    ).length;
     const totalTokens = data.reduce(
       (n, s) =>
         n +
-        (s.tokenUsage?.inputTokens || 0) +
+        (s.tokenUsage?.cacheReadTokens || 0) +
         (s.tokenUsage?.outputTokens || 0),
       0,
     );
+    const mostRecent = data.length ? data[0].lastActivity : null;
 
     const summaryEl = $("agents-summary");
     if (summaryEl) {
+      const activeVal =
+        working > 0
+          ? `<span style="color:#4caf50">${working}</span>`
+          : String(active);
       summaryEl.innerHTML = [
-        `<div class="stat"><span class="stat-value">${working}</span><span class="stat-label">Working</span></div>`,
-        `<div class="stat"><span class="stat-value">${idle}</span><span class="stat-label">Idle</span></div>`,
-        `<div class="stat"><span class="stat-value">${totalSubs}</span><span class="stat-label">Sub-agents</span></div>`,
+        `<div class="stat"><span class="stat-value">${data.length}</span><span class="stat-label">Total (2h)</span></div>`,
+        `<div class="stat"><span class="stat-value">${activeVal}</span><span class="stat-label">Active</span></div>`,
         `<div class="stat"><span class="stat-value">${formatNumber(totalTokens)}</span><span class="stat-label">Tokens</span></div>`,
+        `<div class="stat"><span class="stat-value" style="font-size:0.9rem">${mostRecent ? formatTime(mostRecent) : "—"}</span><span class="stat-label">Last Active</span></div>`,
       ].join("");
     }
 

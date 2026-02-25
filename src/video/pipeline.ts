@@ -15,6 +15,7 @@ import { mkdir } from "node:fs/promises";
 import { runVideoQA, logQAResult } from "./qa-gate.ts";
 import { appendVideoEntry } from "./working-doc.ts";
 import { scheduleAnalyticsPull } from "./analytics-tracker.ts";
+import { createPipelineTracker } from "./pipeline-tracker.ts";
 
 const RENDERS_DIR = "/home/na/eddie/data/renders";
 
@@ -86,10 +87,16 @@ export async function runDailyShortPipeline(): Promise<{
     return null;
   }
 
+  const pipelineStart = Date.now();
+  const tracker = createPipelineTracker(renderId);
+
   try {
-    await updateRenderStatus(renderId, "scripting");
+    await updateRenderStatus(renderId, "scripting", {
+      started_at: new Date().toISOString(),
+    });
 
     // Step 4: Generate script
+    const scriptStep = tracker.startStep("scripting");
     let script = await generateNewsShortScript(story);
     if (!script) {
       await updateRenderStatus(renderId, "failed", {
@@ -100,9 +107,6 @@ export async function runDailyShortPipeline(): Promise<{
     await saveScript(renderId, script);
     logger.info("pipeline:script-done", { renderId, title: script.title });
 
-    await updateRenderStatus(renderId, "voiceover");
-
-    // Step 5: Synthesize voiceover
     const voiceText = [
       script.hook,
       script.foreshadow,
@@ -110,13 +114,36 @@ export async function runDailyShortPipeline(): Promise<{
       script.payoff,
     ].join(" ");
 
+    await scriptStep.done(true, {
+      title: script.title,
+      emotionTarget: script.emotionTarget,
+      estimatedRuntimeSec: script.estimatedRuntimeSec,
+      bodyCount: script.body.length,
+      nodeLength: script.node.length,
+      voiceCharCount: voiceText.length,
+    });
+
+    await updateRenderStatus(renderId, "voiceover");
+
+    // Step 5: Synthesize voiceover
+    const voiceStep = tracker.startStep("voiceover");
     const voicePath = `${RENDERS_DIR}/${renderId}-voice.mp3`;
     try {
       const audioBuffer = await synthesize(voiceText);
       await Bun.write(voicePath, audioBuffer);
       logger.info("pipeline:voiceover-done", { renderId, voicePath });
+      const voiceSize = await Bun.file(voicePath).size;
+      await voiceStep.done(true, {
+        charCount: voiceText.length,
+        fileSizeBytes: voiceSize,
+      });
     } catch (err) {
       // Voiceover is non-fatal for Phase 1 — continue without it
+      await voiceStep.done(
+        false,
+        {},
+        err instanceof Error ? err.message : String(err),
+      );
       logger.warn("pipeline:voiceover-failed", {
         renderId,
         error: err instanceof Error ? err.message : String(err),
@@ -126,6 +153,7 @@ export async function runDailyShortPipeline(): Promise<{
     await updateRenderStatus(renderId, "rendering");
 
     // Step 6: Render video via Remotion (visuals only, no audio)
+    const renderStep = tracker.startStep("rendering");
     const silentPath = `${RENDERS_DIR}/${renderId}-silent.mp4`;
     const renderResult = await renderVideo({
       composition: "NewsShort",
@@ -145,6 +173,11 @@ export async function runDailyShortPipeline(): Promise<{
       fileSizeMb: renderResult.fileSizeMb.toFixed(2),
       durationSec: renderResult.durationSec,
     });
+    await renderStep.done(true, {
+      fileSizeMb: renderResult.fileSizeMb,
+      durationSec: renderResult.durationSec,
+      fileSizeBytes: Math.round(renderResult.fileSizeMb * 1024 * 1024),
+    });
 
     // Step 6b: Mix audio + video if voiceover was generated
     const finalPath = `${RENDERS_DIR}/${renderId}.mp4`;
@@ -152,8 +185,11 @@ export async function runDailyShortPipeline(): Promise<{
     const hasVoice = await voiceFile.exists();
 
     if (hasVoice) {
+      const mixStep = tracker.startStep("mixing");
       await mixAudioVideo(silentPath, voicePath, finalPath);
       logger.info("pipeline:mix-done", { renderId });
+      const finalSize = await Bun.file(finalPath).size;
+      await mixStep.done(true, { fileSizeBytes: finalSize });
     } else {
       // No voiceover — use the silent render as final
       await Bun.write(finalPath, Bun.file(silentPath));
@@ -164,6 +200,7 @@ export async function runDailyShortPipeline(): Promise<{
     let qaResult: {
       pass: boolean;
       attempt: number;
+      durationMs: number;
       issues: string[];
       fixInstructions: string[];
     } | null = null;
@@ -180,6 +217,17 @@ export async function runDailyShortPipeline(): Promise<{
         const qa = await runVideoQA(finalVideoPath, script, attempt);
         await logQAResult(renderId, qa);
         qaResult = qa;
+
+        await tracker.startStep(`qa-attempt-${attempt}`).done(
+          qa.pass,
+          {
+            durationMs: qa.durationMs,
+            issueCount: qa.issues.length,
+            issues: qa.issues,
+            durationSec: qa.durationSec,
+          },
+          qa.pass ? undefined : qa.issues.join("; "),
+        );
 
         if (qa.pass) {
           logger.info("pipeline:qa-passed", { renderId, attempt });
@@ -261,6 +309,7 @@ export async function runDailyShortPipeline(): Promise<{
     await updateRenderStatus(renderId, "uploading");
 
     // Step 7: Upload to YouTube
+    const uploadStep = tracker.startStep("uploading");
     const uploadResult = await uploadVideo({
       videoPath: finalVideoPath,
       title: script.title,
@@ -271,6 +320,10 @@ export async function runDailyShortPipeline(): Promise<{
     logger.info("pipeline:upload-done", {
       renderId,
       youtubeUrl: uploadResult.url,
+    });
+    await uploadStep.done(true, {
+      videoId: uploadResult.videoId,
+      url: uploadResult.url,
     });
 
     // Step 8: Mark story used and update render record
@@ -296,6 +349,19 @@ export async function runDailyShortPipeline(): Promise<{
       postedAt: new Date().toISOString(),
     });
 
+    const finalFileSize = await Bun.file(finalVideoPath).size;
+    await tracker.finish({
+      totalDurationMs: Date.now() - pipelineStart,
+      emotionTarget: script.emotionTarget,
+      nodeText: script.node,
+      estimatedRuntimeSec: script.estimatedRuntimeSec,
+      voiceCharCount: voiceText.length,
+      finalFileSizeBytes: finalFileSize,
+      qaAttemptsTotal: qaAttempts,
+      qaFinalPass: qaResult?.pass ?? true,
+      scriptPrompt: `Headline: ${story.headline}\nSource: ${story.source}${story.summary ? `\nSummary: ${story.summary}` : ""}`,
+    });
+
     // Schedule analytics pulls (48h + 7 days) if enabled
     if (config.VIDEO_ANALYTICS_ENABLED) {
       scheduleAnalyticsPull(
@@ -317,6 +383,12 @@ export async function runDailyShortPipeline(): Promise<{
     await updateRenderStatus(renderId, "failed", {
       error_message: errorMessage,
     });
+    await tracker
+      .finish({
+        totalDurationMs: Date.now() - pipelineStart,
+        failedStep: "unknown",
+      })
+      .catch(() => {}); // don't let tracker errors mask the real error
     return null;
   }
 }
@@ -372,37 +444,68 @@ function msUntilTime(hour: number, minute: number, timezone: string): number {
   return target.getTime() - nowLocal.getTime();
 }
 
-export function startVideoPipelineScheduler(): void {
-  const { hour, minute } = parseTime(config.VIDEO_PIPELINE_TIME);
-  const delay = msUntilTime(hour, minute, config.TIMEZONE);
-  logger.info("video-pipeline:scheduled", {
-    time: config.VIDEO_PIPELINE_TIME,
+function getScheduledTimes(): Array<{
+  hour: number;
+  minute: number;
+  label: string;
+}> {
+  const raw = config.VIDEO_PIPELINE_TIMES.trim();
+  const timeStrings = raw
+    ? raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [config.VIDEO_PIPELINE_TIME];
+  return timeStrings.map((t) => ({ ...parseTime(t), label: t }));
+}
+
+function scheduleSlot(slot: {
+  hour: number;
+  minute: number;
+  label: string;
+}): void {
+  const delay = msUntilTime(slot.hour, slot.minute, config.TIMEZONE);
+  logger.info("video-pipeline:slot-scheduled", {
+    time: slot.label,
     delayMs: delay,
   });
 
-  const runAndReschedule = (): void => {
+  const run = (): void => {
     runDailyShortPipeline()
       .then((result) => {
         if (result) {
-          logger.info("video-pipeline:scheduled-run-done", {
+          logger.info("video-pipeline:slot-done", {
+            time: slot.label,
             youtubeUrl: result.youtubeUrl,
           });
         } else {
-          logger.warn("video-pipeline:scheduled-run-null");
+          logger.warn("video-pipeline:slot-null", { time: slot.label });
         }
       })
       .catch((err) => {
-        logger.error("video-pipeline:scheduled-run-error", {
+        logger.error("video-pipeline:slot-error", {
+          time: slot.label,
           error: err instanceof Error ? err.message : String(err),
         });
       })
       .finally(() => {
-        const nextDelay = msUntilTime(hour, minute, config.TIMEZONE);
-        setTimeout(runAndReschedule, nextDelay);
+        const nextDelay = msUntilTime(slot.hour, slot.minute, config.TIMEZONE);
+        setTimeout(run, nextDelay);
       });
   };
 
-  setTimeout(runAndReschedule, delay);
+  setTimeout(run, delay);
+}
+
+export function startVideoPipelineScheduler(): void {
+  const slots = getScheduledTimes();
+  logger.info("video-pipeline:scheduler-start", {
+    slots: slots.map((s) => s.label),
+    count: slots.length,
+  });
+  for (const slot of slots) {
+    scheduleSlot(slot);
+  }
 }
 
 // CLI entrypoint

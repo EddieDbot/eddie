@@ -544,6 +544,34 @@ main {
   #tab-reports .reports-viewer { max-height: 50vh; }
 }
 
+/* Agents tab — full height, scrollable list */
+#tab-agents {
+  overflow: hidden;
+  padding: 1rem 2rem;
+}
+
+#tab-agents .panel-grid {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  max-width: none;
+}
+
+#tab-agents .panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#agents-list {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+}
+
 /* Agent Dashboard */
 .agent-card { padding: 0.75rem; border: 1px solid #2a2a4a; border-radius: 6px; margin-bottom: 0.5rem; }
 .agent-card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }

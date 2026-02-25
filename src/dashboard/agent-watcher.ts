@@ -45,7 +45,10 @@ function parseLine(line: string): Record<string, unknown> | null {
   }
 }
 
-async function readTailBytes(filePath: string, maxBytes = 50 * 1024): Promise<string> {
+async function readTailBytes(
+  filePath: string,
+  maxBytes = 50 * 1024,
+): Promise<string> {
   const fileStat = await stat(filePath);
   const size = fileStat.size;
   if (size === 0) return "";
@@ -63,16 +66,57 @@ async function readTailBytes(filePath: string, maxBytes = 50 * 1024): Promise<st
   }
 }
 
+async function extractSessionName(filePath: string): Promise<string> {
+  const fh = await open(filePath, "r");
+  try {
+    const buf = Buffer.allocUnsafe(6 * 1024);
+    const { bytesRead } = await fh.read(buf, 0, buf.length, 0);
+    const lines = buf
+      .slice(0, bytesRead)
+      .toString("utf8")
+      .split("\n")
+      .filter(Boolean);
+    for (const line of lines) {
+      const obj = parseLine(line);
+      if (!obj || obj.type !== "user") continue;
+      const msg = obj.message as Record<string, unknown> | undefined;
+      if (!msg) continue;
+      const content = msg.content;
+      let text = "";
+      if (typeof content === "string") {
+        text = content;
+      } else if (Array.isArray(content)) {
+        for (const block of content as Record<string, unknown>[]) {
+          if (block?.type === "text" && typeof block.text === "string") {
+            text = block.text;
+            break;
+          }
+        }
+      }
+      const clean = text.trim().replace(/\s+/g, " ").slice(0, 48);
+      if (clean.length > 8) return clean;
+    }
+  } catch {
+    // ignore
+  } finally {
+    await fh.close();
+  }
+  return "";
+}
+
 async function getTmuxAlive(uuid: string): Promise<boolean> {
   const prefix = uuid.slice(0, 8);
   const primary = `claude-${prefix}`;
   if (await isSessionAlive(primary)) return true;
 
   try {
-    const proc = Bun.spawnSync(["tmux", "list-sessions", "-F", "#{session_name}"], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+    const proc = Bun.spawnSync(
+      ["tmux", "list-sessions", "-F", "#{session_name}"],
+      {
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
     const out = new TextDecoder().decode(proc.stdout);
     return out.split("\n").some((s) => s.includes(prefix));
   } catch {
@@ -83,7 +127,9 @@ async function getTmuxAlive(uuid: string): Promise<boolean> {
 async function parseFile(filePath: string): Promise<AgentSession | null> {
   const fileStat = await stat(filePath);
   const mtime = fileStat.mtimeMs;
-  const startedAt = new Date(fileStat.birthtimeMs || fileStat.ctimeMs).toISOString();
+  const startedAt = new Date(
+    fileStat.birthtimeMs || fileStat.ctimeMs,
+  ).toISOString();
   const lastActivity = new Date(mtime).toISOString();
 
   const text = await readTailBytes(filePath);
@@ -93,7 +139,12 @@ async function parseFile(filePath: string): Promise<AgentSession | null> {
   let model = "unknown";
   let currentTool: AgentSession["currentTool"] = null;
   let turnCount = 0;
-  const tokenUsage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
+  const tokenUsage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+  };
   let lastTurnDurationMs: number | null = null;
   let lastUserTs: number | null = null;
   let lastAssistantTs: number | null = null;
@@ -142,8 +193,10 @@ async function parseFile(filePath: string): Promise<AgentSession | null> {
         if (usage) {
           tokenUsage.inputTokens += (usage.input_tokens as number) || 0;
           tokenUsage.outputTokens += (usage.output_tokens as number) || 0;
-          tokenUsage.cacheReadTokens += (usage.cache_read_input_tokens as number) || 0;
-          tokenUsage.cacheCreationTokens += (usage.cache_creation_input_tokens as number) || 0;
+          tokenUsage.cacheReadTokens +=
+            (usage.cache_read_input_tokens as number) || 0;
+          tokenUsage.cacheCreationTokens +=
+            (usage.cache_creation_input_tokens as number) || 0;
         }
       }
     }
@@ -151,7 +204,11 @@ async function parseFile(filePath: string): Promise<AgentSession | null> {
 
   if (!uuid) return null;
 
-  if (lastUserTs !== null && lastAssistantTs !== null && lastAssistantTs > lastUserTs) {
+  if (
+    lastUserTs !== null &&
+    lastAssistantTs !== null &&
+    lastAssistantTs > lastUserTs
+  ) {
     lastTurnDurationMs = lastAssistantTs - lastUserTs;
   }
 
@@ -168,7 +225,10 @@ async function parseFile(filePath: string): Promise<AgentSession | null> {
     status = "idle";
   }
 
-  const slug = uuid.slice(-8);
+  const name = await extractSessionName(filePath);
+  const slug =
+    name ||
+    `${model.includes("haiku") ? "haiku" : model.includes("opus") ? "opus" : "sonnet"}-${uuid.slice(-6)}`;
 
   return {
     uuid,
@@ -226,7 +286,8 @@ async function scan(): Promise<void> {
 
 export function getAgentSessions(): AgentSession[] {
   return Array.from(sessions.values()).sort(
-    (a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime(),
+    (a, b) =>
+      new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime(),
   );
 }
 

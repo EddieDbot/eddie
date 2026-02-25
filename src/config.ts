@@ -199,12 +199,14 @@ const envSchema = z.object({
   // Video Pipeline
   VIDEO_PIPELINE_ENABLED: z.coerce.boolean().default(false),
   VIDEO_PIPELINE_TIME: z.string().default("13:00"), // 13:00 UTC = 7am CST
+  VIDEO_PIPELINE_TIMES: z.string().default(""), // comma-separated times e.g. "07:00,13:00,19:00" — overrides VIDEO_PIPELINE_TIME when set
   // Contra Intake Flow
   CONTRA_INTAKE_ENABLED: z.coerce.boolean().default(false),
   CONTRA_AUTO_REPLY_ENABLED: z.coerce.boolean().default(false),
   VIDEO_QA_ENABLED: z.coerce.boolean().default(false),
   VIDEO_ANALYTICS_ENABLED: z.coerce.boolean().default(false),
   VIDEO_QA_MAX_ATTEMPTS: z.coerce.number().default(3),
+  VIDEO_QA_GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
   AGENT_DASHBOARD_ENABLED: z.coerce.boolean().default(false),
   AGENT_DASHBOARD_POLL_MS: z.coerce.number().default(5_000),
 });

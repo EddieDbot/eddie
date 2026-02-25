@@ -224,18 +224,23 @@ export async function runVideoQA(
 export async function logQAResult(
   renderId: string,
   result: QAResult,
+  durationMs?: number,
 ): Promise<void> {
   if (!memoryEnabled) return;
 
-  const { error } = await getSupabase().from("video_qa_results").insert({
-    render_id: renderId,
-    attempt: result.attempt,
-    pass: result.pass,
-    duration_sec: result.durationSec,
-    issues: result.issues,
-    fix_instructions: result.fixInstructions,
-    raw_report: result.rawReport,
-  });
+  const { error } = await getSupabase()
+    .from("video_qa_results")
+    .insert({
+      render_id: renderId,
+      attempt: result.attempt,
+      pass: result.pass,
+      duration_sec: result.durationSec,
+      issues: result.issues,
+      fix_instructions: result.fixInstructions,
+      raw_report: result.rawReport,
+      duration_ms: durationMs ?? null,
+      gemini_model: config.VIDEO_QA_GEMINI_MODEL,
+    });
 
   if (error) {
     logger.error("qa-gate:log-error", { renderId, error: error.message });
