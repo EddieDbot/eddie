@@ -13,6 +13,7 @@ export type UploadParams = {
   categoryId?: string;
   privacyStatus?: "public" | "private" | "unlisted";
   madeForKids?: boolean;
+  publishAt?: Date; // when set: upload as private + schedule. YouTube auto-publishes at this time.
 };
 
 export type UploadResult = {
@@ -28,9 +29,15 @@ export async function uploadVideo(params: UploadParams): Promise<UploadResult> {
     description,
     tags,
     categoryId = "28",
-    privacyStatus = "public",
     madeForKids = false,
+    publishAt,
   } = params;
+
+  // If publishAt is set, upload as private with publishAt — YouTube schedules it.
+  // Otherwise respect the explicit privacyStatus (default: public).
+  const privacyStatus = publishAt
+    ? "private"
+    : (params.privacyStatus ?? "public");
 
   const file = Bun.file(videoPath);
   if (!(await file.exists())) {
@@ -40,6 +47,12 @@ export async function uploadVideo(params: UploadParams): Promise<UploadResult> {
 
   const token = await getYouTubeAccessToken();
 
+  const statusBlock: Record<string, unknown> = { privacyStatus, madeForKids };
+  if (publishAt) {
+    statusBlock.publishAt = publishAt.toISOString();
+    statusBlock.selfDeclaredMadeForKids = madeForKids;
+  }
+
   const metadata = {
     snippet: {
       title,
@@ -47,10 +60,7 @@ export async function uploadVideo(params: UploadParams): Promise<UploadResult> {
       tags,
       categoryId,
     },
-    status: {
-      privacyStatus,
-      madeForKids,
-    },
+    status: statusBlock,
   };
 
   logger.info("youtube:upload:start", { title, videoPath, fileSize });
@@ -70,9 +80,7 @@ export async function uploadVideo(params: UploadParams): Promise<UploadResult> {
 
   if (!initRes.ok) {
     const body = await initRes.text();
-    throw new Error(
-      `YouTube upload init failed ${initRes.status}: ${body}`,
-    );
+    throw new Error(`YouTube upload init failed ${initRes.status}: ${body}`);
   }
 
   const uploadUri = initRes.headers.get("Location");

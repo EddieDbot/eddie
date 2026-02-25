@@ -304,30 +304,92 @@ async function fillService(
         await sleep(2000);
       }
 
-      // Dismiss the image crop/preview modal that appears after upload
-      await sleep(1500);
-      const cropModal = page
-        .locator('[data-sentry-component="ModalDialog"]')
-        .first();
-      if (await cropModal.isVisible({ timeout: 4000 }).catch(() => false)) {
-        console.log(
-          `  ⏳ Image crop modal detected, looking for confirm button...`,
+      // Handle image gallery modal that appears after upload
+      await sleep(2000);
+      // Dump modal buttons to understand the UI
+      const modalInfo = await page.evaluate(() => {
+        const modal = document.getElementById("modal-v2-overlay-container");
+        if (!modal) return { present: false, buttons: [], hasDropzone: false };
+        const buttons = Array.from(modal.querySelectorAll("button")).map(
+          (b) => b.textContent?.trim() ?? "(no text)",
         );
-        // Try Save/Apply/Done/Continue/Crop buttons inside modal
-        const confirmBtn = cropModal
-          .locator("button")
-          .filter({ hasText: /save|apply|done|continue|crop|confirm|ok/i })
-          .first();
-        if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-          await confirmBtn.click();
-          console.log(`  ✅ Crop modal confirmed`);
-        } else {
-          // Press Escape to dismiss
+        const hasDropzone = !!modal.querySelector('[id="dropzone"]');
+        const hasImage = !!modal.querySelector('img[src*="media.contra.com"]');
+        return { present: true, buttons, hasDropzone, hasImage };
+      });
+      console.log(`  ⏳ Modal info: ${JSON.stringify(modalInfo)}`);
+
+      if (modalInfo.present) {
+        if (modalInfo.hasDropzone && !modalInfo.hasImage) {
+          // Dropzone modal opened (wrong button was clicked previously) — Escape
           await page.keyboard.press("Escape");
-          console.log(`  ✅ Crop modal dismissed via Escape`);
+          await sleep(1000);
+          await page.keyboard.press("Escape");
+          await sleep(1000);
+          console.log(`  ✅ Dropzone modal dismissed`);
+        } else if (modalInfo.hasImage) {
+          // Image gallery/preview modal — click the image thumbnail to select it
+          // then look for Save/Done/Apply/Use button (NOT upload)
+          const savedBtn = await page.evaluate(() => {
+            const modal = document.getElementById("modal-v2-overlay-container");
+            if (!modal) return false;
+            const btns = Array.from(modal.querySelectorAll("button"));
+            // Filter out upload-related buttons, click save/done/apply/use/select
+            const confirmBtn = btns.find((b) => {
+              const t = (b.textContent ?? "").toLowerCase().trim();
+              return (
+                (t.includes("save") ||
+                  t.includes("done") ||
+                  t.includes("apply") ||
+                  t.includes("use") ||
+                  t.includes("select") ||
+                  t.includes("choose") ||
+                  t.includes("confirm")) &&
+                !t.includes("upload")
+              );
+            });
+            if (confirmBtn) {
+              (confirmBtn as HTMLElement).click();
+              return confirmBtn.textContent?.trim() ?? "clicked";
+            }
+            // If no confirm button, try clicking the image thumbnail
+            const img = modal.querySelector(
+              'img[src*="media.contra.com"]',
+            ) as HTMLElement | null;
+            if (img) {
+              img.click();
+              return "image-clicked";
+            }
+            return false;
+          });
+          console.log(`  ✅ Gallery action: ${savedBtn}`);
+          await sleep(800);
+          // Now click "Add" to confirm the selected image
+          const addClicked = await page.evaluate(() => {
+            const modal = document.getElementById("modal-v2-overlay-container");
+            if (!modal) return false;
+            const btns = Array.from(modal.querySelectorAll("button"));
+            const addBtn = btns.find((b) => {
+              const t = (b.textContent ?? "").toLowerCase().trim();
+              return (
+                t === "add" || t === "use" || t === "select" || t === "done"
+              );
+            });
+            if (addBtn) {
+              (addBtn as HTMLElement).click();
+              return addBtn.textContent?.trim() ?? "clicked";
+            }
+            return false;
+          });
+          console.log(`  ✅ Add button: ${addClicked}`);
+          await sleep(1500);
+        } else {
+          // Unknown modal state — just Escape
+          await page.keyboard.press("Escape");
+          await sleep(1000);
         }
-        await sleep(1500);
       }
+      console.log(`  ✅ Image upload handling complete`);
     } else {
       console.log(`  ⚠️  No cover image at ${coverImagePath}`);
     }

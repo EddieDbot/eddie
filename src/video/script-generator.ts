@@ -35,7 +35,7 @@ NODE REQUIREMENT (mandatory):
 Every script must include one piece of information, analysis, or framing that is specific to EddieDbot and not available from reading the raw news item. This is your "node" — the thing that moves this video outside the algorithmic conflict radius of other AI news channels. The node must be explicitly identifiable: a specific comparison, a data point with context, a named consequence, a prediction with a rationale. If you cannot identify the node, request more source material before generating.
 
 LENGTH:
-Target 28–34 seconds when read aloud at normal pace. Time the script. If over 34 seconds, cut the sentence that contributes least tension. Never pad to hit a length. Shorter always beats longer on identical topics.
+Target 10–15 seconds when read aloud at normal pace. This is extremely short. You get: 1-2 sentence hook, 1-2 body sentences, 1 payoff. Every word must earn its place. Cut anything that doesn't add tension or payoff. If under 10 seconds, that's fine — never pad.
 
 LANGUAGE:
 - 5th grade readability or below. Use readabilityformulas.com as reference.
@@ -70,7 +70,9 @@ OUTPUT FORMAT (respond ONLY with valid JSON, no markdown fences):
   "tags": ["tag1", "tag2"]
 }`;
 
-export async function generateNewsShortScript(story: VideoStory): Promise<VideoScript | null> {
+export async function generateNewsShortScript(
+  story: VideoStory,
+): Promise<VideoScript | null> {
   const prompt = `Write a YouTube Shorts script about this AI news story:
 
 Headline: ${story.headline}
@@ -78,17 +80,20 @@ Source: ${story.source}
 ${story.summary ? `Summary: ${story.summary}` : ""}
 ${story.publishedAt ? `Published: ${story.publishedAt}` : ""}
 
-Generate a 28-34 second script following the JSON schema exactly. Output ONLY valid JSON.`;
+Generate a 10-15 second script following the JSON schema exactly. Output ONLY valid JSON.`;
 
   const result = await runPrompt({
     prompt,
     system: SYSTEM_PROMPT,
     model: "claude-sonnet-4-6",
-    maxWaitMs: 60_000,
+    maxWaitMs: 120_000,
   });
 
   if (!result.ok || !result.text) {
-    logger.error("script-generator:llm-failed", { storyId: story.id, headline: story.headline });
+    logger.error("script-generator:llm-failed", {
+      storyId: story.id,
+      headline: story.headline,
+    });
     return null;
   }
 
@@ -102,7 +107,10 @@ Generate a 28-34 second script following the JSON schema exactly. Output ONLY va
     script.body.length === 0 ||
     !script.payoff
   ) {
-    logger.error("script-generator:parse-failed", { storyId: story.id, raw: result.text.slice(0, 200) });
+    logger.error("script-generator:parse-failed", {
+      storyId: story.id,
+      raw: result.text.slice(0, 200),
+    });
     return null;
   }
 
@@ -119,7 +127,7 @@ Generate a 28-34 second script following the JSON schema exactly. Output ONLY va
 
 export async function regenerateScript(
   previousScript: VideoScript,
-  qaIssues: string[]
+  qaIssues: string[],
 ): Promise<VideoScript | null> {
   const prompt = `The previous script failed QA. Revise it based on the following issues:
 
@@ -139,7 +147,7 @@ Generate a revised script that fixes all issues. Keep the same story angle and n
     prompt,
     system: SYSTEM_PROMPT,
     model: "claude-sonnet-4-6",
-    maxWaitMs: 60_000,
+    maxWaitMs: 120_000,
   });
 
   if (!result.ok || !result.text) {
@@ -157,7 +165,9 @@ Generate a revised script that fixes all issues. Keep the same story angle and n
     script.body.length === 0 ||
     !script.payoff
   ) {
-    logger.error("script-generator:regenerate-parse-failed", { raw: result.text.slice(0, 200) });
+    logger.error("script-generator:regenerate-parse-failed", {
+      raw: result.text.slice(0, 200),
+    });
     return null;
   }
 
@@ -169,9 +179,14 @@ Generate a revised script that fixes all issues. Keep the same story angle and n
   return script;
 }
 
-export async function saveScript(renderId: string, script: VideoScript): Promise<void> {
+export async function saveScript(
+  renderId: string,
+  script: VideoScript,
+): Promise<void> {
   if (!memoryEnabled) {
-    logger.warn("script-generator:save-skipped", { reason: "supabase not configured" });
+    logger.warn("script-generator:save-skipped", {
+      reason: "supabase not configured",
+    });
     return;
   }
 
@@ -181,6 +196,9 @@ export async function saveScript(renderId: string, script: VideoScript): Promise
     .eq("id", renderId);
 
   if (error) {
-    logger.error("script-generator:save-error", { renderId, error: error.message });
+    logger.error("script-generator:save-error", {
+      renderId,
+      error: error.message,
+    });
   }
 }

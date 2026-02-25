@@ -310,12 +310,17 @@ export async function runDailyShortPipeline(): Promise<{
 
     // Step 7: Upload to YouTube
     const uploadStep = tracker.startStep("uploading");
+    const publishAt =
+      config.VIDEO_PUBLISH_DELAY_HOURS > 0
+        ? new Date(Date.now() + config.VIDEO_PUBLISH_DELAY_HOURS * 3600_000)
+        : undefined;
+
     const uploadResult = await uploadVideo({
       videoPath: finalVideoPath,
       title: script.title,
       description: script.description,
       tags: script.tags,
-      privacyStatus: "public",
+      publishAt,
     });
     logger.info("pipeline:upload-done", {
       renderId,
@@ -497,7 +502,35 @@ function scheduleSlot(slot: {
   setTimeout(run, delay);
 }
 
+function startIntervalMode(intervalMs: number): void {
+  logger.info("video-pipeline:interval-mode", { intervalMs });
+
+  const run = (): void => {
+    runDailyShortPipeline()
+      .then((result) => {
+        if (result)
+          logger.info("video-pipeline:interval-done", {
+            youtubeUrl: result.youtubeUrl,
+          });
+        else logger.warn("video-pipeline:interval-null");
+      })
+      .catch((err) => {
+        logger.error("video-pipeline:interval-error", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  };
+
+  run(); // fire immediately
+  setInterval(run, intervalMs);
+}
+
 export function startVideoPipelineScheduler(): void {
+  if (config.VIDEO_PIPELINE_INTERVAL_MIN > 0) {
+    startIntervalMode(config.VIDEO_PIPELINE_INTERVAL_MIN * 60_000);
+    return;
+  }
+
   const slots = getScheduledTimes();
   logger.info("video-pipeline:scheduler-start", {
     slots: slots.map((s) => s.label),

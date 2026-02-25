@@ -200,6 +200,7 @@ const envSchema = z.object({
   VIDEO_PIPELINE_ENABLED: z.coerce.boolean().default(false),
   VIDEO_PIPELINE_TIME: z.string().default("13:00"), // 13:00 UTC = 7am CST
   VIDEO_PIPELINE_TIMES: z.string().default(""), // comma-separated times e.g. "07:00,13:00,19:00" — overrides VIDEO_PIPELINE_TIME when set
+  VIDEO_PIPELINE_INTERVAL_MIN: z.coerce.number().default(0), // when >0, runs on fixed interval (minutes) — overrides time-based scheduling. Use for rapid iteration/training.
   // Contra Intake Flow
   CONTRA_INTAKE_ENABLED: z.coerce.boolean().default(false),
   CONTRA_AUTO_REPLY_ENABLED: z.coerce.boolean().default(false),
@@ -207,6 +208,9 @@ const envSchema = z.object({
   VIDEO_ANALYTICS_ENABLED: z.coerce.boolean().default(false),
   VIDEO_QA_MAX_ATTEMPTS: z.coerce.number().default(3),
   VIDEO_QA_GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+  // When set to N, videos upload as private and auto-publish N hours later via YouTube's scheduler.
+  // 0 = publish immediately (default). Useful for spacing out overnight batch runs.
+  VIDEO_PUBLISH_DELAY_HOURS: z.coerce.number().default(0),
   AGENT_DASHBOARD_ENABLED: z.coerce.boolean().default(false),
   AGENT_DASHBOARD_POLL_MS: z.coerce.number().default(5_000),
 });

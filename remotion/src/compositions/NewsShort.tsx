@@ -23,11 +23,11 @@ export const NewsShortSchema = z.object({
 
 type Props = z.infer<typeof NewsShortSchema>;
 
-const WORDS_PER_SEC = 2.5;
-const MIN_HOOK_SEC = 4;
-const MIN_FORESHADOW_SEC = 3;
-const MIN_BODY_SEC = 3;
-const MIN_PAYOFF_SEC = 2.5;
+const WORDS_PER_SEC = 2.8; // slightly faster pace for punchy short-form
+const MIN_HOOK_SEC = 2;
+const MIN_FORESHADOW_SEC = 1.5;
+const MIN_BODY_SEC = 2;
+const MIN_PAYOFF_SEC = 1.5;
 
 function estimateSec(text: string, min: number): number {
   return Math.max(min, text.split(/\s+/).length / WORDS_PER_SEC);
@@ -40,7 +40,7 @@ export const calculateMetadata: CalculateMetadataFunction<Props> = ({
   const foreshadowSec = estimateSec(props.foreshadow, MIN_FORESHADOW_SEC);
   const bodySec = props.body.reduce(
     (acc, s) => acc + estimateSec(s, MIN_BODY_SEC),
-    0
+    0,
   );
   const payoffSec = estimateSec(props.payoff, MIN_PAYOFF_SEC);
   const totalSec = hookSec + foreshadowSec + bodySec + payoffSec;
@@ -530,8 +530,12 @@ export const NewsShort: React.FC<Props> = ({
   const { fps, durationInFrames } = useVideoConfig();
 
   const hookFrames = Math.ceil(estimateSec(hook, MIN_HOOK_SEC) * fps);
-  const foreshadowFrames = Math.ceil(estimateSec(foreshadow, MIN_FORESHADOW_SEC) * fps);
-  const bodyFrames = body.map((s) => Math.ceil(estimateSec(s, MIN_BODY_SEC) * fps));
+  const foreshadowFrames = Math.ceil(
+    estimateSec(foreshadow, MIN_FORESHADOW_SEC) * fps,
+  );
+  const bodyFrames = body.map((s) =>
+    Math.ceil(estimateSec(s, MIN_BODY_SEC) * fps),
+  );
   const payoffFrames = Math.ceil(estimateSec(payoff, MIN_PAYOFF_SEC) * fps);
 
   // Build offsets
@@ -550,7 +554,11 @@ export const NewsShort: React.FC<Props> = ({
   return (
     <AbsoluteFill style={{ backgroundColor: "#050510", overflow: "hidden" }}>
       <GridBackground frame={frame} />
-      <ProgressBar frame={frame} totalFrames={durationInFrames} color="#00D4FF" />
+      <ProgressBar
+        frame={frame}
+        totalFrames={durationInFrames}
+        color="#00D4FF"
+      />
 
       <Sequence from={hookFrom} durationInFrames={hookFrames}>
         <HookSection
@@ -586,11 +594,7 @@ export const NewsShort: React.FC<Props> = ({
       ))}
 
       <Sequence from={payoffFrom} durationInFrames={payoffFrames}>
-        <PayoffSection
-          payoff={payoff}
-          frame={frame - payoffFrom}
-          fps={fps}
-        />
+        <PayoffSection payoff={payoff} frame={frame - payoffFrom} fps={fps} />
       </Sequence>
 
       <Sequence
