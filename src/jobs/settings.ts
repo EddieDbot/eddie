@@ -1,9 +1,33 @@
 import { resolve } from "node:path";
+import type { ModelId } from "./types.ts";
 
 const HOME = process.env.HOME ?? "/home/na";
 const SETTINGS_DIR = `${HOME}/.claude/settings`;
 
 export type JobType = "heal" | "code" | "research" | "general";
+
+export function detectOptimalModel(
+  prompt: string,
+  defaultModel: ModelId,
+): ModelId {
+  if (defaultModel !== "claude") return defaultModel;
+  const lower = prompt.toLowerCase();
+  if (
+    /\b(translat|chinese|mandarin|japanese|korean|french|spanish|german)\b/.test(
+      lower,
+    )
+  )
+    return "kimi";
+  if (/\b(image|vision|screenshot|multimodal|video frame)\b/.test(lower))
+    return "gemini";
+  if (
+    /\b(math|calcul|equation|proof|aime|olympiad|abstract reasoning)\b/.test(
+      lower,
+    )
+  )
+    return "codex";
+  return defaultModel;
+}
 
 export function detectJobType(prompt: string, tmuxPrefix?: string): JobType {
   if (tmuxPrefix?.startsWith("heal-")) return "heal";

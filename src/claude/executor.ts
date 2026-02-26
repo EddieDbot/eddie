@@ -25,11 +25,13 @@ export interface ClaudeExecutor {
 }
 
 function safeEnv(): Record<string, string> {
-  return Object.fromEntries(
+  const env = Object.fromEntries(
     Object.entries(process.env as Record<string, string>).filter(
       ([k]) => k !== "CLAUDECODE",
     ),
   );
+  if (config.EDDIE_CLAUDE_HOME) env.HOME = config.EDDIE_CLAUDE_HOME;
+  return env;
 }
 
 /**

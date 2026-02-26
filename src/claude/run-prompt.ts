@@ -18,13 +18,17 @@ export type RunPromptResult = {
   ok: boolean;
 };
 
-// Env without CLAUDECODE so subprocess isn't blocked by nested-session guard
+// Env without CLAUDECODE so subprocess isn't blocked by nested-session guard.
+// HOME is overridden when EDDIE_CLAUDE_HOME is set so the claude binary reads
+// EDDIE's subscription credentials from ~/.eddie-home/.claude/ instead of ~/.claude/.
 function safeEnv(): Record<string, string> {
-  return Object.fromEntries(
+  const env = Object.fromEntries(
     Object.entries(process.env as Record<string, string>).filter(
       ([k]) => k !== "CLAUDECODE",
     ),
   );
+  if (config.EDDIE_CLAUDE_HOME) env.HOME = config.EDDIE_CLAUDE_HOME;
+  return env;
 }
 
 export async function runPrompt({
@@ -64,8 +68,8 @@ export async function runPrompt({
 /** Convenience: parse JSON from LLM output, with a regex fallback for fenced blocks */
 export function parseJsonFromOutput<T>(text: string, fallback: T): T {
   try {
-    const match = text.match(/```(?:json)?\s*([\s\S]*?)```/) ??
-      text.match(/(\{[\s\S]*\})/);
+    const match =
+      text.match(/```(?:json)?\s*([\s\S]*?)```/) ?? text.match(/(\{[\s\S]*\})/);
     return JSON.parse(match?.[1] ?? text) as T;
   } catch {
     return fallback;

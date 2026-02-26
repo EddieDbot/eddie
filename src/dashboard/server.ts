@@ -75,10 +75,12 @@ export function startDashboard(): void {
     async fetch(req) {
       const url = new URL(req.url);
 
-      // Slack slash commands bypass auth (HMAC-verified separately)
-      if (url.pathname === "/slack/command") {
-        // handled below
-      } else if (config.DASHBOARD_TOKEN) {
+      // Public paths — no auth required (preview sites, shareable links)
+      const isPublic =
+        url.pathname === "/slack/command" ||
+        url.pathname.startsWith("/preview/");
+
+      if (!isPublic && config.DASHBOARD_TOKEN) {
         // Basic Auth gate on everything else
         const auth = req.headers.get("authorization") ?? "";
         const encoded = Buffer.from(

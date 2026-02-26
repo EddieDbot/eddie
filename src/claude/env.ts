@@ -45,6 +45,9 @@ export function getRelayEnv(): Record<string, string> {
     const val = process.env[key];
     if (val !== undefined) env[key] = val;
   }
+  // Override HOME so the relay subprocess reads EDDIE's subscription credentials
+  // from ~/.eddie-home/.claude/ when EDDIE_CLAUDE_HOME is configured.
+  if (process.env.EDDIE_CLAUDE_HOME) env.HOME = process.env.EDDIE_CLAUDE_HOME;
   return env;
 }
 

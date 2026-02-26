@@ -8,7 +8,12 @@ const STRACE_AVAILABLE = Bun.spawnSync(["which", "strace"]).exitCode === 0;
 import { buildMemoryContext } from "../memory/context.ts";
 import { getJobEnvUnsetArgs } from "../claude/env.ts";
 import { buildBriefing, parseRawTask } from "./briefing.ts";
-import { detectJobType, resolveJobSettings, JOB_MCP_MAP } from "./settings.ts";
+import {
+  detectJobType,
+  detectOptimalModel,
+  resolveJobSettings,
+  JOB_MCP_MAP,
+} from "./settings.ts";
 import { createWorktree, shouldUseWorktree } from "./worktree.ts";
 import { routeCapabilities } from "../routing/router.ts";
 import { getMcpHints } from "../routing/mcp-hints.ts";
@@ -362,11 +367,16 @@ timeout --foreground ${timeoutSec}s env ${envUnset} ${config.CODEX_PATH} --appro
     }
   }
 
+  // Route claude subprocess to EDDIE's credential home when configured
+  const homeOverride = config.EDDIE_CLAUDE_HOME
+    ? `HOME=${config.EDDIE_CLAUDE_HOME} `
+    : "";
+
   return {
     script: `#!/bin/bash
 PROMPT='${escapedPrompt}'
 SYSTEM='${escapedSystem}'
-timeout --foreground ${timeoutSec}s env ${envUnset} ${sandboxPrefix}${config.CLAUDE_PATH} -p "$PROMPT" --output-format text --model claude-sonnet-4-6 --dangerously-skip-permissions ${settingsArg}${imageArgs ? ` ${imageArgs}` : ""} --append-system-prompt "$SYSTEM" 2>&1 | tee -a "${outputFile}"
+timeout --foreground ${timeoutSec}s env ${envUnset} ${homeOverride}${sandboxPrefix}${config.CLAUDE_PATH} -p "$PROMPT" --output-format text --model claude-sonnet-4-6 --dangerously-skip-permissions ${settingsArg}${imageArgs ? ` ${imageArgs}` : ""} --append-system-prompt "$SYSTEM" 2>&1 | tee -a "${outputFile}"
 `,
     systemPromptHash,
   };
@@ -421,7 +431,11 @@ export async function spawnJob(job: Job): Promise<void> {
   const checkProc = Bun.spawnSync(["which", modelPath]);
   if (checkProc.exitCode !== 0) {
     const errMsg = `Model binary not found: ${modelPath} (model=${effectiveModel})`;
-    logger.error("jobs:model-not-found", { id: job.id, modelPath, effectiveModel });
+    logger.error("jobs:model-not-found", {
+      id: job.id,
+      modelPath,
+      effectiveModel,
+    });
     const { updateJob: updateJobFn } = await import("./manager.ts");
     await updateJobFn(job.id, {
       status: "failed",

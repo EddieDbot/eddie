@@ -4,6 +4,11 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string(),
   OWNER_TELEGRAM_ID: z.coerce.number(),
   CLAUDE_PATH: z.string().default("claude"),
+  // When set, all claude subprocess invocations use this as HOME so they read
+  // credentials from ~/.eddie-home/.claude/ instead of ~/.claude/.
+  // Set this after subscribing under eddie@nac70x7.com and running:
+  //   HOME=/home/na/.eddie-home claude auth
+  EDDIE_CLAUDE_HOME: z.string().optional(),
   SESSION_DIR: z.string().default("./sessions"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   SUPABASE_URL: z.string().optional(),

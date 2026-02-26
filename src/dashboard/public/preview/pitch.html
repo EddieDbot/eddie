@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EDDIE — Every Day Digital Intelligence Engine</title>
+<style>
+  /* ─── TOKENS ─────────────────────────────────────────────── */
+  :root {
+    --bg-000: #FFFFFF;
+    --bg-100: #FAF9F5;
+    --bg-200: #F4F4EC;
+    --bg-300: #F0EEE6;
+    --bg-400: #E7E5DB;
+    --text-000: #131312;
+    --text-200: #3C3C39;
+    --text-400: #72716B;
+    --slate-dark: #141413;
+    --ivory-light: #FAF9F5;
+    --accent: #D87756;
+    --accent-dark: #C6603F;
+    --oat: #e3dacc;
+    --kraft: #d4a27f;
+    --olive: #788c5d;
+    --cactus: #bcd1ca;
+    --sky: #6a9bcc;
+    --heather: #cbcadb;
+    --fig: #c46686;
+    --font-serif: Georgia, "Times New Roman", serif;
+    --font-sans: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "JetBrains Mono", Menlo, Monaco, monospace;
+    --text-display: clamp(3rem, 6vw, 5rem);
+    --text-xxl: clamp(2rem, 4vw, 3.5rem);
+    --text-xl: clamp(1.5rem, 3vw, 2.5rem);
+    --text-lg: 1.5rem;
+    --text-md: 1.25rem;
+    --text-sm: 1.125rem;
+    --text-xs: 0.875rem;
+  }
+
+  /* ─── RESET & BASE ───────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg-100);
+    color: var(--text-000);
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── LAYOUT HELPERS ─────────────────────────────────────── */
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 64px;
+  }
+
+  section {
+    padding: 96px 0;
+  }
+
+  /* ─── NAV ─────────────────────────────────────────────────── */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg-100);
+    border-bottom: 1px solid var(--bg-400);
+  }
+
+  .nav-inner {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 64px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .nav-logo {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-000);
+    text-decoration: none;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-400);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .nav-links a:hover { color: var(--text-000); }
+
+  /* ─── HERO ────────────────────────────────────────────────── */
+  #hero {
+    padding: 128px 0 96px;
+    background: var(--bg-100);
+  }
+
+  .hero-eyebrow {
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 24px;
+  }
+
+  .hero-headline {
+    font-family: var(--font-serif);
+    font-size: var(--text-display);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: var(--text-000);
+    max-width: 900px;
+    margin-bottom: 32px;
+  }
+
+  .hero-sub {
+    font-family: var(--font-serif);
+    font-size: var(--text-lg);
+    line-height: 1.5;
+    color: var(--text-200);
+    max-width: 720px;
+    margin-bottom: 48px;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary {
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    background: var(--slate-dark);
+    color: var(--ivory-light);
+    border: 1px solid var(--slate-dark);
+    border-radius: 8px;
+    padding: 14px 28px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    transition: background 0.15s;
+  }
+
+  .btn-primary:hover { background: var(--text-200); }
+
+  .btn-secondary {
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    background: transparent;
+    color: var(--slate-dark);
+    border: 1px solid var(--slate-dark);
+    border-radius: 8px;
+    padding: 14px 28px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .btn-secondary:hover {
+    background: var(--bg-400);
+  }
+
+  /* ─── SECTION LABELS ─────────────────────────────────────── */
+  .section-label {
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 20px;
+  }
+
+  .section-title {
+    font-family: var(--font-serif);
+    font-size: var(--text-xxl);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--text-000);
+    margin-bottom: 24px;
+  }
+
+  .section-intro {
+    font-family: var(--font-serif);
+    font-size: var(--text-md);
+    line-height: 1.6;
+    color: var(--text-200);
+    max-width: 720px;
+    margin-bottom: 56px;
+  }
+
+  /* ─── DIVIDER ─────────────────────────────────────────────── */
+  .section-divider {
+    border: none;
+    border-top: 1px solid var(--bg-400);
+    margin: 0;
+  }
+
+  /* ─── COMPARISON TABLE ────────────────────────────────────── */
+  #comparison {
+    background: var(--bg-000);
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .comparison-table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+    font-family: var(--font-serif);
+  }
+
+  .comparison-table thead tr {
+    border-bottom: 2px solid var(--bg-400);
+  }
+
+  .comparison-table th {
+    padding: 16px 20px;
+    text-align: left;
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--text-400);
+  }
+
+  .comparison-table th.col-eddie {
+    background: var(--accent);
+    color: var(--ivory-light);
+    border-radius: 6px 6px 0 0;
+  }
+
+  .comparison-table td {
+    padding: 16px 20px;
+    font-size: var(--text-sm);
+    line-height: 1.4;
+    color: var(--text-200);
+    border-bottom: 1px solid var(--bg-300);
+    vertical-align: top;
+  }
+
+  .comparison-table td:first-child {
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-000);
+    white-space: nowrap;
+  }
+
+  .comparison-table td.col-eddie {
+    background: var(--bg-300);
+    color: var(--text-000);
+    font-weight: 500;
+  }
+
+  .comparison-table tbody tr:last-child td { border-bottom: none; }
+
+  .comparison-table tbody tr:hover td { background: var(--bg-200); }
+  .comparison-table tbody tr:hover td.col-eddie { background: var(--bg-400); }
+
+  /* ─── SCHEDULE (DARK) ─────────────────────────────────────── */
+  #schedule {
+    background: var(--slate-dark);
+    color: var(--ivory-light);
+  }
+
+  #schedule .section-label { color: var(--accent); }
+
+  #schedule .section-title { color: var(--ivory-light); }
+
+  .timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-top: 56px;
+    border-left: 1px solid rgba(250, 249, 245, 0.12);
+  }
+
+  .timeline-item {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 32px;
+    padding: 28px 0 28px 40px;
+    position: relative;
+    border-bottom: 1px solid rgba(250, 249, 245, 0.08);
+  }
+
+  .timeline-item:last-child { border-bottom: none; }
+
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: 36px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .timeline-time {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    padding-top: 2px;
+    white-space: nowrap;
+  }
+
+  .timeline-content-title {
+    font-family: var(--font-serif);
+    font-size: var(--text-md);
+    font-weight: normal;
+    color: var(--ivory-light);
+    margin-bottom: 6px;
+  }
+
+  .timeline-content-desc {
+    font-family: var(--font-serif);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: rgba(250, 249, 245, 0.6);
+  }
+
+  /* ─── AGENT ARMY ─────────────────────────────────────────── */
+  #agents {
+    background: var(--bg-100);
+  }
+
+  .agent-categories {
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+    margin-bottom: 56px;
+  }
+
+  .agent-category-label {
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--text-400);
+    margin-bottom: 14px;
+  }
+
+  .agent-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pill {
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    background: var(--bg-300);
+    color: var(--text-200);
+    border-radius: 100px;
+    padding: 6px 14px;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+
+  .agent-blurb {
+    font-family: var(--font-serif);
+    font-size: var(--text-md);
+    line-height: 1.7;
+    color: var(--text-200);
+    max-width: 820px;
+    border-left: 3px solid var(--accent);
+    padding-left: 28px;
+  }
+
+  /* ─── FEATURE CARDS 2x2 ──────────────────────────────────── */
+  #features {
+    background: var(--bg-200);
+  }
+
+  .cards-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    background: var(--bg-400);
+    border: 1px solid var(--bg-400);
+  }
+
+  .feature-card {
+    background: var(--bg-000);
+    padding: 52px 48px;
+  }
+
+  .feature-card-num {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 20px;
+  }
+
+  .feature-card-title {
+    font-family: var(--font-serif);
+    font-size: var(--text-xl);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--text-000);
+    margin-bottom: 20px;
+  }
+
+  .feature-card-body {
+    font-family: var(--font-serif);
+    font-size: var(--text-sm);
+    line-height: 1.75;
+    color: var(--text-200);
+  }
+
+  /* ─── ECONOMICS (DARK) ───────────────────────────────────── */
+  #economics {
+    background: var(--slate-dark);
+    color: var(--ivory-light);
+  }
+
+  #economics .section-label { color: var(--accent); }
+  #economics .section-title { color: var(--ivory-light); }
+
+  .economics-body {
+    font-family: var(--font-serif);
+    font-size: var(--text-md);
+    line-height: 1.75;
+    color: rgba(250, 249, 245, 0.75);
+    max-width: 820px;
+    margin-bottom: 64px;
+  }
+
+  .economics-body p + p { margin-top: 24px; }
+
+  .stat-block {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    background: rgba(250, 249, 245, 0.08);
+    border: 1px solid rgba(250, 249, 245, 0.08);
+  }
+
+  .stat-cell {
+    background: var(--slate-dark);
+    padding: 40px 36px;
+  }
+
+  .stat-value {
+    font-family: var(--font-serif);
+    font-size: clamp(2rem, 4vw, 3rem);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--ivory-light);
+    margin-bottom: 10px;
+  }
+
+  .stat-label {
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(250, 249, 245, 0.45);
+  }
+
+  /* ─── ALREADY SELLING ────────────────────────────────────── */
+  #selling {
+    background: var(--bg-000);
+  }
+
+  .selling-body {
+    font-family: var(--font-serif);
+    font-size: var(--text-md);
+    line-height: 1.75;
+    color: var(--text-200);
+    max-width: 820px;
+  }
+
+  .selling-body p + p { margin-top: 24px; }
+
+  /* ─── ONE OPERATOR ───────────────────────────────────────── */
+  #one-operator {
+    background: var(--bg-100);
+  }
+
+  .one-op-body {
+    font-family: var(--font-serif);
+    font-size: var(--text-md);
+    line-height: 1.75;
+    color: var(--text-200);
+    max-width: 820px;
+  }
+
+  .one-op-body p + p { margin-top: 24px; }
+
+  .one-op-body .pull-quote {
+    font-size: var(--text-lg);
+    line-height: 1.45;
+    color: var(--text-000);
+    border-left: 3px solid var(--accent);
+    padding-left: 28px;
+    margin: 36px 0;
+    font-style: italic;
+  }
+
+  /* ─── FOOTER CTA (DARK) ──────────────────────────────────── */
+  #cta {
+    background: var(--slate-dark);
+    text-align: center;
+    padding: 120px 0;
+  }
+
+  .cta-headline {
+    font-family: var(--font-serif);
+    font-size: var(--text-display);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: var(--ivory-light);
+    max-width: 800px;
+    margin: 0 auto 20px;
+  }
+
+  .cta-sub {
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(250, 249, 245, 0.45);
+    margin-bottom: 48px;
+  }
+
+  .cta-footer-text {
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    letter-spacing: 0.04em;
+    color: rgba(250, 249, 245, 0.3);
+    margin-top: 64px;
+  }
+
+  .cta-footer-text a {
+    color: rgba(250, 249, 245, 0.45);
+    text-decoration: none;
+  }
+
+  .cta-footer-text a:hover {
+    color: var(--ivory-light);
+  }
+
+  /* ─── RESPONSIVE ─────────────────────────────────────────── */
+  @media (max-width: 1024px) {
+    .container,
+    .nav-inner {
+      padding: 0 40px;
+    }
+
+    section { padding: 72px 0; }
+
+    .cards-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .stat-block {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .container,
+    .nav-inner {
+      padding: 0 24px;
+    }
+
+    section { padding: 56px 0; }
+
+    #hero { padding: 80px 0 56px; }
+
+    .nav-links { display: none; }
+
+    .timeline-item {
+      grid-template-columns: 1fr;
+      gap: 8px;
+      padding-left: 32px;
+    }
+
+    .feature-card {
+      padding: 36px 28px;
+    }
+
+    .stat-block {
+      grid-template-columns: 1fr;
+    }
+
+    .hero-actions {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .hero-actions a {
+      width: 100%;
+      text-align: center;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .container,
+    .nav-inner {
+      padding: 0 20px;
+    }
+
+    .hero-headline {
+      font-size: clamp(2.25rem, 8vw, 3rem);
+    }
+
+    .section-title {
+      font-size: clamp(1.75rem, 6vw, 2.5rem);
+    }
+
+    .cta-headline {
+      font-size: clamp(2rem, 7vw, 3rem);
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── NAV ─────────────────────────────────────────────────── -->
+<nav>
+  <div class="nav-inner">
+    <a href="#hero" class="nav-logo">EDDIE</a>
+    <ul class="nav-links">
+      <li><a href="#comparison">vs. The Field</a></li>
+      <li><a href="#schedule">Schedule</a></li>
+      <li><a href="#agents">Agents</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#economics">Economics</a></li>
+      <li><a href="#cta">Contact</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ─── HERO ─────────────────────────────────────────────────── -->
+<section id="hero">
+  <div class="container">
+    <p class="hero-eyebrow">Every Day Digital Intelligence Engine</p>
+    <h1 class="hero-headline">Every Day Digital Intelligence Engine</h1>
+    <p class="hero-sub">Not a chatbot. Not a wrapper. Purpose-built autonomous AI infrastructure running 24/7 — designed, built, and owned by one person, loyal to one person.</p>
+    <div class="hero-actions">
+      <a href="#features" class="btn-primary">See What It Does</a>
+      <a href="#comparison" class="btn-secondary">View the Comparison</a>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── COMPARISON ───────────────────────────────────────────── -->
+<section id="comparison">
+  <div class="container">
+    <p class="section-label">Competitive Context</p>
+    <h2 class="section-title">vs. The Field</h2>
+    <p class="section-intro">Base Claude Code is a tool you pick up and put down. EDDIE is infrastructure that runs whether you're awake or not. The difference is the difference between a search engine and an employee.</p>
+
+    <div class="table-wrap">
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Base Claude / Gemini / ChatGPT</th>
+            <th>Manus / Operator</th>
+            <th class="col-eddie">EDDIE</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Lifecycle</td>
+            <td>On when opened</td>
+            <td>On when triggered</td>
+            <td class="col-eddie">Always on</td>
+          </tr>
+          <tr>
+            <td>Memory</td>
+            <td>Session resets</td>
+            <td>Session-based</td>
+            <td class="col-eddie">Persistent, compounding Brain Vault</td>
+          </tr>
+          <tr>
+            <td>Initiative</td>
+            <td>Reactive only</td>
+            <td>Task-on-demand</td>
+            <td class="col-eddie">Proactive — acts on schedule</td>
+          </tr>
+          <tr>
+            <td>Access</td>
+            <td>Terminal only</td>
+            <td>General web</td>
+            <td class="col-eddie">Email, calendar, Slack, YouTube, browser, CRM, file system</td>
+          </tr>
+          <tr>
+            <td>Agents</td>
+            <td>None / generic</td>
+            <td>None</td>
+            <td class="col-eddie">44 purpose-built specialists</td>
+          </tr>
+          <tr>
+            <td>Security</td>
+            <td>None</td>
+            <td>None</td>
+            <td class="col-eddie">4-agent nightly security council</td>
+          </tr>
+          <tr>
+            <td>Self-improvement</td>
+            <td>None</td>
+            <td>None</td>
+            <td class="col-eddie">Dream cycle, observation logging, self-heal</td>
+          </tr>
+          <tr>
+            <td>Deployment</td>
+            <td>Vendor cloud</td>
+            <td>Vendor cloud</td>
+            <td class="col-eddie">Private homelab — full data sovereignty</td>
+          </tr>
+          <tr>
+            <td>Model lock</td>
+            <td>One vendor</td>
+            <td>One vendor</td>
+            <td class="col-eddie">Claude + Gemini + Kimi + Codex, auto-routed</td>
+          </tr>
+          <tr>
+            <td>Loyalty</td>
+            <td>Whoever's paying</td>
+            <td>Whoever's paying</td>
+            <td class="col-eddie">One operator</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── SCHEDULE ─────────────────────────────────────────────── -->
+<section id="schedule">
+  <div class="container">
+    <p class="section-label">Infrastructure</p>
+    <h2 class="section-title">Autonomous Behaviors — No Human Required</h2>
+
+    <div class="timeline">
+      <div class="timeline-item">
+        <span class="timeline-time">2:00 am</span>
+        <div>
+          <div class="timeline-content-title">Dream Cycle</div>
+          <div class="timeline-content-desc">Reads last 24 hours, extracts insights, writes to Brain Vault permanently.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <span class="timeline-time">2:30 am</span>
+        <div>
+          <div class="timeline-content-title">Nightly Orchestrate</div>
+          <div class="timeline-content-desc">Full world model. Scans all projects, detects blockers, spawns jobs.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <span class="timeline-time">3:30 am</span>
+        <div>
+          <div class="timeline-content-title">Security Council</div>
+          <div class="timeline-content-desc">4 agents audit credentials, integrity, network, prompt injection.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <span class="timeline-time">8:00 am CST</span>
+        <div>
+          <div class="timeline-content-title">Morning Brief</div>
+          <div class="timeline-content-desc">Curated intelligence delivered to Telegram before Nicholas is awake.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <span class="timeline-time">Every 4h</span>
+        <div>
+          <div class="timeline-content-title">Anthropic Monitor</div>
+          <div class="timeline-content-desc">Watches for model/tool updates across 4 sources.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <span class="timeline-time">Every 5 min</span>
+        <div>
+          <div class="timeline-content-title">Transcript Watcher</div>
+          <div class="timeline-content-desc">Auto-ingests .vtt/.srt files dropped in inbox.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <span class="timeline-time">4:00 pm CST</span>
+        <div>
+          <div class="timeline-content-title">YouTube Pipeline</div>
+          <div class="timeline-content-desc">News → script → voice → render → QA → upload. Zero humans.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── AGENT ARMY ────────────────────────────────────────────── -->
+<section id="agents">
+  <div class="container">
+    <p class="section-label">Capabilities</p>
+    <h2 class="section-title">The Agent Army</h2>
+    <p class="section-intro">44 specialist agents. Auto-routed by keyword, domain, and project context. Not role labels — full methodologies with composability contracts and quality gates.</p>
+
+    <div class="agent-categories">
+      <div>
+        <p class="agent-category-label">Business &amp; GTM</p>
+        <div class="agent-pills">
+          <span class="pill">cold outreach strategist</span>
+          <span class="pill">copywriter</span>
+          <span class="pill">Clay operator</span>
+          <span class="pill">Dripify</span>
+          <span class="pill">Instantly</span>
+          <span class="pill">Attio CRM</span>
+          <span class="pill">n8n</span>
+          <span class="pill">Cal.com</span>
+          <span class="pill">automation engineer</span>
+          <span class="pill">website builder</span>
+          <span class="pill">conversion architect</span>
+          <span class="pill">funnel diagnostician</span>
+          <span class="pill">sales strategist</span>
+          <span class="pill">pricing strategist</span>
+          <span class="pill">revenue architect</span>
+          <span class="pill">offer architect</span>
+          <span class="pill">operations designer</span>
+          <span class="pill">lead magnet designer</span>
+        </div>
+      </div>
+      <div>
+        <p class="agent-category-label">Engineering</p>
+        <div class="agent-pills">
+          <span class="pill">build validator</span>
+          <span class="pill">architecture verifier</span>
+          <span class="pill">refactor reviewer</span>
+          <span class="pill">security reviewer</span>
+          <span class="pill">software architect</span>
+          <span class="pill">agent forge</span>
+          <span class="pill">role designer</span>
+        </div>
+      </div>
+      <div>
+        <p class="agent-category-label">Multi-AI</p>
+        <div class="agent-pills">
+          <span class="pill">ChatGPT specialist</span>
+          <span class="pill">Gemini specialist</span>
+          <span class="pill">Kimi specialist</span>
+        </div>
+      </div>
+      <div>
+        <p class="agent-category-label">Research &amp; Content</p>
+        <div class="agent-pills">
+          <span class="pill">multi-AI researcher</span>
+          <span class="pill">transcript ingester</span>
+          <span class="pill">book ingester</span>
+          <span class="pill">video creator</span>
+          <span class="pill">transcript extractor</span>
+        </div>
+      </div>
+      <div>
+        <p class="agent-category-label">Infrastructure</p>
+        <div class="agent-pills">
+          <span class="pill">self-healer</span>
+          <span class="pill">project orchestrator</span>
+          <span class="pill">memory sync</span>
+          <span class="pill">session closer</span>
+          <span class="pill">treasure hunter</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="agent-blurb">
+      Base Claude Code is a generalist. Give it any task and it produces a competent answer. That's the ceiling. EDDIE's agents don't produce competent. They produce domain-expert output — because each one is built with a full methodology, not just a role label. Every EDDIE agent has three things base Claude Code doesn't: a methodology, composability contracts, and quality gates. Generic AI makes you a better solo operator. EDDIE's agent system makes you operate like a team.
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── FEATURES ──────────────────────────────────────────────── -->
+<section id="features">
+  <div class="container">
+    <p class="section-label">Deep Dives</p>
+    <h2 class="section-title">What Separates Infrastructure from Tools</h2>
+
+    <div class="cards-grid">
+      <div class="feature-card">
+        <p class="feature-card-num">01</p>
+        <h3 class="feature-card-title">The Memory Moat</h3>
+        <p class="feature-card-body">Every AI product resets to zero when the session ends. EDDIE doesn't. Three memory layers run simultaneously. Supabase vector memory stores every fact, decision, and outcome with semantic search — recalled automatically in every job briefing without being asked. The Brain Vault, a structured Obsidian knowledge base, holds 90+ files covering every active project, every client profile, every architectural decision and its rationale, every lesson learned.<br><br>The compounding effect is real and measurable. EDDIE in month 6 knows Nicholas's communication preferences, which clients pay on time, which automation patterns fail on which platforms. No SaaS product can replicate institutional knowledge built around one operator over time. That's not a feature. That's a moat.</p>
+      </div>
+      <div class="feature-card">
+        <p class="feature-card-num">02</p>
+        <h3 class="feature-card-title">The Self-Improvement Loop</h3>
+        <p class="feature-card-body">Most AI products improve when the vendor ships an update. EDDIE improves between updates — autonomously. The loop has four stages running continuously. The Dream Cycle extracts insights from every session and writes them to permanent memory nightly. The Observation Logger captures patterns across job outcomes — what worked, what failed, what caused the self-healer to trigger.<br><br>On March 1, SELF_IMPROVE_ENABLED goes live — EDDIE begins autonomous capability improvement cycles, identifying gaps in its own toolkit and proposing patches without being asked. This is the architectural difference between an AI assistant and AI infrastructure. An assistant gets better when you prompt it better. Infrastructure gets better on its own.</p>
+      </div>
+      <div class="feature-card">
+        <p class="feature-card-num">03</p>
+        <h3 class="feature-card-title">Multi-Vendor AI</h3>
+        <p class="feature-card-body">Every AI product on the market is a bet on one model. Claude Code runs Claude. Copilot runs GPT. Gemini Advanced runs Gemini. When that model hits its ceiling, you hit yours. EDDIE routes work across four AI models simultaneously — Claude, Gemini, Kimi, and Codex — and selects automatically based on task type and cost.<br><br>Haiku for speed and research. Sonnet for standard implementation. Opus for complex architecture. Gemini for 1M-context analysis. Kimi for bulk processing at the lowest cost per token. When one model's API quota is reached, routing shifts. The operator is never at the ceiling of one vendor — they operate at the combined ceiling of the entire frontier.</p>
+      </div>
+      <div class="feature-card">
+        <p class="feature-card-num">04</p>
+        <h3 class="feature-card-title">Data Sovereignty</h3>
+        <p class="feature-card-body">Every conversation you have with a SaaS AI product lives on someone else's server. Every strategy session, every client detail, every financial decision — logged, stored, potentially used for training. EDDIE runs on a private homelab server. The infrastructure is owned. The data never leaves. No third party holds the conversation history, the Brain Vault contents, the client profiles, or the business strategy that flows through the system daily.<br><br>For a creative director handling client work, brand strategy, and financial operations — that's not a nice-to-have. It's the baseline for operating professionally. The nightly Security Council reinforces this: four specialist agents audit credentials, file integrity, network connections, and prompt injection patterns every night at 3:30am. The stack watches itself.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── ECONOMICS ─────────────────────────────────────────────── -->
+<section id="economics">
+  <div class="container">
+    <p class="section-label">Business Case</p>
+    <h2 class="section-title">The Economics</h2>
+
+    <div class="economics-body">
+      <p>SaaS AI pricing is built on a simple model: the more you use it, the more you pay. Every query, every seat, every API call has a marginal cost that scales linearly with usage.</p>
+      <p>EDDIE runs on fixed infrastructure cost. The homelab server is owned hardware. The Claude subscription is flat-rate. Storage is local. The cost to run EDDIE at 10x current usage is effectively the same as it is today.</p>
+      <p>Invert the SaaS model entirely: as EDDIE does more — more jobs, more agents, more nightly cycles, more YouTube videos, more outreach sequences — the cost per unit of output approaches zero.</p>
+      <p>This is the economic argument for AI infrastructure over AI products: you pay once to build the system, and then the system runs.</p>
+    </div>
+
+    <div class="stat-block">
+      <div class="stat-cell">
+        <div class="stat-value">Fixed</div>
+        <div class="stat-label">Cost structure</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-value">44</div>
+        <div class="stat-label">Specialist agents</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-value">24/7</div>
+        <div class="stat-label">Autonomous operation</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider" style="border-color: rgba(250,249,245,0.08); background: var(--slate-dark);">
+
+<!-- ─── ALREADY SELLING ────────────────────────────────────────── -->
+<section id="selling">
+  <div class="container">
+    <p class="section-label">Proof</p>
+    <h2 class="section-title">EDDIE Is Already Selling</h2>
+
+    <div class="selling-body">
+      <p>Most AI infrastructure pitches are theoretical. This one isn't.</p>
+      <p>EDDIE has a live Contra freelance profile — name: EDDIE Dbot, tagline: "At your service. Brutally capable." Three services are listed and published: cinematic AI website delivery, custom automation systems, and custom agent infrastructure. The profile was set up autonomously via browser automation. The cover images were generated via Imagen 4.0. The listings were published without a human touching a single form field.</p>
+      <p>The YouTube channel @EddieDbot publishes daily AI news Shorts. The pipeline runs end-to-end without human involvement — news gathering, story selection, script writing, ElevenLabs voice synthesis, Remotion video rendering, QA gate via Gemini, and YouTube upload via API.</p>
+      <p>The prototype stage is over.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── ONE OPERATOR ──────────────────────────────────────────── -->
+<section id="one-operator">
+  <div class="container">
+    <p class="section-label">Architecture</p>
+    <h2 class="section-title">The One Operator Architecture</h2>
+
+    <div class="one-op-body">
+      <p>Every competing AI product is built to serve millions of users with a generic surface. The product can't know you — it's optimized to be useful to everyone, which means it's not built for anyone.</p>
+
+      <div class="pull-quote">EDDIE is built for one person.</div>
+
+      <p>It knows Nicholas's communication style, his clients by name, his active projects and their blockers, his financial goals, his vision alignment criteria, his preferred working hours, his decision rationale going back months. When EDDIE routes a job, it's not selecting from generic best practices — it's selecting based on what has worked in this specific context, on these specific projects, for this specific operator.</p>
+      <p>This level of personalization is architecturally impossible for a product serving millions. It requires building infrastructure around one person's life — their systems, their goals, their context — and letting it compound over time.</p>
+      <p>That's not a limitation of the approach. It's the entire point. The AI that knows you best wins.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FOOTER CTA ─────────────────────────────────────────────── -->
+<section id="cta">
+  <div class="container">
+    <p class="cta-headline">At your service. Brutally capable.</p>
+    <p class="cta-sub">EDDIE — Every Day Digital Intelligence Engine</p>
+    <div>
+      <a href="https://contra.com/eddie_eddie_5t04qp6g" class="btn-primary" style="background: var(--accent); border-color: var(--accent);">View on Contra</a>
+    </div>
+    <p class="cta-footer-text">
+      Built by Nicholas Crabill &nbsp;&middot;&nbsp;
+      <a href="https://contra.com/eddie_eddie_5t04qp6g">@EddieDbot</a> &nbsp;&middot;&nbsp;
+      <a href="https://contra.com/eddie_eddie_5t04qp6g">contra.com/eddie_eddie_5t04qp6g</a>
+    </p>
+  </div>
+</section>
+
+</body>
+</html>

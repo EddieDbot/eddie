@@ -555,6 +555,29 @@ export const CAPABILITIES: Capability[] = [
     ],
     priority: 9,
   },
+  {
+    id: "agent:efficiency-auditor",
+    type: "agent",
+    name: "Efficiency Auditor",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "efficiency audit",
+          "cost waste",
+          "model routing",
+          "context waste",
+          "zombie sessions",
+          "disk bloat",
+          "job briefing",
+          "system audit",
+          "eddie audit",
+        ],
+        weight: 0.9,
+      },
+    ],
+    priority: 6,
+  },
   // ── Multi-AI Specialists ──
   {
     id: "agent:chatgpt-specialist",
