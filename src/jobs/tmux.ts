@@ -407,6 +407,31 @@ async function ensurePersistentSession(): Promise<void> {
 
 export async function spawnJob(job: Job): Promise<void> {
   await mkdir(JOBS_DIR, { recursive: true }).catch(() => {});
+  // Validate model binary exists before spawning
+  const effectiveModel = detectOptimalModel(job.prompt, job.model);
+  const modelPath =
+    effectiveModel === "kimi"
+      ? config.KIMI_PATH
+      : effectiveModel === "gemini"
+        ? config.GEMINI_PATH
+        : effectiveModel === "codex"
+          ? config.CODEX_PATH
+          : config.CLAUDE_PATH;
+
+  const checkProc = Bun.spawnSync(["which", modelPath]);
+  if (checkProc.exitCode !== 0) {
+    const errMsg = `Model binary not found: ${modelPath} (model=${effectiveModel})`;
+    logger.error("jobs:model-not-found", { id: job.id, modelPath, effectiveModel });
+    const { updateJob: updateJobFn } = await import("./manager.ts");
+    await updateJobFn(job.id, {
+      status: "failed",
+      completedAt: new Date().toISOString(),
+      error: errMsg,
+      outcome: "failed",
+      outcomeSummary: errMsg,
+    }).catch(() => {});
+    return;
+  }
 
   // Optionally create an isolated worktree for code-modification jobs
   let worktreeResult: { path: string; branch: string } | undefined;
