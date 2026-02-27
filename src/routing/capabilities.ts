@@ -859,6 +859,27 @@ export const CAPABILITIES: Capability[] = [
   },
   // ── Content ──
   {
+    id: "script:fetch-yt-transcript",
+    type: "script",
+    name: "YouTube Transcript Fetcher",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "fetch transcript",
+          "youtube transcript",
+          "download transcript",
+          "get video transcript",
+        ],
+        weight: 0.8,
+      },
+      { type: "entity", patterns: ["youtube.com", "youtu.be"], weight: 0.6 },
+    ],
+    invoke:
+      "bun run ~/eddie/src/scripts/fetch-yt-transcript.ts <videoId> <outputPath>",
+    priority: 6,
+  },
+  {
     id: "agent:transcript-ingester",
     type: "agent",
     name: "Transcript Ingester",

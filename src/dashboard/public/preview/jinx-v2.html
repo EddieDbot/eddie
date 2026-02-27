@@ -290,20 +290,6 @@
       pointer-events: none;
     }
 
-    /* scratched metal lines */
-    #hero > .hero-scratch {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background:
-        repeating-linear-gradient(
-          0deg,
-          transparent 0px, transparent 3px,
-          rgba(255,255,255,0.008) 3px, rgba(255,255,255,0.008) 4px
-        );
-      pointer-events: none;
-    }
-
     .hero-system-label {
       font-family: 'Permanent Marker', cursive;
       font-size: 0.9rem;
@@ -311,19 +297,20 @@
       letter-spacing: 0.3em;
       text-transform: uppercase;
       margin-bottom: 16px;
-      text-shadow: 0 0 8px var(--magenta);
+      text-shadow: 0 0 6px rgba(197,38,168,0.5);
       animation: flicker-erratic 4s infinite;
     }
 
+    /* v2: Art Deco/Iron & Glass title using Cinzel Decorative */
     .hero-title {
-      font-family: 'Bangers', cursive;
-      font-size: clamp(7rem, 22vw, 18rem);
-      line-height: 0.85;
-      letter-spacing: -0.01em;
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: clamp(5.5rem, 17vw, 14rem);
+      line-height: 0.88;
+      letter-spacing: 0.08em;
       position: relative;
       z-index: 2;
       animation: flicker-cyan 6s 0.5s infinite;
-      transform: rotate(-1deg);
+      transform: rotate(-0.5deg);
       display: inline-block;
     }
 
@@ -332,7 +319,7 @@
       font-size: clamp(1.4rem, 4vw, 2.8rem);
       color: var(--yellow);
       letter-spacing: 0.08em;
-      text-shadow: 0 0 10px var(--yellow), 0 0 30px rgba(255,214,0,0.3);
+      text-shadow: 0 0 6px rgba(255,198,87,0.4);
       margin-top: 6px;
       transform: rotate(0.5deg);
       display: inline-block;
@@ -342,7 +329,7 @@
       font-family: 'Permanent Marker', cursive;
       font-size: clamp(0.9rem, 2vw, 1.2rem);
       color: var(--magenta);
-      text-shadow: 0 0 8px var(--magenta);
+      text-shadow: 0 0 6px rgba(197,38,168,0.4);
       margin-top: 6px;
     }
 
@@ -404,6 +391,7 @@
     }
 
     /* === EXPLOSION BADGE === */
+    /* v2: gold burst instead of toxic green — more Jinx, less generic cyberpunk */
     .explosion-badge {
       display: inline-flex;
       align-items: center;
@@ -412,7 +400,7 @@
       min-width: 130px;
       min-height: 130px;
       padding: 28px;
-      background: var(--green);
+      background: var(--yellow);
       color: #0a0a0a;
       font-family: 'Bangers', cursive;
       font-size: 1.3rem;
@@ -432,9 +420,9 @@
     #what-eddie {
       position: relative;
       background:
-        repeating-linear-gradient(0deg,   transparent 0px, transparent 29px, rgba(0,212,255,0.025) 29px, rgba(0,212,255,0.025) 30px),
-        repeating-linear-gradient(90deg,  transparent 0px, transparent 29px, rgba(0,212,255,0.025) 29px, rgba(0,212,255,0.025) 30px),
-        linear-gradient(180deg, #0d0d1a 0%, #0e0d1c 100%);
+        repeating-linear-gradient(0deg,   transparent 0px, transparent 29px, rgba(41,171,226,0.018) 29px, rgba(41,171,226,0.018) 30px),
+        repeating-linear-gradient(90deg,  transparent 0px, transparent 29px, rgba(41,171,226,0.018) 29px, rgba(41,171,226,0.018) 30px),
+        linear-gradient(180deg, #09090f 0%, #0b0a1a 100%);
     }
 
     .big-statement {
@@ -442,8 +430,8 @@
       font-size: clamp(2rem, 5vw, 4rem);
       line-height: 1.1;
       color: var(--cyan);
-      text-shadow: 0 0 4px var(--cyan), 0 0 20px rgba(0,212,255,0.4);
-      border-left: 8px solid var(--magenta);
+      text-shadow: 0 0 4px var(--cyan), 0 0 12px rgba(41,171,226,0.3);
+      border-left: 6px solid var(--magenta);
       padding-left: 24px;
       margin: 28px 0;
       letter-spacing: 0.03em;
@@ -466,8 +454,8 @@
     /* === SECTION 2 — FIELD REPORT === */
     #field-report {
       background:
-        radial-gradient(circle, rgba(0,212,255,0.1) 1px, transparent 1px) center / 24px 24px,
-        #080812;
+        radial-gradient(circle, rgba(41,171,226,0.07) 1px, transparent 1px) center / 24px 24px,
+        #080810;
       position: relative;
     }
 
@@ -543,7 +531,7 @@
     .ctable th:nth-child(3) { color: #888; }
     .ctable th:nth-child(4) {
       color: var(--cyan);
-      text-shadow: 0 0 8px var(--cyan);
+      text-shadow: 0 0 5px rgba(41,171,226,0.5);
     }
     .ctable td {
       padding: 10px 16px;
@@ -629,7 +617,7 @@
       font-family: 'Bangers', cursive;
       font-size: 1.25rem;
       color: var(--yellow);
-      text-shadow: 0 0 8px rgba(255,214,0,0.5);
+      text-shadow: 0 0 5px rgba(255,198,87,0.35);
       letter-spacing: 0.05em;
       min-width: 130px;
       flex-shrink: 0;
@@ -642,11 +630,11 @@
       font-weight: 500;
     }
     .m-desc strong { color: var(--magenta); }
-    .m-highlight { color: var(--green); font-weight: 700; }
+    .m-highlight { color: var(--green); font-weight: 700; text-shadow: 0 0 5px rgba(27,168,160,0.3); }
 
     /* === SECTION 4 — MEMORY MOAT === */
     #memory-moat {
-      background: linear-gradient(180deg, #0d0d1a 0%, #0e0b1c 100%);
+      background: linear-gradient(180deg, #09090f 0%, #0b091c 100%);
       position: relative;
     }
 
@@ -658,9 +646,9 @@
     }
 
     .mem-card {
-      border: 1px solid rgba(224,64,251,0.3);
-      border-left: 5px solid var(--magenta);
-      background: rgba(224,64,251,0.04);
+      border: 1px solid rgba(197,38,168,0.25);
+      border-left: 4px solid var(--magenta);
+      background: rgba(197,38,168,0.035);
       padding: 26px;
       position: relative;
     }
@@ -671,7 +659,7 @@
       width: 0; height: 0;
       border-style: solid;
       border-width: 0 20px 20px 0;
-      border-color: transparent rgba(224,64,251,0.3) transparent transparent;
+      border-color: transparent rgba(197,38,168,0.25) transparent transparent;
     }
     .mem-card h3 {
       font-family: 'Bangers', cursive;
@@ -686,16 +674,17 @@
       line-height: 1.55;
     }
 
+    /* v2: teal callout instead of toxic green — Zaun's organic beauty */
     .moat-callout {
       margin-top: 44px;
       font-family: 'Permanent Marker', cursive;
       font-size: clamp(1.2rem, 3vw, 1.9rem);
       color: var(--green);
-      text-shadow: 0 0 8px var(--green), 0 0 20px rgba(57,255,20,0.3);
+      text-shadow: 0 0 6px rgba(27,168,160,0.4);
       text-align: center;
       padding: 22px 32px;
-      border: 2px dashed rgba(57,255,20,0.35);
-      background: rgba(57,255,20,0.03);
+      border: 1px dashed rgba(27,168,160,0.3);
+      background: rgba(27,168,160,0.03);
       position: relative;
     }
     .moat-callout::before {
@@ -705,14 +694,14 @@
       transform: translateX(-50%);
       font-size: 1.5rem;
       color: var(--green);
-      background: #0e0b1c;
+      background: #0b091c;
       padding: 0 8px;
-      text-shadow: 0 0 8px var(--green);
+      text-shadow: 0 0 6px rgba(27,168,160,0.4);
     }
 
-    /* === SECTION 5 — SELF-IMPROVEMENT === */
+    /* === SECTION 5 — SELF-IMPROVEMENT — v2: teal palette === */
     #self-improve {
-      background: #080d08;
+      background: #080a0e;
       position: relative;
     }
 
@@ -727,8 +716,8 @@
       flex: 1;
       min-width: 180px;
       padding: 28px 22px;
-      border: 1px solid rgba(57,255,20,0.2);
-      background: rgba(57,255,20,0.03);
+      border: 1px solid rgba(27,168,160,0.2);
+      background: rgba(27,168,160,0.028);
       position: relative;
     }
     .loop-step:not(:last-child)::after {
@@ -740,13 +729,13 @@
       color: var(--green);
       font-size: 1.5rem;
       z-index: 2;
-      text-shadow: 0 0 8px var(--green);
+      text-shadow: 0 0 6px rgba(27,168,160,0.4);
     }
     .ls-num {
       font-family: 'Bangers', cursive;
       font-size: 4rem;
       line-height: 1;
-      color: rgba(57,255,20,0.18);
+      color: rgba(27,168,160,0.15);
       margin-bottom: 6px;
     }
     .ls-title {
@@ -754,7 +743,7 @@
       font-size: 0.92rem;
       color: var(--green);
       margin-bottom: 10px;
-      text-shadow: 0 0 6px rgba(57,255,20,0.5);
+      text-shadow: 0 0 5px rgba(27,168,160,0.35);
     }
     .ls-desc {
       font-size: 0.9rem;
@@ -803,14 +792,14 @@
       margin-bottom: 18px;
     }
     .vs-panel.bad h3  { color: var(--rust); }
-    .vs-panel.good h3 { color: var(--cyan); text-shadow: 0 0 10px rgba(0,212,255,0.4); }
+    .vs-panel.good h3 { color: var(--cyan); text-shadow: 0 0 6px rgba(41,171,226,0.35); }
 
     .vs-mid {
       font-family: 'Bangers', cursive;
       font-size: 3rem;
       color: var(--yellow);
       text-align: center;
-      text-shadow: 0 0 12px var(--yellow);
+      text-shadow: 0 0 6px rgba(255,198,87,0.4);
       padding: 0 8px;
     }
 
@@ -827,7 +816,7 @@
       position: absolute;
       left: 0;
       color: var(--cyan);
-      text-shadow: 0 0 5px var(--cyan);
+      text-shadow: 0 0 4px rgba(41,171,226,0.4);
     }
     .vs-panel.bad .star-list li::before {
       color: var(--rust);
@@ -848,7 +837,7 @@
       color: var(--text);
     }
 
-    /* === SECTION 7 — ALREADY SELLING === */
+    /* === SECTION 7 — ALREADY SELLING — v2: teal proof cards === */
     #already-selling {
       background: #08080f;
       position: relative;
@@ -862,8 +851,8 @@
     }
 
     .proof-card {
-      border: 2px solid rgba(57,255,20,0.3);
-      background: rgba(57,255,20,0.03);
+      border: 1px solid rgba(27,168,160,0.28);
+      background: rgba(27,168,160,0.03);
       padding: 28px;
       position: relative;
       overflow: hidden;
@@ -883,7 +872,7 @@
       font-family: 'Bangers', cursive;
       font-size: 1.5rem;
       color: var(--green);
-      text-shadow: 0 0 8px rgba(57,255,20,0.4);
+      text-shadow: 0 0 5px rgba(27,168,160,0.35);
       margin-bottom: 10px;
       letter-spacing: 0.04em;
     }
@@ -951,7 +940,7 @@
     }
     .wanted-card:hover {
       transform: rotate(0deg) scale(1.07) !important;
-      box-shadow: 0 0 24px var(--cyan), 4px 4px 0 rgba(0,0,0,0.4) !important;
+      box-shadow: 0 0 14px rgba(41,171,226,0.5), 4px 4px 0 rgba(0,0,0,0.4) !important;
       z-index: 10;
     }
     .wanted-card::before {
@@ -981,24 +970,24 @@
       margin-top: 7px;
     }
 
-    /* === FOOTER === */
+    /* === FOOTER — v2: Cinzel Decorative for Art Deco authority === */
     #footer {
       background: #04040a;
-      border-top: 1px solid rgba(0,212,255,0.12);
+      border-top: 1px solid rgba(41,171,226,0.1);
       text-align: center;
       padding: 48px 24px 64px;
     }
     .footer-name {
-      font-family: 'Bangers', cursive;
-      font-size: clamp(3rem, 8vw, 6rem);
-      letter-spacing: 0.1em;
+      font-family: 'Cinzel Decorative', cursive;
+      font-size: clamp(2.5rem, 7vw, 5rem);
+      letter-spacing: 0.14em;
       animation: flicker-cyan 8s 2s infinite;
     }
     .footer-line2 {
       font-family: 'Permanent Marker', cursive;
       font-size: 1rem;
       color: var(--magenta);
-      text-shadow: 0 0 8px var(--magenta);
+      text-shadow: 0 0 6px rgba(197,38,168,0.4);
       margin-top: 6px;
     }
     .footer-line3 {
@@ -1284,7 +1273,7 @@
 
     <p class="body-text" style="margin-top:28px; max-width:780px;">
       EDDIE in month 6 knows your communication preferences, which clients pay on time, which automation patterns fail, and what vision-aligned work looks like. No SaaS product can replicate institutional knowledge built around one operator over time.
-      That's not a feature. <strong style="color:var(--green); font-family:'Bangers',cursive; font-size:1.25em; letter-spacing:0.04em;">That's a moat.</strong>
+      That's not a feature. <strong style="color:var(--yellow); font-family:'Bangers',cursive; font-size:1.25em; letter-spacing:0.04em;">That's a moat.</strong>
     </p>
   </div>
 </div>
@@ -1370,7 +1359,7 @@
     <div class="zero-callout">
       <div class="zc-text">
         As EDDIE does more — cost per unit of output →
-        <span class="neon-green"> ZERO</span>
+        <span class="neon-cyan"> ZERO</span>
       </div>
       <div style="font-family:'Permanent Marker',cursive; font-size:0.9rem; color:var(--text-dim); margin-top:10px;">
         You pay once to build the system. Then the system runs.
@@ -1392,7 +1381,7 @@
 
     <p class="body-text" style="margin-top:18px; max-width:620px;">
       Most AI infrastructure pitches are theoretical.
-      <strong style="color:var(--green);">This one isn't.</strong>
+      <strong style="color:var(--cyan);">This one isn't.</strong>
     </p>
 
     <div class="proof-grid">
@@ -1453,13 +1442,13 @@
   <div class="footer-line2">Every Day Digital Intelligence Engine</div>
   <div class="footer-line3">Always on. Always watching. Never stops.</div>
 
-  <!-- SVG bomb decoration -->
-  <svg width="60" height="60" viewBox="0 0 60 60" style="margin-top:28px; opacity:0.2;" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="28" cy="34" r="18" stroke="#00d4ff" stroke-width="2"/>
-    <path d="M28 16 L28 8" stroke="#00d4ff" stroke-width="2" stroke-linecap="round"/>
-    <path d="M36 10 L42 4" stroke="#ffd600" stroke-width="2" stroke-linecap="round"/>
-    <path d="M42 4 Q46 0 44 6 Q48 4 44 8" stroke="#ffd600" stroke-width="1.5" fill="rgba(255,214,0,0.3)"/>
-    <circle cx="22" cy="30" r="3" fill="rgba(0,212,255,0.4)"/>
+  <!-- SVG bomb decoration — v2 Arcane palette -->
+  <svg width="60" height="60" viewBox="0 0 60 60" style="margin-top:28px; opacity:0.25;" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="28" cy="34" r="18" stroke="#29ABE2" stroke-width="2"/>
+    <path d="M28 16 L28 8" stroke="#29ABE2" stroke-width="2" stroke-linecap="round"/>
+    <path d="M36 10 L42 4" stroke="#FFC657" stroke-width="2" stroke-linecap="round"/>
+    <path d="M42 4 Q46 0 44 6 Q48 4 44 8" stroke="#FFC657" stroke-width="1.5" fill="rgba(255,198,87,0.3)"/>
+    <circle cx="22" cy="30" r="3" fill="rgba(41,171,226,0.4)"/>
   </svg>
 </div>
 
@@ -1477,7 +1466,8 @@
   resize();
   window.addEventListener('resize', resize);
 
-  const COLORS = ['#00d4ff', '#00d4ff', '#00d4ff', '#e040fb', '#39ff14'];
+  // v2: Arcane-accurate particle palette — no toxic green
+  const COLORS = ['#29ABE2', '#29ABE2', '#29ABE2', '#C526A8', '#FFC657', '#1BA8A0'];
   const particles = Array.from({ length: 65 }, createP);
 
   function createP() {
