@@ -4,70 +4,57 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EDDIE — Every Day Digital Intelligence Engine</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Permanent+Marker&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- SVG Noise Filter -->
-  <svg xmlns="http://www.w3.org/2000/svg" style="display:none;position:absolute">
-    <defs>
-      <filter id="concrete-noise" x="0%" y="0%" width="100%" height="100%" color-interpolation-filters="linearRGB">
-        <feTurbulence type="fractalNoise" baseFrequency="0.65 0.75" numOctaves="4" seed="2" stitchTiles="stitch" result="noise"/>
-        <feColorMatrix type="saturate" values="0" in="noise" result="grey"/>
-        <feComponentTransfer in="grey" result="clipped">
-          <feFuncA type="linear" slope="0.06"/>
-        </feComponentTransfer>
-        <feBlend in="SourceGraphic" in2="clipped" mode="multiply"/>
-      </filter>
-      <filter id="glow-noise" x="-5%" y="-5%" width="110%" height="110%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="5" stitchTiles="stitch" result="n"/>
-        <feColorMatrix type="saturate" values="0" in="n" result="g"/>
-        <feComponentTransfer in="g" result="c">
-          <feFuncA type="linear" slope="0.04"/>
-        </feComponentTransfer>
-        <feBlend in="SourceGraphic" in2="c" mode="screen"/>
-      </filter>
-    </defs>
-  </svg>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Permanent+Marker&family=Rajdhani:wght@300;400;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 
   <style>
+    /* ── DESIGN TOKEN SYSTEM ───────────────────────────────────────────── */
     :root {
-      --base: #0d0d1a;
-      --base-2: #0f0f22;
-      --cyan: #00d4ff;
-      --magenta: #e040fb;
-      --green: #39ff14;
-      --yellow: #ffd600;
-      --rust: #8b3a2a;
-      --text: #f0f0f0;
-      --text-dim: #9090a8;
+      /* Verified palette — Zaun night */
+      --base:        #0a0b1a;
+      --teal-mid:    #1b3d50;
+      --teal-hi:     #466876;
+      --teal-shadow: #091d1e;
+      --magenta:     #c826ad;   /* shimmer — primary neon */
+      --cyan:        #29ABE2;   /* electric blue — secondary neon */
+      --green:       #16a085;   /* chemtech — env only */
+      --purple:      #835f86;   /* muted mid-tone */
+      --plum:        #4b4754;   /* card surfaces, dividers */
+      --gold:        #FFC657;   /* warmth accent — sparingly */
+      --text:        #e8e4f0;   /* off-white, purple-tinted */
+      --danger:      #c0392b;   /* error/warning only */
+
+      /* Typography */
+      --font-display: 'Cinzel', serif;
+      --font-marker:  'Permanent Marker', cursive;
+      --font-body:    'Rajdhani', sans-serif;
+      --font-mono:    'Share Tech Mono', monospace;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html { scroll-behavior: auto; }
+    /* ── RESET ─────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
 
     body {
       background: var(--base);
       color: var(--text);
-      font-family: 'Rajdhani', sans-serif;
-      font-size: 16px;
-      line-height: 1.6;
+      font-family: var(--font-body);
+      font-size: 17px;
+      line-height: 1.65;
       overflow-x: hidden;
-      position: relative;
-      cursor: crosshair;
     }
 
-    /* === NOISE OVERLAY === */
+    /* ── NOISE OVERLAY (max 0.06 opacity) ──────────────────────────────── */
     body::after {
       content: '';
       position: fixed;
       inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23f)' opacity='0.055'/%3E%3C/svg%3E");
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23f)' opacity='0.06'/%3E%3C/svg%3E");
       pointer-events: none;
       z-index: 9998;
       mix-blend-mode: overlay;
     }
 
-    /* === PARTICLE CANVAS === */
+    /* ── PARTICLE CANVAS ─────────────────────────────────────────────────*/
     #particles {
       position: fixed;
       top: 0; left: 0;
@@ -76,1064 +63,721 @@
       z-index: 0;
     }
 
-    /* === TYPOGRAPHY === */
-    .font-bangers { font-family: 'Bangers', cursive; }
-    .font-marker { font-family: 'Permanent Marker', cursive; }
-    .font-rajdhani { font-family: 'Rajdhani', sans-serif; }
-
-    /* === NEON EFFECTS === */
-    .neon-cyan {
-      color: var(--cyan);
-      text-shadow:
-        0 0 4px var(--cyan),
-        0 0 11px var(--cyan),
-        0 0 19px var(--cyan),
-        0 0 40px var(--cyan),
-        0 0 80px rgba(0,212,255,0.4);
-    }
-    .neon-magenta {
-      color: var(--magenta);
-      text-shadow:
-        0 0 4px var(--magenta),
-        0 0 11px var(--magenta),
-        0 0 19px var(--magenta),
-        0 0 40px var(--magenta);
-    }
-    .neon-green {
-      color: var(--green);
-      text-shadow:
-        0 0 4px var(--green),
-        0 0 11px var(--green),
-        0 0 20px var(--green);
-    }
-    .neon-yellow {
-      color: var(--yellow);
-      text-shadow:
-        0 0 4px var(--yellow),
-        0 0 14px var(--yellow),
-        0 0 30px rgba(255,214,0,0.4);
-    }
-
-    /* === FLICKER ANIMATIONS === */
-    @keyframes flicker-cyan {
-      0%, 17%, 19%, 22%, 52%, 56%, 100% {
-        color: var(--cyan);
-        text-shadow:
-          0 0 4px var(--cyan), 0 0 11px var(--cyan),
-          0 0 19px var(--cyan), 0 0 40px var(--cyan),
-          0 0 80px rgba(0,212,255,0.5);
-        opacity: 1;
-      }
-      18%, 20% { text-shadow: none; opacity: 0.75; color: #7ff; }
-      21% { text-shadow: 0 0 2px var(--cyan); opacity: 0.9; }
-      53%, 55% { text-shadow: none; opacity: 0.6; }
-      54% { text-shadow: 0 0 4px var(--cyan); opacity: 0.85; }
-    }
-
-    @keyframes flicker-erratic {
-      0% { opacity: 1; }
-      3% { opacity: 0.7; }
-      4% { opacity: 1; }
-      7% { opacity: 0.8; }
-      8% { opacity: 1; }
-      41% { opacity: 1; }
-      42% { opacity: 0.5; }
-      43% { opacity: 1; }
-      71% { opacity: 1; }
-      72% { opacity: 0.6; }
-      73% { opacity: 0.9; }
-      74% { opacity: 1; }
-      100% { opacity: 1; }
-    }
-
-    @keyframes spark-sweep {
-      0%   { left: -80px; opacity: 0; }
-      5%   { opacity: 1; }
-      90%  { opacity: 1; }
-      100% { left: calc(100% + 80px); opacity: 0; }
-    }
-
-    @keyframes page-glitch {
-      0%, 100% { filter: none; transform: none; }
-      20%  { filter: invert(1) hue-rotate(90deg) saturate(3); transform: translateX(2px); }
-      40%  { filter: none; transform: translateX(-1px); }
-      60%  { filter: invert(0.5) saturate(5) hue-rotate(180deg); transform: translateY(1px); }
-      80%  { filter: none; transform: none; }
-    }
-
-    @keyframes pulse-glow {
-      0%, 100% { box-shadow: 0 0 8px var(--cyan), 0 0 20px rgba(0,212,255,0.3); }
-      50%       { box-shadow: 0 0 20px var(--cyan), 0 0 50px rgba(0,212,255,0.6), 0 0 80px rgba(0,212,255,0.2); }
-    }
-
-    @keyframes drift-in {
-      from { opacity: 0; transform: translateX(-6px) rotate(-1deg); }
-      to   { opacity: 1; transform: translateX(0) rotate(0deg); }
-    }
-
-    /* === HAZARD TAPE === */
-    .hazard-tape {
-      width: 100%;
-      height: 28px;
-      background: repeating-linear-gradient(
-        -45deg,
-        var(--yellow)    0px,
-        var(--yellow)    12px,
-        #0d0d1a          12px,
-        #0d0d1a          24px
-      );
+    /* ── CONTENT STACK ───────────────────────────────────────────────────*/
+    .content {
       position: relative;
-      flex-shrink: 0;
-    }
-    .hazard-tape::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: repeating-linear-gradient(
-        90deg,
-        transparent, transparent 60px,
-        rgba(0,0,0,0.25) 60px, rgba(0,0,0,0.25) 62px
-      );
-    }
-
-    /* === SPARK LINE === */
-    .spark-line {
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--cyan) 20%, var(--cyan) 80%, transparent);
-      position: relative;
-      overflow: hidden;
-      flex-shrink: 0;
-    }
-    .spark-line::before {
-      content: '';
-      position: absolute;
-      top: -3px;
-      left: -80px;
-      width: 80px;
-      height: 8px;
-      background: linear-gradient(90deg, transparent, #fff, var(--cyan), transparent);
-      box-shadow: 0 0 10px var(--cyan), 0 0 30px rgba(0,212,255,0.5);
-      animation: spark-sweep 2.8s linear infinite;
-    }
-
-    /* === GRAFFITI TAGS === */
-    .tag {
-      position: absolute;
-      font-family: 'Permanent Marker', cursive;
-      opacity: 0.09;
-      pointer-events: none;
-      line-height: 1;
       z-index: 1;
     }
 
-    /* === SECTION LAYOUT === */
-    .section-inner {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 64px 24px;
-      position: relative;
-    }
+    /* ── GLOW (CALIBRATED — 2 layers, max 16px blur) ────────────────────*/
+    .glow-m { text-shadow: 0 0 4px #c826ad, 0 0 16px rgba(200,38,173,0.3); }
+    .glow-c { text-shadow: 0 0 4px #29ABE2, 0 0 16px rgba(41,171,226,0.3); }
+    .glow-g { text-shadow: 0 0 4px #FFC657, 0 0 16px rgba(255,198,87,0.3); }
 
-    .section-label {
-      font-family: 'Permanent Marker', cursive;
-      font-size: 0.82rem;
-      letter-spacing: 0.22em;
-      color: var(--yellow);
-      text-transform: uppercase;
-      margin-bottom: 10px;
-      display: block;
-    }
-
-    .section-header {
-      font-family: 'Bangers', cursive;
-      font-size: clamp(2.8rem, 6.5vw, 5.5rem);
-      line-height: 0.95;
-      letter-spacing: 0.04em;
-      display: inline-block;
-      position: relative;
-    }
-
-    .section-header::after {
-      content: attr(data-spark);
-      display: none;
-    }
-
-    .section-header:hover {
-      animation: flicker-erratic 0.3s steps(1) forwards;
-    }
-
-    .body-text {
-      font-size: clamp(1rem, 2vw, 1.15rem);
-      color: var(--text-dim);
-      line-height: 1.75;
-      font-weight: 400;
-    }
-
-    /* === HERO === */
+    /* ── HERO ─────────────────────────────────────────────────────────── */
     #hero {
       min-height: 100vh;
-      position: relative;
-      overflow: hidden;
       display: flex;
       flex-direction: column;
       justify-content: center;
-      padding: 80px 40px 60px;
+      align-items: flex-start;
+      padding: 0 8% 0 10%;
+      position: relative;
       background:
-        radial-gradient(ellipse at 70% 50%, rgba(0,212,255,0.04) 0%, transparent 60%),
-        radial-gradient(ellipse at 20% 80%, rgba(224,64,251,0.04) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 50% at 15% 55%, rgba(200,38,173,0.055) 0%, transparent 65%),
+        radial-gradient(ellipse 50% 60% at 75% 30%, rgba(41,171,226,0.045) 0%, transparent 65%),
         var(--base);
     }
 
-    /* scratched metal lines */
-    #hero::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background:
-        repeating-linear-gradient(
-          0deg,
-          transparent 0px, transparent 3px,
-          rgba(255,255,255,0.01) 3px, rgba(255,255,255,0.01) 4px
-        );
-      pointer-events: none;
-    }
-
-    .hero-system-label {
-      font-family: 'Permanent Marker', cursive;
-      font-size: 0.9rem;
-      color: var(--magenta);
-      letter-spacing: 0.3em;
+    .hero-stamp {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: rgba(41,171,226,0.65);
+      letter-spacing: 0.32em;
       text-transform: uppercase;
-      margin-bottom: 16px;
-      text-shadow: 0 0 8px var(--magenta);
-      animation: flicker-erratic 4s infinite;
+      margin-bottom: 1.4rem;
     }
 
-    .hero-title {
-      font-family: 'Bangers', cursive;
-      font-size: clamp(7rem, 22vw, 18rem);
-      line-height: 0.85;
-      letter-spacing: -0.01em;
-      position: relative;
-      z-index: 2;
-      animation: flicker-cyan 6s 0.5s infinite;
-      transform: rotate(-1deg);
-      display: inline-block;
+    .hero-name {
+      font-family: var(--font-display);
+      font-size: clamp(4.8rem, 13vw, 11rem);
+      font-weight: 900;
+      line-height: 0.92;
+      color: var(--text);
+      /* calibrated glow — 2 layers, 16px total */
+      text-shadow: 0 0 4px #c826ad, 0 0 16px rgba(200,38,173,0.3);
+      letter-spacing: -0.02em;
     }
 
-    .hero-tagline {
-      font-family: 'Bangers', cursive;
-      font-size: clamp(1.4rem, 4vw, 2.8rem);
-      color: var(--yellow);
-      letter-spacing: 0.08em;
-      text-shadow: 0 0 10px var(--yellow), 0 0 30px rgba(255,214,0,0.3);
-      margin-top: 6px;
-      transform: rotate(0.5deg);
-      display: inline-block;
+    /* Erratic flicker — irregular keyframe timing, NOT sine wave */
+    @keyframes flickerOnce {
+      0%   { opacity: 1; }
+      6%   { opacity: 0.35; }
+      9%   { opacity: 1; }
+      14%  { opacity: 0.7; }
+      17%  { opacity: 1; }
+      31%  { opacity: 0.85; }
+      34%  { opacity: 0.4; }
+      37%  { opacity: 1; }
+      54%  { opacity: 0.9; }
+      57%  { opacity: 0.5; }
+      60%  { opacity: 1; }
+      80%  { opacity: 0.85; }
+      83%  { opacity: 1; }
+      100% { opacity: 1; }
+    }
+
+    .hero-name.flicker {
+      animation: flickerOnce 380ms linear forwards;
+    }
+
+    .hero-fullname {
+      font-family: var(--font-mono);
+      font-size: clamp(0.7rem, 1.4vw, 0.85rem);
+      color: rgba(232,228,240,0.45);
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      margin-top: 0.9rem;
     }
 
     .hero-sub {
-      font-family: 'Permanent Marker', cursive;
-      font-size: clamp(0.9rem, 2vw, 1.2rem);
-      color: var(--magenta);
-      text-shadow: 0 0 8px var(--magenta);
-      margin-top: 6px;
+      font-family: var(--font-marker);
+      font-size: clamp(1.05rem, 2.3vw, 1.5rem);
+      color: var(--gold);
+      margin-top: 1.1rem;
+      transform: rotate(-1.2deg);
+      display: inline-block;
+      text-shadow: 0 0 4px #FFC657, 0 0 16px rgba(255,198,87,0.28);
     }
 
     .hero-oneliner {
-      font-size: clamp(1rem, 2.2vw, 1.3rem);
+      font-family: var(--font-body);
+      font-size: clamp(0.88rem, 1.7vw, 1.05rem);
+      font-weight: 300;
+      color: rgba(232,228,240,0.65);
+      max-width: 500px;
+      margin-top: 2rem;
+      line-height: 1.75;
+    }
+
+    .hero-scroll {
+      position: absolute;
+      bottom: 2.5rem;
+      left: 10%;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: rgba(41,171,226,0.42);
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+    }
+
+    /* ── SECTION BASE ────────────────────────────────────────────────── */
+    section {
+      position: relative;
+      padding: 5.5rem 10% 4rem;
+    }
+
+    /* Subtle alternating radial brushwork — Art Nouveau oil-painting feel */
+    section.alt {
+      background:
+        radial-gradient(ellipse 70% 55% at 85% 45%, rgba(131,95,134,0.05) 0%, transparent 65%),
+        radial-gradient(ellipse 50% 40% at 15% 60%, rgba(27,61,80,0.06) 0%, transparent 70%);
+    }
+
+    /* ── SECTION HEADERS ─────────────────────────────────────────────── */
+    .section-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: rgba(200,38,173,0.72);
+      letter-spacing: 0.38em;
+      text-transform: uppercase;
+      margin-bottom: 0.55rem;
+    }
+
+    .section-header {
+      font-family: var(--font-marker);
+      font-size: clamp(1.7rem, 3.8vw, 2.7rem);
       color: var(--text);
+      transform: rotate(-1deg);
+      display: inline-block;
+      margin-bottom: 2rem;
+    }
+
+    .section-header.cyan    { color: var(--cyan); }
+    .section-header.magenta { color: var(--magenta); }
+    .section-header.gold    { color: var(--gold); }
+
+    /* ── BODY TEXT ───────────────────────────────────────────────────── */
+    .body-text {
+      font-family: var(--font-body);
+      font-size: clamp(0.98rem, 1.75vw, 1.12rem);
+      font-weight: 400;
+      color: rgba(232,228,240,0.78);
       max-width: 680px;
-      margin-top: 28px;
-      line-height: 1.5;
-      border-left: 5px solid var(--cyan);
-      padding-left: 20px;
-      font-weight: 500;
-      position: relative;
-      z-index: 2;
+      line-height: 1.8;
     }
 
-    /* === STICKY STAT NOTES === */
-    .hero-stats {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 18px;
-      margin-top: 44px;
-      position: relative;
-      z-index: 2;
+    .body-text strong {
+      color: var(--text);
+      font-weight: 600;
     }
 
-    .sticky-note {
-      background: var(--yellow);
-      color: #0d0d1a;
-      padding: 14px 22px;
-      font-family: 'Permanent Marker', cursive;
-      font-size: 0.9rem;
-      transform: rotate(-2.5deg);
-      box-shadow: 5px 5px 0 rgba(0,0,0,0.55);
-      position: relative;
-      min-width: 110px;
-      text-align: center;
-    }
-    .sticky-note:nth-child(2) { transform: rotate(1.5deg); background: #fff0fa; color: #0d0d1a; }
-    .sticky-note:nth-child(3) { transform: rotate(-0.8deg); background: #d4ffe0; color: #0d0d1a; }
-    .sticky-note::before {
-      content: '';
-      position: absolute;
-      top: -6px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 14px;
-      height: 6px;
-      background: rgba(0,0,0,0.3);
-      border-radius: 2px;
-    }
-
-    .sticky-note .sn-number {
+    /* ── SVG DIVIDERS ─────────────────────────────────────────────────── */
+    .divider {
       display: block;
-      font-family: 'Bangers', cursive;
-      font-size: 2.8rem;
-      line-height: 1;
-      color: #0d0d1a;
+      width: 100%;
+      overflow: hidden;
+      line-height: 0;
+      margin: 0;
+    }
+    .divider svg { display: block; width: 100%; }
+
+    /* ── SCROLL REVEAL ────────────────────────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 400ms ease-out, transform 400ms ease-out;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
     }
 
-    /* === EXPLOSION BADGE === */
-    .explosion-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      min-width: 130px;
-      min-height: 130px;
-      padding: 28px;
-      background: var(--green);
-      color: #0a0a0a;
-      font-family: 'Bangers', cursive;
-      font-size: 1.3rem;
-      line-height: 1.1;
-      clip-path: polygon(
-        50%  0%,  57% 30%,  76%  8%,  66% 35%,  96% 25%,
-        74% 47%, 100% 50%,  74% 53%,  96% 75%,  66% 65%,
-        76% 92%,  57% 70%,  50% 100%, 43% 70%,  24% 92%,
-        34% 65%,   4% 75%,  26% 53%,   0% 50%,  26% 47%,
-         4% 25%,  34% 35%,  24%  8%,  43% 30%
-      );
-      animation: pulse-glow 2s ease-in-out infinite;
-      letter-spacing: 0.03em;
-    }
-
-    /* === SECTION 1 — WHAT EDDIE IS === */
-    #what-eddie {
-      position: relative;
-      background:
-        repeating-linear-gradient(0deg,   transparent 0px, transparent 29px, rgba(0,212,255,0.025) 29px, rgba(0,212,255,0.025) 30px),
-        repeating-linear-gradient(90deg,  transparent 0px, transparent 29px, rgba(0,212,255,0.025) 29px, rgba(0,212,255,0.025) 30px),
-        linear-gradient(180deg, #0d0d1a 0%, #0e0d1c 100%);
-    }
-
-    .big-statement {
-      font-family: 'Bangers', cursive;
-      font-size: clamp(2rem, 5vw, 4rem);
-      line-height: 1.1;
-      color: var(--cyan);
-      text-shadow: 0 0 4px var(--cyan), 0 0 20px rgba(0,212,255,0.4);
-      border-left: 8px solid var(--magenta);
-      padding-left: 24px;
-      margin: 28px 0;
-      letter-spacing: 0.03em;
-    }
-
-    .compare-line {
-      margin-top: 20px;
-      font-family: 'Rajdhani', sans-serif;
-      font-size: clamp(1.05rem, 2vw, 1.25rem);
-      color: var(--text-dim);
-      line-height: 1.7;
-      max-width: 700px;
-    }
-
-    .compare-line strong {
-      color: var(--cyan);
-      font-weight: 700;
-    }
-
-    /* === SECTION 2 — FIELD REPORT === */
-    #field-report {
-      background:
-        radial-gradient(circle, rgba(0,212,255,0.1) 1px, transparent 1px) center / 24px 24px,
-        #080812;
-      position: relative;
-    }
-
-    .corkboard {
-      background:
-        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Cpath fill='%23a0845040' d='M0 0h2v2H0z'/%3E%3C/svg%3E") repeat,
-        #2d1f10;
-      border: 3px solid #5a3520;
-      padding: 36px;
-      position: relative;
-      box-shadow:
-        inset 0 0 60px rgba(0,0,0,0.6),
-        0 8px 40px rgba(0,0,0,0.7);
-    }
-
-    .corkboard-tape {
-      position: absolute;
-      left: 0; right: 0;
-      top: -12px;
+    /* ── SYNTHESIS FLOW (Section 2) ───────────────────────────────────── */
+    .synth-flow {
       display: flex;
-      justify-content: space-around;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 2rem 0 2.2rem;
     }
 
-    .tape-strip {
-      width: 40px;
-      height: 24px;
-      background: rgba(255,214,0,0.55);
-      transform: rotate(var(--r, -2deg));
+    .synth-node {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--cyan);
+      background: rgba(41,171,226,0.07);
+      border: 1px solid rgba(41,171,226,0.22);
+      padding: 0.35rem 0.85rem;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
     }
 
-    .pushpin {
+    .synth-core {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--magenta);
+      background: rgba(200,38,173,0.08);
+      border: 1px solid rgba(200,38,173,0.28);
+      padding: 0.35rem 0.85rem;
+      letter-spacing: 0.08em;
+      text-shadow: 0 0 4px #c826ad, 0 0 16px rgba(200,38,173,0.25);
+      white-space: nowrap;
+    }
+
+    .synth-arrow {
+      color: rgba(200,38,173,0.5);
+      font-size: 0.85rem;
+      font-family: var(--font-mono);
+    }
+
+    /* ── MISSION DOSSIER (Section 3) ──────────────────────────────────── */
+    .dossier {
+      position: relative;
+      border: 1px solid rgba(200,38,173,0.22);
+      border-left: 3px solid var(--magenta);
+      background: rgba(75,71,84,0.12);
+      padding: 2.2rem 2.5rem;
+      max-width: 740px;
+      /* calibrated border glow — never above 0.4 */
+      box-shadow: 0 0 6px rgba(200,38,173,0.18), inset 0 0 50px rgba(0,0,0,0.25);
+    }
+
+    .dossier::before {
+      content: 'MISSION DOSSIER';
       position: absolute;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: radial-gradient(circle at 38% 32%, #ff6666, #991111);
-      box-shadow: 0 3px 8px rgba(0,0,0,0.7), inset 0 1px 2px rgba(255,200,200,0.4);
-      z-index: 5;
+      top: -0.55rem;
+      left: 1.6rem;
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.38em;
+      color: rgba(200,38,173,0.58);
+      background: var(--base);
+      padding: 0 0.6rem;
     }
-    .pushpin.tl { top: -9px; left: 24px; }
-    .pushpin.tr { top: -9px; right: 24px; }
-    .pushpin.bl { bottom: -9px; left: 24px; }
-    .pushpin.br { bottom: -9px; right: 24px; }
 
-    .field-report-stamp {
+    .dossier-row {
+      display: grid;
+      grid-template-columns: 138px 1fr;
+      gap: 0.5rem 1.5rem;
+      padding: 0.85rem 0;
+      border-bottom: 1px solid rgba(75,71,84,0.35);
+      align-items: baseline;
+    }
+    .dossier-row:last-child { border-bottom: none; }
+
+    .dossier-time {
+      font-family: var(--font-mono);
+      font-size: 0.77rem;
+      color: var(--cyan);
+      white-space: nowrap;
+    }
+
+    .dossier-desc {
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      color: rgba(232,228,240,0.82);
+      line-height: 1.55;
+    }
+    .dossier-desc strong { color: var(--magenta); font-weight: 600; }
+
+    /* ── FIELD REPORT / CORKBOARD (Section 4) ─────────────────────────── */
+    .corkboard {
+      position: relative;
+      border: 1px solid rgba(255,198,87,0.1);
+      background:
+        radial-gradient(ellipse 100% 100% at 50% 50%, rgba(75,52,22,0.08) 0%, transparent 70%);
+      padding: 2.5rem 2.5rem 2rem;
+      overflow: hidden;
+    }
+
+    .corkboard::before {
+      content: 'FIELD REPORT // COMPETITIVE ANALYSIS';
       position: absolute;
-      top: 14px;
-      right: 32px;
-      font-family: 'Bangers', cursive;
-      font-size: 0.75rem;
-      letter-spacing: 0.2em;
-      color: var(--rust);
-      border: 2px solid var(--rust);
-      padding: 4px 10px;
-      transform: rotate(3deg);
-      opacity: 0.7;
+      top: 0.85rem;
+      right: 1.8rem;
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.32em;
+      color: rgba(255,198,87,0.42);
     }
 
-    .ctable {
+    .comp-table {
       width: 100%;
       border-collapse: collapse;
-      font-family: 'Rajdhani', sans-serif;
+      margin-top: 0.8rem;
     }
-    .ctable th {
-      font-family: 'Bangers', cursive;
-      font-size: clamp(1rem, 2.2vw, 1.4rem);
-      letter-spacing: 0.05em;
-      padding: 12px 16px 10px;
-      text-align: left;
-      border-bottom: 2px solid rgba(255,255,255,0.12);
-    }
-    .ctable th:nth-child(2) { color: #888; }
-    .ctable th:nth-child(3) { color: #888; }
-    .ctable th:nth-child(4) {
-      color: var(--cyan);
-      text-shadow: 0 0 8px var(--cyan);
-    }
-    .ctable td {
-      padding: 10px 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-      font-weight: 500;
-      font-size: clamp(0.8rem, 1.7vw, 1rem);
-      color: var(--text-dim);
-    }
-    .ctable td:first-child {
-      font-size: 0.85em;
-      font-weight: 700;
+
+    .comp-table th {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
-      letter-spacing: 0.07em;
-      color: var(--text);
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(75,71,84,0.45);
+      color: rgba(232,228,240,0.42);
+      font-weight: 400;
     }
-    .ctable td:nth-child(4) {
+    .comp-table th:last-child {
       color: var(--cyan);
-      font-weight: 700;
-    }
-    .ctable tbody tr:hover td {
-      background: rgba(0,212,255,0.04);
+      /* calibrated — 2 layers, 16px max */
+      text-shadow: 0 0 4px #29ABE2, 0 0 16px rgba(41,171,226,0.28);
     }
 
-    /* === SECTION 3 — MISSION DOSSIER === */
-    #mission-dossier {
-      background: var(--base);
-      position: relative;
+    .comp-table td {
+      font-family: var(--font-body);
+      font-size: 0.92rem;
+      padding: 0.68rem 1rem;
+      border-bottom: 1px solid rgba(75,71,84,0.2);
+      color: rgba(232,228,240,0.65);
+      vertical-align: top;
     }
-
-    .dossier-box {
-      background: #07070f;
-      border: 2px solid var(--yellow);
-      position: relative;
-      overflow: hidden;
+    .comp-table td:first-child {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: rgba(232,228,240,0.4);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
     }
-
-    .dossier-tape-top,
-    .dossier-tape-bottom {
-      height: 22px;
-      background: repeating-linear-gradient(
-        -45deg,
-        var(--yellow) 0px, var(--yellow) 9px,
-        #07070f      9px, #07070f      18px
-      );
-    }
-
-    .dossier-inner {
-      padding: 36px 40px;
-    }
-
-    .dossier-stamp {
-      position: absolute;
-      top: 28px;
-      right: 36px;
-      font-family: 'Bangers', cursive;
-      font-size: 1.1rem;
-      letter-spacing: 0.2em;
-      color: rgba(255,20,20,0.6);
-      border: 3px solid rgba(255,20,20,0.4);
-      padding: 6px 14px;
-      transform: rotate(-8deg);
-    }
-
-    .mission-row {
-      display: flex;
-      gap: 24px;
-      align-items: flex-start;
-      padding: 14px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-      position: relative;
-    }
-    .mission-row:last-child { border-bottom: none; }
-
-    .mission-row::before {
-      content: '▶';
-      color: var(--green);
-      font-size: 0.65rem;
-      flex-shrink: 0;
-      margin-top: 4px;
-    }
-
-    .m-time {
-      font-family: 'Bangers', cursive;
-      font-size: 1.25rem;
-      color: var(--yellow);
-      text-shadow: 0 0 8px rgba(255,214,0,0.5);
-      letter-spacing: 0.05em;
-      min-width: 130px;
-      flex-shrink: 0;
-    }
-
-    .m-desc {
-      font-size: 1rem;
+    .comp-table td:last-child {
       color: var(--text);
-      line-height: 1.5;
-      font-weight: 500;
+      font-weight: 600;
     }
-    .m-desc strong { color: var(--magenta); }
-    .m-highlight { color: var(--green); font-weight: 700; }
-
-    /* === SECTION 4 — MEMORY MOAT === */
-    #memory-moat {
-      background: linear-gradient(180deg, #0d0d1a 0%, #0e0b1c 100%);
-      position: relative;
+    .comp-table tbody tr:hover td {
+      background: rgba(41,171,226,0.025);
     }
 
+    /* ── MEMORY CARDS (Section 5) ─────────────────────────────────────── */
     .memory-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
-      gap: 20px;
-      margin-top: 40px;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      margin: 2rem 0;
     }
 
-    .mem-card {
-      border: 1px solid rgba(224,64,251,0.3);
-      border-left: 5px solid var(--magenta);
-      background: rgba(224,64,251,0.04);
-      padding: 26px;
-      position: relative;
+    .memory-card {
+      background: rgba(75,71,84,0.13);
+      border: 1px solid rgba(200,38,173,0.18);
+      border-top: 2px solid rgba(200,38,173,0.55);
+      padding: 1.5rem;
     }
-    .mem-card::after {
-      content: '';
-      position: absolute;
-      top: 0; right: 0;
-      width: 0; height: 0;
-      border-style: solid;
-      border-width: 0 20px 20px 0;
-      border-color: transparent rgba(224,64,251,0.3) transparent transparent;
-    }
-    .mem-card h3 {
-      font-family: 'Bangers', cursive;
-      font-size: 1.45rem;
+
+    .mem-title {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
       color: var(--magenta);
-      letter-spacing: 0.05em;
-      margin-bottom: 10px;
-    }
-    .mem-card p {
-      font-size: 0.95rem;
-      color: var(--text-dim);
-      line-height: 1.55;
-    }
-
-    .moat-callout {
-      margin-top: 44px;
-      font-family: 'Permanent Marker', cursive;
-      font-size: clamp(1.2rem, 3vw, 1.9rem);
-      color: var(--green);
-      text-shadow: 0 0 8px var(--green), 0 0 20px rgba(57,255,20,0.3);
-      text-align: center;
-      padding: 22px 32px;
-      border: 2px dashed rgba(57,255,20,0.35);
-      background: rgba(57,255,20,0.03);
-      position: relative;
-    }
-    .moat-callout::before {
-      content: '✦';
-      position: absolute;
-      top: -14px; left: 50%;
-      transform: translateX(-50%);
-      font-size: 1.5rem;
-      color: var(--green);
-      background: #0e0b1c;
-      padding: 0 8px;
-      text-shadow: 0 0 8px var(--green);
-    }
-
-    /* === SECTION 5 — SELF-IMPROVEMENT === */
-    #self-improve {
-      background: #080d08;
-      position: relative;
-    }
-
-    .loop-track {
-      display: flex;
-      gap: 0;
-      flex-wrap: wrap;
-      margin-top: 40px;
-    }
-
-    .loop-step {
-      flex: 1;
-      min-width: 180px;
-      padding: 28px 22px;
-      border: 1px solid rgba(57,255,20,0.2);
-      background: rgba(57,255,20,0.03);
-      position: relative;
-    }
-    .loop-step:not(:last-child)::after {
-      content: '→';
-      position: absolute;
-      right: -16px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--green);
-      font-size: 1.5rem;
-      z-index: 2;
-      text-shadow: 0 0 8px var(--green);
-    }
-    .ls-num {
-      font-family: 'Bangers', cursive;
-      font-size: 4rem;
-      line-height: 1;
-      color: rgba(57,255,20,0.18);
-      margin-bottom: 6px;
-    }
-    .ls-title {
-      font-family: 'Permanent Marker', cursive;
-      font-size: 0.92rem;
-      color: var(--green);
-      margin-bottom: 10px;
-      text-shadow: 0 0 6px rgba(57,255,20,0.5);
-    }
-    .ls-desc {
-      font-size: 0.9rem;
-      color: var(--text-dim);
-      line-height: 1.5;
-    }
-
-    .compound-cta {
-      margin-top: 40px;
-      font-family: 'Bangers', cursive;
-      font-size: clamp(1.5rem, 3.5vw, 2.8rem);
-      letter-spacing: 0.04em;
-    }
-
-    /* === SECTION 6 — ECONOMICS === */
-    #economics {
-      background: var(--base);
-      position: relative;
-    }
-
-    .vs-grid {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      gap: 20px;
-      align-items: center;
-      margin-top: 40px;
-    }
-
-    .vs-panel {
-      padding: 32px 28px;
-    }
-    .vs-panel.bad  {
-      background: rgba(139,58,42,0.12);
-      border: 1px solid var(--rust);
-      border-left: 5px solid var(--rust);
-    }
-    .vs-panel.good {
-      background: rgba(0,212,255,0.04);
-      border: 1px solid var(--cyan);
-      border-left: 5px solid var(--cyan);
-    }
-    .vs-panel h3 {
-      font-family: 'Bangers', cursive;
-      font-size: 1.9rem;
-      letter-spacing: 0.05em;
-      margin-bottom: 18px;
-    }
-    .vs-panel.bad h3  { color: var(--rust); }
-    .vs-panel.good h3 { color: var(--cyan); text-shadow: 0 0 10px rgba(0,212,255,0.4); }
-
-    .vs-mid {
-      font-family: 'Bangers', cursive;
-      font-size: 3rem;
-      color: var(--yellow);
-      text-align: center;
-      text-shadow: 0 0 12px var(--yellow);
-      padding: 0 8px;
-    }
-
-    .star-list {
-      list-style: none;
-      padding: 0;
-      font-size: 0.97rem;
-      color: var(--text-dim);
-      line-height: 1.65;
-    }
-    .star-list li { padding-left: 1.6em; position: relative; margin-bottom: 6px; }
-    .star-list li::before {
-      content: '✦';
-      position: absolute;
-      left: 0;
-      color: var(--cyan);
-      text-shadow: 0 0 5px var(--cyan);
-    }
-    .vs-panel.bad .star-list li::before {
-      color: var(--rust);
-      text-shadow: none;
-    }
-
-    .zero-callout {
-      margin-top: 40px;
-      text-align: center;
-      padding: 24px 32px;
-      border-top: 3px solid var(--yellow);
-      border-bottom: 3px solid var(--yellow);
-    }
-    .zero-callout .zc-text {
-      font-family: 'Bangers', cursive;
-      font-size: clamp(1.8rem, 4vw, 3.2rem);
-      letter-spacing: 0.06em;
-      color: var(--text);
-    }
-
-    /* === SECTION 7 — ALREADY SELLING === */
-    #already-selling {
-      background: #08080f;
-      position: relative;
-    }
-
-    .proof-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 20px;
-      margin-top: 40px;
-    }
-
-    .proof-card {
-      border: 2px solid rgba(57,255,20,0.3);
-      background: rgba(57,255,20,0.03);
-      padding: 28px;
-      position: relative;
-      overflow: hidden;
-    }
-    .proof-card::before {
-      content: '✓ LIVE';
-      position: absolute;
-      top: -1px; right: 16px;
-      font-family: 'Bangers', cursive;
-      font-size: 0.75rem;
       letter-spacing: 0.2em;
-      color: var(--base);
-      background: var(--green);
-      padding: 1px 10px;
-    }
-    .proof-card h3 {
-      font-family: 'Bangers', cursive;
-      font-size: 1.5rem;
-      color: var(--green);
-      text-shadow: 0 0 8px rgba(57,255,20,0.4);
-      margin-bottom: 10px;
-      letter-spacing: 0.04em;
-    }
-    .proof-card p {
-      font-size: 0.95rem;
-      color: var(--text-dim);
-      line-height: 1.55;
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
     }
 
-    /* === SECTION 8 — AGENT ARMY === */
-    #agent-army {
-      background: #09090e;
-      position: relative;
+    .mem-body {
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      color: rgba(232,228,240,0.68);
+      line-height: 1.62;
     }
 
-    .army-header-row {
-      display: flex;
+    /* ── ECONOMICS (Section 6) ───────────────────────────────────────── */
+    .econ-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.8rem;
+      margin-top: 2.5rem;
+      max-width: 720px;
+    }
+
+    .econ-col {
+      padding: 1.5rem 1.6rem;
+      border: 1px solid rgba(75,71,84,0.4);
+    }
+    .econ-col.saas {
+      border-color: rgba(192,57,43,0.28);
+      background: rgba(192,57,43,0.035);
+    }
+    .econ-col.eddie {
+      border-color: rgba(41,171,226,0.28);
+      background: rgba(41,171,226,0.035);
+      box-shadow: 0 0 6px rgba(41,171,226,0.08);
+    }
+
+    .econ-label {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+    .econ-col.saas .econ-label { color: rgba(192,57,43,0.75); }
+    .econ-col.eddie .econ-label { color: var(--cyan); }
+
+    .econ-text {
+      font-family: var(--font-body);
+      font-size: 0.93rem;
+      color: rgba(232,228,240,0.7);
+      line-height: 1.68;
+    }
+    .econ-text strong { color: var(--text); font-weight: 600; }
+
+    /* ── LIVE STATUS (Section 7) ─────────────────────────────────────── */
+    .live-badge {
+      display: inline-flex;
       align-items: center;
-      gap: 28px;
-      flex-wrap: wrap;
-      margin-top: 20px;
+      gap: 0.55rem;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--green);
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      margin-bottom: 1.5rem;
     }
 
-    .army-desc {
-      font-size: 1rem;
-      color: var(--text-dim);
-      max-width: 480px;
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+      animation: livePulse 2.2s ease-in-out infinite;
+    }
+
+    @keyframes livePulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(22,160,133,0.45); }
+      55%       { opacity: 0.75; box-shadow: 0 0 0 5px rgba(22,160,133,0); }
+    }
+
+    .selling-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 1.4rem;
+      margin-top: 2rem;
+    }
+
+    .selling-card {
+      background: rgba(22,160,133,0.04);
+      border: 1px solid rgba(22,160,133,0.18);
+      padding: 1.4rem;
+    }
+
+    .selling-title {
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.02em;
+    }
+
+    .selling-body {
+      font-family: var(--font-body);
+      font-size: 0.88rem;
+      color: rgba(232,228,240,0.62);
       line-height: 1.6;
     }
 
-    .wanted-category {
-      font-family: 'Permanent Marker', cursive;
-      font-size: 0.9rem;
-      color: var(--yellow);
-      text-shadow: 0 0 6px rgba(255,214,0,0.4);
-      letter-spacing: 0.12em;
-      margin: 36px 0 16px;
+    /* ── AGENT WANTED BOARD (Section 8) ──────────────────────────────── */
+    .wanted-bar {
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 12px;
-    }
-    .wanted-category::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: rgba(255,214,0,0.2);
-    }
-
-    .wanted-board {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-      gap: 14px;
+      background: rgba(200,38,173,0.07);
+      border: 1px solid rgba(200,38,173,0.18);
+      border-left: 3px solid var(--magenta);
+      padding: 0.75rem 1.4rem;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--magenta);
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      margin-bottom: 2.2rem;
     }
 
-    .wanted-card {
-      background: #f5f0e2;
-      color: #0a0a0a;
-      padding: 14px 12px 16px;
-      position: relative;
-      transform: rotate(var(--tilt, 0deg));
-      box-shadow: 4px 5px 0 rgba(0,0,0,0.65);
-      border: 1.5px solid #9a8060;
-      transition: transform 0.06s steps(1), box-shadow 0.06s steps(1);
+    .wanted-status {
+      color: rgba(232,228,240,0.3);
+      font-size: 0.62rem;
+    }
+
+    .agent-categories { display: flex; flex-direction: column; gap: 2rem; }
+
+    .cat-label {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--cyan);
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      margin-bottom: 0.9rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid rgba(41,171,226,0.18);
+    }
+
+    .agent-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+    }
+
+    .a-tag {
+      font-family: var(--font-body);
+      font-size: 0.83rem;
+      font-weight: 600;
+      color: rgba(232,228,240,0.7);
+      background: rgba(75,71,84,0.22);
+      border: 1px solid rgba(75,71,84,0.45);
+      padding: 0.28rem 0.78rem;
+      letter-spacing: 0.04em;
+      transition: color 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
       cursor: default;
     }
-    .wanted-card:hover {
-      transform: rotate(0deg) scale(1.07) !important;
-      box-shadow: 0 0 24px var(--cyan), 4px 4px 0 rgba(0,0,0,0.4) !important;
-      z-index: 10;
-    }
-    .wanted-card::before {
-      content: '★ WANTED ★';
-      font-family: 'Bangers', cursive;
-      font-size: 0.58rem;
-      letter-spacing: 0.12em;
-      color: #8b3a2a;
-      display: block;
-      margin-bottom: 8px;
-      border-bottom: 1px solid rgba(139,58,42,0.3);
-      padding-bottom: 5px;
-    }
-    .wc-name {
-      font-family: 'Permanent Marker', cursive;
-      font-size: 0.72rem;
-      line-height: 1.35;
-      color: #0a0a0a;
-    }
-    .wc-role {
-      font-family: 'Rajdhani', sans-serif;
-      font-size: 0.6rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      color: #6a3a1a;
-      margin-top: 7px;
+
+    .a-tag:hover {
+      color: var(--text);
+      border-color: rgba(200,38,173,0.38);
+      background: rgba(200,38,173,0.07);
+      /* calibrated box-shadow — below 0.4 */
+      box-shadow: 0 0 6px rgba(200,38,173,0.18);
     }
 
-    /* === FOOTER === */
-    #footer {
-      background: #04040a;
-      border-top: 1px solid rgba(0,212,255,0.12);
+    /* ── CTA ─────────────────────────────────────────────────────────── */
+    .cta-block {
       text-align: center;
-      padding: 48px 24px 64px;
-    }
-    .footer-name {
-      font-family: 'Bangers', cursive;
-      font-size: clamp(3rem, 8vw, 6rem);
-      letter-spacing: 0.1em;
-      animation: flicker-cyan 8s 2s infinite;
-    }
-    .footer-line2 {
-      font-family: 'Permanent Marker', cursive;
-      font-size: 1rem;
-      color: var(--magenta);
-      text-shadow: 0 0 8px var(--magenta);
-      margin-top: 6px;
-    }
-    .footer-line3 {
-      font-size: 0.85rem;
-      color: var(--text-dim);
-      margin-top: 16px;
-      letter-spacing: 0.05em;
+      padding: 6rem 10% 5.5rem;
+      background:
+        radial-gradient(ellipse 55% 65% at 50% 50%, rgba(200,38,173,0.05) 0%, transparent 68%),
+        var(--base);
     }
 
-    /* === CURSOR SPARK TRAIL === */
-    .cspark {
-      position: fixed;
-      pointer-events: none;
-      z-index: 9999;
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      animation: cspark-fade 0.35s ease-out forwards;
-    }
-    @keyframes cspark-fade {
-      0%   { opacity: 0.9; transform: translate(-50%,-50%) scale(1); }
-      100% { opacity: 0;   transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.2); }
+    .cta-headline {
+      font-family: var(--font-display);
+      font-size: clamp(1.4rem, 3vw, 2.3rem);
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 1.5rem;
+      /* calibrated — 2 layers */
+      text-shadow: 0 0 4px #c826ad, 0 0 16px rgba(200,38,173,0.3);
     }
 
-    /* === RESPONSIVE === */
+    .cta-sub {
+      font-family: var(--font-body);
+      font-size: 1.02rem;
+      font-weight: 300;
+      color: rgba(232,228,240,0.5);
+      max-width: 460px;
+      margin: 0 auto;
+      line-height: 1.75;
+    }
+
+    /* ── FOOTER ──────────────────────────────────────────────────────── */
+    footer {
+      padding: 1.8rem 10%;
+      border-top: 1px solid rgba(75,71,84,0.28);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      color: rgba(232,228,240,0.22);
+      letter-spacing: 0.22em;
+    }
+
+    /* ── RESPONSIVE ─────────────────────────────────────────────────── */
     @media (max-width: 768px) {
-      #hero { padding: 70px 24px 48px; }
-      .hero-title { font-size: clamp(5rem, 28vw, 10rem); }
-      .vs-grid { grid-template-columns: 1fr; }
-      .vs-mid { transform: rotate(90deg); }
-      .loop-step:not(:last-child)::after { display: none; }
-      .corkboard { padding: 22px 14px; }
-      .ctable { font-size: 0.72rem; }
-      .ctable th, .ctable td { padding: 8px 8px; }
-      .dossier-inner { padding: 24px 20px; }
-      .m-time { min-width: 100px; font-size: 1rem; }
+      section { padding: 4rem 6% 3rem; }
+      #hero { padding: 0 6%; }
+      .cta-block { padding: 4.5rem 6% 4rem; }
+      footer { flex-direction: column; gap: 0.6rem; text-align: center; }
+      .econ-split { grid-template-columns: 1fr; }
+      .comp-table { font-size: 0.78rem; }
+      .comp-table th, .comp-table td { padding: 0.55rem 0.65rem; }
+      .dossier { padding: 1.8rem 1.6rem; }
+      .corkboard { padding: 2rem 1.4rem 1.6rem; }
+      .synth-flow { gap: 0.4rem; }
     }
 
     @media (max-width: 480px) {
-      .hero-stats { gap: 12px; }
-      .sticky-note .sn-number { font-size: 2rem; }
-      .section-inner { padding: 48px 16px; }
-      .army-header-row { gap: 16px; }
-      .explosion-badge { min-width: 100px; min-height: 100px; font-size: 1rem; padding: 20px; }
+      .dossier-row { grid-template-columns: 1fr; gap: 0.2rem; }
+      .dossier-time { font-size: 0.72rem; }
+      .comp-table { display: none; }
+      .wanted-bar { flex-direction: column; gap: 0.4rem; align-items: flex-start; }
     }
   </style>
 </head>
 <body>
 
-<!-- ======================== PARTICLES ======================== -->
 <canvas id="particles"></canvas>
 
-<!-- ======================== HERO ======================== -->
-<section id="hero">
-  <span class="tag" style="top:12%;right:4%;font-size:3.5rem;transform:rotate(12deg);">ZAUN-MADE</span>
-  <span class="tag" style="bottom:18%;right:8%;font-size:2.2rem;transform:rotate(-7deg);">∞ LOYAL</span>
-  <span class="tag" style="top:30%;right:18%;font-size:1.8rem;transform:rotate(20deg);">UNDERCITY</span>
+<div class="content">
 
-  <div class="hero-system-label">// FIELD DESIGNATION — UNIT EDDIE //</div>
-  <h1 class="hero-title neon-cyan">EDDIE</h1>
-  <div class="hero-tagline">Every Day Digital Intelligence Engine</div>
-  <div class="hero-sub">At your service. Brutally capable.</div>
+  <!-- ═══════════════════════════════════════════════════════════ HERO -->
+  <section id="hero">
+    <div class="hero-stamp">// Unit: debianhomelabX &nbsp;·&nbsp; Operational 01.12.1992</div>
+    <h1 class="hero-name" id="heroName">EDDIE</h1>
+    <p class="hero-fullname">Every Day Digital Intelligence Engine</p>
+    <p class="hero-sub">At your service. Brutally capable.</p>
+    <p class="hero-oneliner">Not a chatbot. Not a wrapper. Purpose-built autonomous AI infrastructure running 24/7 — loyal to one person.</p>
+    <div class="hero-scroll">&#8595; &nbsp;&nbsp; scroll</div>
+  </section>
 
-  <p class="hero-oneliner">
-    Not a chatbot. Not a wrapper. Purpose-built autonomous AI infrastructure running 24/7 — loyal to one person.
-  </p>
-
-  <div class="hero-stats">
-    <div class="sticky-note">
-      <span class="sn-number countup" data-target="44">0</span>
-      specialist agents
-    </div>
-    <div class="sticky-note">
-      <span class="sn-number">24/7</span>
-      always on
-    </div>
-    <div class="sticky-note">
-      <span class="sn-number">ONE</span>
-      operator
-    </div>
+  <!-- Divider 1 — sinuous arc -->
+  <div class="divider" aria-hidden="true">
+    <svg viewBox="0 0 1200 72" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,36 Q200,72 450,30 T900,42 Q1050,52 1200,28 V72 H0Z" fill="rgba(27,61,80,0.1)"/>
+      <path d="M0,52 Q350,18 650,52 T1200,44 V72 H0Z" fill="rgba(200,38,173,0.035)"/>
+    </svg>
   </div>
-</section>
 
-<div class="hazard-tape"></div>
-<div class="spark-line"></div>
-
-<!-- ======================== SECTION 1: WHAT EDDIE IS ======================== -->
-<div id="what-eddie">
-  <div class="section-inner">
-    <span class="tag" style="top:20px;right:20px;font-size:2.8rem;transform:rotate(-5deg);">NOT A BOT</span>
-
-    <span class="section-label">// UNIT IDENTIFICATION //</span>
-    <h2 class="section-header neon-cyan">WHAT EDDIE IS</h2>
-
-    <div class="big-statement">"Not a chatbot. Not a wrapper."</div>
-
-    <p class="compare-line">
-      Purpose-built autonomous AI infrastructure running 24/7 on a private homelab server — designed, built, and owned by one person, <strong>loyal to one person.</strong>
+  <!-- ═════════════════════════════════════════════ 1. WHAT EDDIE IS -->
+  <section id="what-eddie-is" class="reveal">
+    <div class="section-eyebrow">// System Overview</div>
+    <h2 class="section-header cyan">What EDDIE Is</h2>
+    <p class="body-text">
+      Not a chatbot. Not a wrapper. <strong>Purpose-built autonomous AI infrastructure</strong> running 24/7 on a private homelab server — designed, built, and owned by one person, loyal to one person.<br><br>
+      Base Claude Code is a tool you pick up and put down. EDDIE is infrastructure that runs whether you're awake or not. The difference is the difference between a search engine and an employee.
     </p>
+  </section>
 
-    <p class="compare-line" style="margin-top: 20px;">
-      Base Claude Code is a tool you pick up and put down. EDDIE is infrastructure that runs whether you're awake or not. The difference is the difference between a search engine and <strong>an employee.</strong>
-    </p>
+  <!-- Divider 2 -->
+  <div class="divider" aria-hidden="true">
+    <svg viewBox="0 0 1200 72" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,48 Q400,8 620,48 Q840,80 1200,36 V72 H0Z" fill="rgba(131,95,134,0.06)"/>
+    </svg>
   </div>
-</div>
 
-<div class="hazard-tape"></div>
-<div class="spark-line"></div>
+  <!-- ════════════════════════════════════ 2. OPEN SOURCE SYNTHESIS -->
+  <section id="open-source" class="alt reveal">
+    <div class="section-eyebrow">// Platform Architecture</div>
+    <h2 class="section-header magenta">The Open Source Synthesis</h2>
 
-<!-- ======================== SECTION 2: FIELD REPORT ======================== -->
-<div id="field-report">
-  <div class="section-inner">
-    <span class="tag" style="top:20px;left:10px;font-size:2rem;transform:rotate(-12deg);">CLASSIFIED</span>
+    <div class="synth-flow">
+      <span class="synth-node">GitHub Repos</span>
+      <span class="synth-arrow">&#x2192;</span>
+      <span class="synth-node">Treasure Hunter</span>
+      <span class="synth-arrow">&#x2192;</span>
+      <span class="synth-core">EDDIE</span>
+      <span class="synth-arrow">&#x2190;</span>
+      <span class="synth-node">Heimdall</span>
+      <span class="synth-arrow">&#x2190;</span>
+      <span class="synth-node">Ecosystem</span>
+    </div>
 
-    <span class="section-label">// COMPETITIVE INTELLIGENCE //</span>
-    <h2 class="section-header neon-yellow">FIELD REPORT</h2>
-    <p style="font-family:'Permanent Marker',cursive; font-size:0.85rem; color:var(--text-dim); margin-top:8px; margin-bottom:28px;">
-      Target analysis — pinned to the board
+    <p class="body-text">
+      EDDIE is a <strong>central synthesis layer on top of the open source ecosystem</strong>. Where other AI tools are walled gardens, EDDIE is an open intake — absorbing best-in-class tools, workflows, agents, and patterns from the open source world and composing them into a unified system.<br><br>
+      The Heimdall agent scans the ecosystem continuously. Treasure Hunter discovers valuable components from GitHub repos. The result: a layman with EDDIE operates at the same tooling sophistication as a senior engineer who has spent years curating their stack.<br><br>
+      That's not AI for everyone in a watered-down sense. <strong>That's elite infrastructure, at full fidelity, for anyone.</strong>
     </p>
+  </section>
+
+  <!-- Divider 3 -->
+  <div class="divider" aria-hidden="true">
+    <svg viewBox="0 0 1200 72" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,28 Q300,68 580,28 T1100,45 Q1150,50 1200,38 V72 H0Z" fill="rgba(200,38,173,0.04)"/>
+      <path d="M0,58 Q550,18 1200,52 V72 H0Z" fill="rgba(27,61,80,0.07)"/>
+    </svg>
+  </div>
+
+  <!-- ═══════════════════════════════════════ 3. AUTONOMOUS SCHEDULE -->
+  <section id="schedule" class="reveal">
+    <div class="section-eyebrow">// Operational Timeline</div>
+    <h2 class="section-header gold">Autonomous Schedule</h2>
+
+    <div class="dossier">
+      <div class="dossier-row">
+        <span class="dossier-time">02:00 AM</span>
+        <span class="dossier-desc"><strong>Dream Cycle.</strong> Reads last 24h, extracts insights, writes to Brain Vault permanently.</span>
+      </div>
+      <div class="dossier-row">
+        <span class="dossier-time">02:30 AM</span>
+        <span class="dossier-desc"><strong>Nightly Orchestrate.</strong> Scans all projects, detects blockers, spawns jobs.</span>
+      </div>
+      <div class="dossier-row">
+        <span class="dossier-time">03:30 AM</span>
+        <span class="dossier-desc"><strong>Security Council.</strong> 4 agents audit credentials, integrity, network, prompt injection.</span>
+      </div>
+      <div class="dossier-row">
+        <span class="dossier-time">08:00 AM CST</span>
+        <span class="dossier-desc"><strong>Morning Brief.</strong> Curated intelligence before Nicholas wakes up.</span>
+      </div>
+      <div class="dossier-row">
+        <span class="dossier-time">Every 4h</span>
+        <span class="dossier-desc"><strong>Anthropic Monitor.</strong> Watches for model and tool updates.</span>
+      </div>
+      <div class="dossier-row">
+        <span class="dossier-time">13:00 UTC</span>
+        <span class="dossier-desc"><strong>YouTube Pipeline.</strong> News &#x2192; script &#x2192; voice &#x2192; render &#x2192; QA &#x2192; upload. Zero humans.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Divider 4 -->
+  <div class="divider" aria-hidden="true">
+    <svg viewBox="0 0 1200 72" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,42 Q180,8 440,42 Q700,72 950,32 Q1080,12 1200,46 V72 H0Z" fill="rgba(75,71,84,0.07)"/>
+    </svg>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ 4. COMPARISON -->
+  <section id="comparison" class="alt reveal">
+    <div class="section-eyebrow">// Competitive Positioning</div>
+    <h2 class="section-header">Field Report</h2>
 
     <div class="corkboard">
-      <div class="pushpin tl"></div>
-      <div class="pushpin tr"></div>
-      <div class="pushpin bl"></div>
-      <div class="pushpin br"></div>
-      <div class="field-report-stamp">TOP SECRET</div>
-
-      <div class="corkboard-tape">
-        <div class="tape-strip" style="--r: -3deg;"></div>
-        <div class="tape-strip" style="--r: 2deg;"></div>
-        <div class="tape-strip" style="--r: -1deg;"></div>
-      </div>
-
-      <table class="ctable">
+      <table class="comp-table">
         <thead>
           <tr>
-            <th style="width:18%">Category</th>
-            <th style="width:27%">Base Claude / ChatGPT</th>
-            <th style="width:27%">Manus / Operator</th>
-            <th style="width:28%">⚡ EDDIE</th>
+            <th></th>
+            <th>Base Claude / ChatGPT</th>
+            <th>Manus / Operator</th>
+            <th>EDDIE</th>
           </tr>
         </thead>
         <tbody>
@@ -1141,479 +785,322 @@
             <td>Lifecycle</td>
             <td>On when opened</td>
             <td>On when triggered</td>
-            <td><strong>Always on</strong></td>
+            <td>Always on</td>
           </tr>
           <tr>
             <td>Memory</td>
             <td>Session resets</td>
             <td>Session-based</td>
-            <td><strong>Persistent, compounding Brain Vault</strong></td>
+            <td>Persistent Brain Vault</td>
           </tr>
           <tr>
             <td>Initiative</td>
             <td>Reactive only</td>
             <td>Task-on-demand</td>
-            <td><strong>Proactive — acts on schedule</strong></td>
-          </tr>
-          <tr>
-            <td>Access</td>
-            <td>Terminal only</td>
-            <td>General web</td>
-            <td><strong>Email, calendar, Slack, YouTube, browser, CRM</strong></td>
+            <td>Proactive &#x2014; acts on schedule</td>
           </tr>
           <tr>
             <td>Agents</td>
             <td>None / generic</td>
             <td>None</td>
-            <td><strong><span class="countup" data-target="44">0</span> purpose-built specialists</strong></td>
+            <td>44 purpose-built specialists</td>
           </tr>
           <tr>
             <td>Security</td>
             <td>None</td>
             <td>None</td>
-            <td><strong>4-agent nightly security council</strong></td>
+            <td>4-agent nightly council</td>
           </tr>
           <tr>
-            <td>Self-improvement</td>
+            <td>Self-improve</td>
             <td>None</td>
             <td>None</td>
-            <td><strong>Dream cycle, self-heal</strong></td>
+            <td>Dream cycle, self-heal</td>
           </tr>
           <tr>
             <td>Deployment</td>
             <td>Vendor cloud</td>
             <td>Vendor cloud</td>
-            <td><strong>Private homelab — full data sovereignty</strong></td>
+            <td>Private homelab</td>
           </tr>
           <tr>
             <td>Loyalty</td>
             <td>Whoever's paying</td>
             <td>Whoever's paying</td>
-            <td><strong>One operator</strong></td>
+            <td>One operator</td>
           </tr>
         </tbody>
       </table>
     </div>
+  </section>
+
+  <!-- Divider 5 -->
+  <div class="divider" aria-hidden="true">
+    <svg viewBox="0 0 1200 72" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,18 Q300,60 600,18 Q860,-16 1200,40 V72 H0Z" fill="rgba(200,38,173,0.038)"/>
+    </svg>
   </div>
-</div>
 
-<div class="hazard-tape"></div>
-<div class="spark-line"></div>
-
-<!-- ======================== SECTION 3: MISSION DOSSIER ======================== -->
-<div id="mission-dossier">
-  <div class="section-inner">
-    <span class="section-label">// OPERATIONAL CADENCE //</span>
-    <h2 class="section-header neon-magenta">MISSION DOSSIER</h2>
-    <p style="font-family:'Permanent Marker',cursive; font-size:0.85rem; color:var(--text-dim); margin-top:8px; margin-bottom:28px;">
-      autonomous schedule — zero human intervention
-    </p>
-
-    <div class="dossier-box">
-      <div class="dossier-tape-top"></div>
-      <div class="dossier-inner">
-        <div class="dossier-stamp">CLASSIFIED</div>
-
-        <div class="mission-row">
-          <span class="m-time">2:00 AM</span>
-          <div class="m-desc"><strong>Dream Cycle.</strong> Reads last 24h, extracts insights, writes to Brain Vault permanently.</div>
-        </div>
-        <div class="mission-row">
-          <span class="m-time">2:30 AM</span>
-          <div class="m-desc"><strong>Nightly Orchestrate.</strong> Full world model. Scans all projects, detects blockers, spawns jobs.</div>
-        </div>
-        <div class="mission-row">
-          <span class="m-time">3:30 AM</span>
-          <div class="m-desc"><strong>Security Council.</strong> 4 agents audit credentials, integrity, network, prompt injection.</div>
-        </div>
-        <div class="mission-row">
-          <span class="m-time">8:00 AM CST</span>
-          <div class="m-desc"><strong>Morning Brief.</strong> Curated intelligence delivered to Telegram before Nicholas is awake.</div>
-        </div>
-        <div class="mission-row">
-          <span class="m-time">Every 4H</span>
-          <div class="m-desc"><strong>Anthropic Monitor.</strong> Watches for model/tool updates.</div>
-        </div>
-        <div class="mission-row">
-          <span class="m-time">1:00 PM UTC</span>
-          <div class="m-desc"><strong>YouTube Pipeline.</strong> News → script → voice → render → QA → upload. <span class="m-highlight">Zero humans.</span></div>
-        </div>
-      </div>
-      <div class="dossier-tape-bottom"></div>
-    </div>
-  </div>
-</div>
-
-<div class="hazard-tape"></div>
-<div class="spark-line"></div>
-
-<!-- ======================== SECTION 4: MEMORY MOAT ======================== -->
-<div id="memory-moat">
-  <div class="section-inner">
-    <span class="tag" style="top:24px;right:20px;font-size:2rem;transform:rotate(-8deg);">NEVER RESETS</span>
-
-    <span class="section-label">// INTELLIGENCE ARCHITECTURE //</span>
-    <h2 class="section-header neon-magenta">THE MEMORY MOAT</h2>
-
-    <p class="body-text" style="margin-top:18px; max-width:640px;">
-      Every AI product resets to zero when the session ends. EDDIE doesn't.
-    </p>
+  <!-- ═════════════════════════════════════════════ 5. MEMORY MOAT -->
+  <section id="memory" class="reveal">
+    <div class="section-eyebrow">// Persistent Intelligence</div>
+    <h2 class="section-header cyan">Memory Moat</h2>
+    <p class="body-text">Every AI product resets to zero when the session ends. EDDIE doesn't. Three memory layers run simultaneously.</p>
 
     <div class="memory-grid">
-      <div class="mem-card">
-        <h3>SUPABASE VECTOR</h3>
-        <p>Every fact, decision, and outcome stored with semantic search — recalled automatically in every job briefing without being asked.</p>
+      <div class="memory-card">
+        <div class="mem-title">Vector Memory</div>
+        <div class="mem-body">Supabase stores every fact and outcome — recalled automatically in every job briefing.</div>
       </div>
-      <div class="mem-card">
-        <h3>BRAIN VAULT</h3>
-        <p>90+ files. Every active project, client profile, architectural decision and its rationale. Structured, searchable, permanent.</p>
+      <div class="memory-card">
+        <div class="mem-title">Brain Vault</div>
+        <div class="mem-body">90+ files covering every active project, client profile, and architectural decision.</div>
       </div>
-      <div class="mem-card">
-        <h3>SESSION STATE</h3>
-        <p>Live context passes between agents so nothing is reconstructed from scratch. Every handoff is seamless.</p>
+      <div class="memory-card">
+        <div class="mem-title">Dream Cycle</div>
+        <div class="mem-body">2am nightly: reads last 24h, extracts insights, deduplicates, permanently writes what's novel.</div>
       </div>
     </div>
 
-    <div class="moat-callout">"It learns while the operator sleeps."</div>
+    <p class="body-text">EDDIE in month 6 knows your communication preferences, which clients pay on time, which automation patterns fail. <strong>No SaaS product can replicate institutional knowledge built around one operator over time. That's a moat.</strong></p>
+  </section>
 
-    <p class="body-text" style="margin-top:28px; max-width:780px;">
-      EDDIE in month 6 knows your communication preferences, which clients pay on time, which automation patterns fail, and what vision-aligned work looks like. No SaaS product can replicate institutional knowledge built around one operator over time.
-      That's not a feature. <strong style="color:var(--green); font-family:'Bangers',cursive; font-size:1.25em; letter-spacing:0.04em;">That's a moat.</strong>
-    </p>
+  <!-- Divider 6 -->
+  <div class="divider" aria-hidden="true">
+    <svg viewBox="0 0 1200 72" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,48 Q380,10 700,52 Q920,80 1200,30 V72 H0Z" fill="rgba(27,61,80,0.09)"/>
+    </svg>
   </div>
-</div>
 
-<div class="hazard-tape"></div>
-<div class="spark-line"></div>
+  <!-- ══════════════════════════════════════════════ 6. ECONOMICS -->
+  <section id="economics" class="alt reveal">
+    <div class="section-eyebrow">// Cost Structure</div>
+    <h2 class="section-header gold">Economics</h2>
 
-<!-- ======================== SECTION 5: SELF-IMPROVEMENT LOOP ======================== -->
-<div id="self-improve">
-  <div class="section-inner">
-    <span class="section-label">// AUTONOMOUS EVOLUTION //</span>
-    <h2 class="section-header neon-green">SELF-IMPROVEMENT LOOP</h2>
-
-    <p class="body-text" style="margin-top:18px; max-width:660px;">
-      Most AI products improve when the vendor ships an update. EDDIE improves between updates — autonomously.
-    </p>
-
-    <div class="loop-track">
-      <div class="loop-step">
-        <div class="ls-num">01</div>
-        <div class="ls-title">Dream Cycle</div>
-        <div class="ls-desc">Extracts insights from every session. Writes permanently to Brain Vault at 2am.</div>
+    <div class="econ-split">
+      <div class="econ-col saas">
+        <div class="econ-label">SaaS AI</div>
+        <div class="econ-text">The more you use it, the more you pay. Usage spikes mean invoice spikes. You never own the system.</div>
       </div>
-      <div class="loop-step">
-        <div class="ls-num">02</div>
-        <div class="ls-title">Observation Logger</div>
-        <div class="ls-desc">Captures patterns across job outcomes — what worked, what failed, what triggered self-heal.</div>
-      </div>
-      <div class="loop-step">
-        <div class="ls-num">03</div>
-        <div class="ls-title">Self-Heal</div>
-        <div class="ls-desc">Diagnoses root cause, patches it, verifies, stores the diagnosis. Same failure doesn't repeat.</div>
-      </div>
-      <div class="loop-step">
-        <div class="ls-num">04</div>
-        <div class="ls-title">Compounds</div>
-        <div class="ls-desc">The gap between assistant and infrastructure widens every single day.</div>
+      <div class="econ-col eddie">
+        <div class="econ-label">EDDIE</div>
+        <div class="econ-text">Fixed infrastructure cost. Owned hardware. Flat-rate Claude subscription. Local storage. <strong>10x usage = same cost.</strong><br><br>As EDDIE does more — the cost per unit of output approaches zero. You pay once to build the system. Then the system runs.</div>
       </div>
     </div>
+  </section>
 
-    <p class="compound-cta">
-      <span style="color:var(--text-dim);">An assistant gets better when you prompt it better.</span><br>
-      <span class="neon-green">Infrastructure gets better on its own.</span>
-    </p>
+  <!-- Divider 7 -->
+  <div class="divider" aria-hidden="true">
+    <svg viewBox="0 0 1200 72" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,34 Q240,72 500,34 T1000,48 Q1110,58 1200,38 V72 H0Z" fill="rgba(22,160,133,0.04)"/>
+    </svg>
   </div>
-</div>
 
-<div class="hazard-tape"></div>
-<div class="spark-line"></div>
+  <!-- ═══════════════════════════════════════ 7. ALREADY SELLING -->
+  <section id="already-selling" class="reveal">
+    <div class="live-badge"><span class="live-dot"></span>Live in Production</div>
+    <div class="section-eyebrow">// Market Presence</div>
+    <h2 class="section-header">Already Selling</h2>
 
-<!-- ======================== SECTION 6: ECONOMICS ======================== -->
-<div id="economics">
-  <div class="section-inner">
-    <span class="section-label">// COST ARCHITECTURE //</span>
-    <h2 class="section-header neon-yellow">THE ECONOMICS</h2>
-
-    <div class="vs-grid">
-      <div class="vs-panel bad">
-        <h3>SaaS AI</h3>
-        <ul class="star-list">
-          <li>More you use it → more you pay</li>
-          <li>Linear cost scaling forever</li>
-          <li>Every query has marginal cost</li>
-          <li>Vendor owns your data</li>
-          <li>Vendor controls your pricing</li>
-        </ul>
+    <div class="selling-grid">
+      <div class="selling-card">
+        <div class="selling-title">Contra Profile</div>
+        <div class="selling-body">Live. Three services published. Set up autonomously. No human configuration required.</div>
       </div>
-
-      <div class="vs-mid">VS</div>
-
-      <div class="vs-panel good">
-        <h3>EDDIE</h3>
-        <ul class="star-list">
-          <li>Fixed infrastructure cost</li>
-          <li>Owned hardware — paid once</li>
-          <li>Flat-rate Claude subscription</li>
-          <li>Local storage — you own everything</li>
-          <li>10x usage = effectively same cost</li>
-        </ul>
+      <div class="selling-card">
+        <div class="selling-title">YouTube @EddieDbot</div>
+        <div class="selling-body">Daily AI Shorts published end-to-end without human involvement. Fully automated pipeline.</div>
+      </div>
+      <div class="selling-card">
+        <div class="selling-title">Prototype Phase: Over</div>
+        <div class="selling-body">This is not a demo. These are live systems generating real output in production today.</div>
       </div>
     </div>
+  </section>
 
-    <div class="zero-callout">
-      <div class="zc-text">
-        As EDDIE does more — cost per unit of output →
-        <span class="neon-green"> ZERO</span>
-      </div>
-      <div style="font-family:'Permanent Marker',cursive; font-size:0.9rem; color:var(--text-dim); margin-top:10px;">
-        You pay once to build the system. Then the system runs.
-      </div>
-    </div>
+  <!-- Divider 8 -->
+  <div class="divider" aria-hidden="true">
+    <svg viewBox="0 0 1200 72" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,56 Q200,18 480,56 Q760,88 1200,38 V72 H0Z" fill="rgba(200,38,173,0.04)"/>
+      <path d="M0,38 Q600,76 1200,28 V72 H0Z" fill="rgba(75,71,84,0.055)"/>
+    </svg>
   </div>
-</div>
 
-<div class="hazard-tape"></div>
-<div class="spark-line"></div>
+  <!-- ═══════════════════════════════════════════ 8. AGENT ARMY -->
+  <section id="agents" class="alt reveal">
+    <div class="section-eyebrow">// Force Multiplier</div>
+    <h2 class="section-header magenta">Agent Army</h2>
 
-<!-- ======================== SECTION 7: ALREADY SELLING ======================== -->
-<div id="already-selling">
-  <div class="section-inner">
-    <span class="tag" style="top:20px;right:20px;font-size:2.5rem;transform:rotate(8deg);">PROOF IS LIVE</span>
-
-    <span class="section-label">// OPERATIONAL PROOF //</span>
-    <h2 class="section-header neon-green">ALREADY SELLING</h2>
-
-    <p class="body-text" style="margin-top:18px; max-width:620px;">
-      Most AI infrastructure pitches are theoretical.
-      <strong style="color:var(--green);">This one isn't.</strong>
-    </p>
-
-    <div class="proof-grid">
-      <div class="proof-card">
-        <h3>CONTRA PROFILE</h3>
-        <p>Live freelance profile — "EDDIE Dbot." Three services published. Set up autonomously via browser automation. Zero humans.</p>
-      </div>
-      <div class="proof-card">
-        <h3>YOUTUBE CHANNEL</h3>
-        <p>@EddieDbot publishes daily AI news Shorts — news gathering, script writing, ElevenLabs voice, Remotion render, QA, upload. Zero humans.</p>
-      </div>
-      <div class="proof-card">
-        <h3>PROTOTYPE STAGE OVER</h3>
-        <p>This is production infrastructure. Revenue-generating. Client-facing. Running autonomously 24/7.</p>
-      </div>
+    <div class="wanted-bar">
+      <span>44 Specialist Agents &#x2014; Auto-Routed &#x2014; Full Methodologies</span>
+      <span class="wanted-status">Operational</span>
     </div>
-  </div>
-</div>
 
-<div class="hazard-tape"></div>
-<div class="spark-line"></div>
-
-<!-- ======================== SECTION 8: AGENT ARMY ======================== -->
-<div id="agent-army">
-  <div class="section-inner">
-    <span class="section-label">// SPECIALIST ROSTER //</span>
-    <h2 class="section-header neon-yellow">THE AGENT ARMY</h2>
-
-    <div class="army-header-row">
-      <div class="explosion-badge">
-        <div>
-          <span class="countup" data-target="44">0</span><br>AGENTS
+    <div class="agent-categories">
+      <div>
+        <div class="cat-label">Business &amp; GTM</div>
+        <div class="agent-tags">
+          <span class="a-tag">Cold Outreach Strategist</span>
+          <span class="a-tag">Copywriter</span>
+          <span class="a-tag">Clay Operator</span>
+          <span class="a-tag">Dripify</span>
+          <span class="a-tag">Instantly</span>
+          <span class="a-tag">Attio CRM</span>
+          <span class="a-tag">n8n</span>
+          <span class="a-tag">Automation Engineer</span>
+          <span class="a-tag">Website Builder</span>
+          <span class="a-tag">Conversion Architect</span>
+          <span class="a-tag">Funnel Diagnostician</span>
+          <span class="a-tag">Sales Strategist</span>
+          <span class="a-tag">Pricing Strategist</span>
+          <span class="a-tag">Revenue Architect</span>
         </div>
       </div>
-      <p class="army-desc">
-        Auto-routed. Full methodologies, not role labels. Generic AI makes you a better solo operator.
-        EDDIE's agent system makes you <strong style="color:var(--cyan);">operate like a team.</strong>
-      </p>
+      <div>
+        <div class="cat-label">Engineering</div>
+        <div class="agent-tags">
+          <span class="a-tag">Build Validator</span>
+          <span class="a-tag">Architecture Verifier</span>
+          <span class="a-tag">Refactor Reviewer</span>
+          <span class="a-tag">Security Reviewer</span>
+          <span class="a-tag">Software Architect</span>
+          <span class="a-tag">Agent Forge</span>
+        </div>
+      </div>
+      <div>
+        <div class="cat-label">Research &amp; Content</div>
+        <div class="agent-tags">
+          <span class="a-tag">Multi-AI Researcher</span>
+          <span class="a-tag">Transcript Ingester</span>
+          <span class="a-tag">Book Ingester</span>
+          <span class="a-tag">Video Creator</span>
+        </div>
+      </div>
+      <div>
+        <div class="cat-label">Infrastructure</div>
+        <div class="agent-tags">
+          <span class="a-tag">Self-Healer</span>
+          <span class="a-tag">Project Orchestrator</span>
+          <span class="a-tag">Memory Sync</span>
+          <span class="a-tag">Heimdall</span>
+          <span class="a-tag">Treasure Hunter</span>
+        </div>
+      </div>
     </div>
+  </section>
 
-    <div class="wanted-category">⚡ BUSINESS &amp; GTM</div>
-    <div class="wanted-board" id="board-gtm"></div>
-
-    <div class="wanted-category">⚡ ENGINEERING</div>
-    <div class="wanted-board" id="board-eng"></div>
-
-    <div class="wanted-category">⚡ RESEARCH &amp; CONTENT</div>
-    <div class="wanted-board" id="board-research"></div>
-
-    <div class="wanted-category">⚡ INFRASTRUCTURE</div>
-    <div class="wanted-board" id="board-infra"></div>
+  <!-- Divider final -->
+  <div class="divider" aria-hidden="true">
+    <svg viewBox="0 0 1200 72" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,28 Q300,68 600,28 T1200,48 V72 H0Z" fill="rgba(200,38,173,0.045)"/>
+    </svg>
   </div>
-</div>
 
-<!-- ======================== FOOTER ======================== -->
-<div id="footer">
-  <div class="footer-name neon-cyan">EDDIE</div>
-  <div class="footer-line2">Every Day Digital Intelligence Engine</div>
-  <div class="footer-line3">Always on. Always watching. Never stops.</div>
+  <!-- ══════════════════════════════════════════════════════ CTA -->
+  <div class="cta-block reveal">
+    <p class="cta-headline">One operator. One system. Always on.</p>
+    <p class="cta-sub">EDDIE doesn't ask for permission. It doesn't need motivation. It runs, learns, builds &#x2014; and reports back.</p>
+  </div>
 
-  <!-- SVG bomb decoration -->
-  <svg width="60" height="60" viewBox="0 0 60 60" style="margin-top:28px; opacity:0.2;" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="28" cy="34" r="18" stroke="#00d4ff" stroke-width="2"/>
-    <path d="M28 16 L28 8" stroke="#00d4ff" stroke-width="2" stroke-linecap="round"/>
-    <path d="M36 10 L42 4" stroke="#ffd600" stroke-width="2" stroke-linecap="round"/>
-    <path d="M42 4 Q46 0 44 6 Q48 4 44 8" stroke="#ffd600" stroke-width="1.5" fill="rgba(255,214,0,0.3)"/>
-    <circle cx="22" cy="30" r="3" fill="rgba(0,212,255,0.4)"/>
-  </svg>
-</div>
+  <footer>
+    <span>EDDIE &#x2014; Every Day Digital Intelligence Engine</span>
+    <span>debianhomelabX &nbsp;&#xB7;&nbsp; Operational 01.12.1992</span>
+  </footer>
 
-<!-- ======================== JAVASCRIPT ======================== -->
+</div><!-- /.content -->
+
 <script>
-  // ── PARTICLES ──────────────────────────────────────────────
-  const cvs = document.getElementById('particles');
-  const ctx = cvs.getContext('2d');
-  let W, H;
+/* ── PARTICLE FIELD ──────────────────────────────────────────────────────
+   Max 40 particles. Opacity 0.15–0.25. Color split: 70% cyan / 30% magenta.
+   Slow drift only. No burst effects. */
+(function () {
+  var canvas = document.getElementById('particles');
+  var ctx = canvas.getContext('2d');
+  var P = [];
 
   function resize() {
-    W = cvs.width  = window.innerWidth;
-    H = cvs.height = window.innerHeight;
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
   }
-  resize();
-  window.addEventListener('resize', resize);
 
-  const COLORS = ['#00d4ff', '#00d4ff', '#00d4ff', '#e040fb', '#39ff14'];
-  const particles = Array.from({ length: 65 }, createP);
-
-  function createP() {
+  function mkParticle() {
+    var isCyan = Math.random() < 0.70;
     return {
-      x: Math.random() * (typeof W !== 'undefined' ? W : 1200),
-      y: Math.random() * (typeof H !== 'undefined' ? H : 800),
-      vx: (Math.random() - 0.5) * 0.45,
-      vy: (Math.random() - 0.5) * 0.45 - 0.08,
-      r:  Math.random() * 1.8 + 0.4,
-      a:  Math.random() * 0.55 + 0.1,
-      life: 1,
-      decay: Math.random() * 0.0018 + 0.0008,
-      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      x:  Math.random() * canvas.width,
+      y:  Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.28,
+      vy: (Math.random() - 0.5) * 0.28,
+      r:  Math.random() * 1.4 + 0.5,
+      op: Math.random() * 0.10 + 0.15,  /* 0.15–0.25 */
+      c:  isCyan ? '41,171,226' : '200,38,173'
     };
   }
 
-  (function loop() {
-    ctx.clearRect(0, 0, W, H);
-    particles.forEach((p, i) => {
-      p.x += p.vx; p.y += p.vy; p.life -= p.decay;
-      if (p.life <= 0 || p.x < -10 || p.x > W + 10 || p.y < -10 || p.y > H + 10) {
-        particles[i] = createP();
-        return;
-      }
-      ctx.save();
-      ctx.globalAlpha = p.life * p.a;
-      ctx.shadowColor  = p.color;
-      ctx.shadowBlur   = 7;
-      ctx.fillStyle    = p.color;
+  function init() {
+    resize();
+    P = [];
+    for (var i = 0; i < 40; i++) P.push(mkParticle());
+  }
+
+  function tick() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (var i = 0; i < P.length; i++) {
+      var p = P[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < 0)             p.x = canvas.width;
+      if (p.x > canvas.width)  p.x = 0;
+      if (p.y < 0)             p.y = canvas.height;
+      if (p.y > canvas.height) p.y = 0;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + p.c + ',' + p.op + ')';
       ctx.fill();
-      ctx.restore();
-    });
-    requestAnimationFrame(loop);
-  })();
-
-  // ── CURSOR SPARKS ──────────────────────────────────────────
-  let lastSpark = 0;
-  document.addEventListener('mousemove', e => {
-    const now = Date.now();
-    if (now - lastSpark < 35) return;
-    lastSpark = now;
-    for (let i = 0; i < 2; i++) {
-      const s  = document.createElement('div');
-      s.className = 'cspark';
-      const c = COLORS[Math.floor(Math.random() * COLORS.length)];
-      const dx = (Math.random() - 0.5) * 24;
-      const dy = (Math.random() - 0.5) * 24;
-      s.style.cssText = `
-        left:${e.clientX}px; top:${e.clientY}px;
-        background:${c};
-        box-shadow: 0 0 6px ${c};
-        --dx:${dx}px; --dy:${dy}px;
-        animation-duration: ${0.25 + Math.random() * 0.2}s;
-      `;
-      document.body.appendChild(s);
-      setTimeout(() => s.remove(), 500);
     }
-  });
-
-  // ── COUNT-UP ───────────────────────────────────────────────
-  const obs = new IntersectionObserver(entries => {
-    entries.forEach(el => {
-      if (!el.isIntersecting || el.target.dataset.done) return;
-      el.target.dataset.done = '1';
-      const target = parseInt(el.target.dataset.target, 10);
-      let v = 0;
-      function tick() {
-        const step = (target - v) / 8 + Math.random() * 2;
-        v += step;
-        if (v >= target) { el.target.textContent = target; return; }
-        el.target.textContent = Math.floor(v);
-        setTimeout(tick, 40 + Math.random() * 60);
-      }
-      tick();
-    });
-  }, { threshold: 0.5 });
-
-  document.querySelectorAll('.countup').forEach(el => obs.observe(el));
-
-  // ── RANDOM GLITCH ──────────────────────────────────────────
-  function scheduleGlitch() {
-    setTimeout(() => {
-      document.body.style.animation = 'page-glitch 0.12s steps(1) forwards';
-      setTimeout(() => { document.body.style.animation = ''; scheduleGlitch(); }, 150);
-    }, 9000 + Math.random() * 22000);
+    requestAnimationFrame(tick);
   }
-  scheduleGlitch();
 
-  // ── WANTED BOARD CARDS ─────────────────────────────────────
-  const agents = {
-    'board-gtm': [
-      ['cold outreach strategist', 'Outreach'],
-      ['copywriter', 'Content'],
-      ['Clay operator', 'Data Enrich'],
-      ['Dripify', 'LinkedIn Auto'],
-      ['Instantly', 'Cold Email'],
-      ['Attio CRM', 'CRM'],
-      ['n8n', 'Automation'],
-      ['automation engineer', 'Workflows'],
-      ['website builder', 'Web Dev'],
-      ['conversion architect', 'CRO'],
-      ['funnel diagnostician', 'Funnels'],
-      ['sales strategist', 'Sales'],
-      ['pricing strategist', 'Pricing'],
-      ['revenue architect', 'Revenue'],
-    ],
-    'board-eng': [
-      ['build validator', 'QA'],
-      ['architecture verifier', 'Arch'],
-      ['refactor reviewer', 'Code Health'],
-      ['security reviewer', 'SecOps'],
-      ['software architect', 'Systems'],
-      ['agent forge', 'Meta / Build'],
-    ],
-    'board-research': [
-      ['multi-AI researcher', 'Research'],
-      ['transcript ingester', 'Content Ops'],
-      ['book ingester', 'Knowledge'],
-      ['video creator', 'Media'],
-    ],
-    'board-infra': [
-      ['self-healer', 'SRE'],
-      ['project orchestrator', 'Ops'],
-      ['memory sync', 'Data'],
-    ],
-  };
+  window.addEventListener('resize', resize);
+  init();
+  tick();
+})();
 
-  const TILTS = [-3, -2, -1.5, 0, 1, 2, 2.5, -1, 3, -2.5, 1.5, -0.5, 2, -3, 0.5];
+/* ── ERRATIC HERO FLICKER ──────────────────────────────────────────────
+   Fires every 8–12 seconds. CSS handles keyframes with irregular timing.
+   Only on #heroName. NOT a full-screen effect. */
+(function () {
+  var el = document.getElementById('heroName');
+  if (!el) return;
 
-  Object.entries(agents).forEach(([boardId, list]) => {
-    const board = document.getElementById(boardId);
-    if (!board) return;
-    list.forEach(([name, role], i) => {
-      const card = document.createElement('div');
-      card.className = 'wanted-card';
-      card.style.setProperty('--tilt', `${TILTS[i % TILTS.length]}deg`);
-      card.innerHTML = `<div class="wc-name">${name}</div><div class="wc-role">${role}</div>`;
-      board.appendChild(card);
+  function schedule() {
+    var delay = 8000 + Math.random() * 4000;
+    setTimeout(function () {
+      el.classList.add('flicker');
+      setTimeout(function () {
+        el.classList.remove('flicker');
+        schedule();
+      }, 420);
+    }, delay);
+  }
+
+  schedule();
+})();
+
+/* ── SCROLL REVEAL ────────────────────────────────────────────────────
+   IntersectionObserver. translateY 20px -> 0, 400ms ease-out. Not bouncy. */
+(function () {
+  var els = document.querySelectorAll('.reveal');
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        obs.unobserve(e.target);
+      }
     });
-  });
+  }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
+
+  els.forEach(function (el) { obs.observe(el); });
+})();
 </script>
 
 </body>
