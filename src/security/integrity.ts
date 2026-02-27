@@ -1,11 +1,12 @@
 import { resolve } from "node:path";
 import { homedir } from "node:os";
-import { readdir } from "node:fs/promises";
+import { readdir, mkdir } from "node:fs/promises";
 import { logger } from "../utils/logger.ts";
 
 const HOME = homedir();
 
 const AGENTS_DIR = resolve(HOME, ".claude/agents");
+const BASELINE_PATH = resolve(HOME, "eddie/data/integrity-baseline.json");
 
 const WATCHED_FILES = [
   resolve(HOME, "eddie/.env"),
@@ -48,7 +49,31 @@ async function hashFile(path: string): Promise<string | null> {
   }
 }
 
-export async function initBaseline(): Promise<void> {
+async function saveBaseline(): Promise<void> {
+  try {
+    await mkdir(resolve(HOME, "eddie/data"), { recursive: true });
+    await Bun.write(BASELINE_PATH, JSON.stringify(Object.fromEntries(baseline), null, 2));
+  } catch (err) {
+    logger.warn("integrity:baseline-save-error", { error: String(err) });
+  }
+}
+
+async function loadPersistedBaseline(): Promise<boolean> {
+  try {
+    const content = await Bun.file(BASELINE_PATH).text();
+    const obj = JSON.parse(content) as Record<string, string>;
+    for (const [k, v] of Object.entries(obj)) {
+      baseline.set(k, v);
+    }
+    logger.info("integrity:baseline-loaded", { files: baseline.size });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function computeBaseline(): Promise<void> {
+  baseline.clear();
   for (const file of WATCHED_FILES) {
     const hash = await hashFile(file);
     if (hash) baseline.set(file, hash);
@@ -58,7 +83,23 @@ export async function initBaseline(): Promise<void> {
     const hash = await hashFile(file);
     if (hash) baseline.set(file, hash);
   }
+}
+
+export async function initBaseline(): Promise<void> {
+  const loaded = await loadPersistedBaseline();
+  if (loaded) return;
+
+  // No persisted baseline — compute fresh and save
+  await computeBaseline();
+  await saveBaseline();
   logger.info("integrity:baseline-set", { files: baseline.size });
+}
+
+// Force recompute — call only after explicit user confirmation
+export async function refreshBaseline(): Promise<void> {
+  await computeBaseline();
+  await saveBaseline();
+  logger.info("integrity:baseline-refreshed", { files: baseline.size });
 }
 
 async function checkFiles(
