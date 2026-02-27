@@ -462,6 +462,45 @@ export const CAPABILITIES: Capability[] = [
     ],
     priority: 6,
   },
+  {
+    id: "agent:skool-builder",
+    type: "agent",
+    name: "Skool Builder",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "skool",
+          "community",
+          "membership community",
+          "paid community",
+          "free community",
+          "community launch",
+          "community growth",
+          "founding members",
+          "community structure",
+        ],
+        weight: 0.9,
+      },
+      {
+        type: "keyword",
+        patterns: [
+          "discovery call",
+          "cdp framework",
+          "community offer",
+          "membership offer",
+          "community engagement",
+        ],
+        weight: 0.8,
+      },
+      {
+        type: "domain",
+        patterns: ["community building", "online course", "membership site"],
+        weight: 0.5,
+      },
+    ],
+    priority: 7,
+  },
   // ── Code Quality ──
   {
     id: "agent:build-validator",
@@ -1729,6 +1768,29 @@ export const CAPABILITIES: Capability[] = [
       },
     ],
     priority: 5,
+  },
+  {
+    id: "script:memory-monitor",
+    type: "script",
+    name: "Memory Monitor",
+    invoke:
+      "# In-process: startMemoryMonitor(bot) — polls /proc/meminfo every 5min, Telegram alert when availableMB < MEMORY_WARN_MB (default 500MB)",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "memory",
+          "ram",
+          "oom",
+          "low memory",
+          "memory pressure",
+          "out of memory",
+          "getting killed",
+        ],
+        weight: 0.8,
+      },
+    ],
+    priority: 7,
   },
   {
     id: "script:remote-control",

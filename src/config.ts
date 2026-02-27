@@ -218,6 +218,10 @@ const envSchema = z.object({
   VIDEO_PUBLISH_DELAY_HOURS: z.coerce.number().default(0),
   AGENT_DASHBOARD_ENABLED: z.coerce.boolean().default(false),
   AGENT_DASHBOARD_POLL_MS: z.coerce.number().default(5_000),
+  // Memory monitor
+  MEMORY_MONITOR_ENABLED: z.coerce.boolean().default(true),
+  MEMORY_WARN_MB: z.coerce.number().default(500),
+  MEMORY_WARN_COOLDOWN_MS: z.coerce.number().default(1_800_000), // 30 min
 });
 
 export type Config = z.infer<typeof envSchema>;

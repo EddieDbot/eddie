@@ -168,6 +168,11 @@ if (config.ANTHROPIC_MONITOR_ENABLED) {
   startAnthropicMonitor(bot);
 }
 
+if (config.MEMORY_MONITOR_ENABLED) {
+  const { startMemoryMonitor } = await import("./proactive/memory-monitor.ts");
+  startMemoryMonitor(bot);
+}
+
 if (config.ANOMALY_DETECT_ENABLED) {
   const { runAnomalyCheck } = await import("./security/anomaly-detect.ts");
   // Run on startup then every 24h (03:30 slot shared with security council)
