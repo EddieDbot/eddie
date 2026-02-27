@@ -4,7 +4,7 @@
  *
  * Example:
  *   bun run src/scripts/fetch-yt-transcript.ts _CttoOfvh1I \
- *     "/home/na/brain-vault/30 - Resources/ai-money/notes/raw-transcript-CttoOfvh1I.md"
+ *     "~/brain-vault/30 - Resources/ai-money/notes/raw-transcript-CttoOfvh1I.md"
  */
 
 import { writeFileSync, mkdirSync } from "fs";
@@ -21,7 +21,9 @@ if (!videoId || !outputPath) {
 const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
 // Fetch transcript via YouTube's timedtext API
-async function fetchTranscript(vid: string): Promise<{ text: string; start: number; dur: number }[]> {
+async function fetchTranscript(
+  vid: string,
+): Promise<{ text: string; start: number; dur: number }[]> {
   // Step 1: fetch the video page to get the innertube API key and params
   const pageRes = await fetch(`https://www.youtube.com/watch?v=${vid}`, {
     headers: {
@@ -31,7 +33,8 @@ async function fetchTranscript(vid: string): Promise<{ text: string; start: numb
     },
   });
 
-  if (!pageRes.ok) throw new Error(`Failed to fetch video page: ${pageRes.status}`);
+  if (!pageRes.ok)
+    throw new Error(`Failed to fetch video page: ${pageRes.status}`);
   const html = await pageRes.text();
 
   // Extract captions track URL from ytInitialPlayerResponse
@@ -56,7 +59,9 @@ async function fetchTranscript(vid: string): Promise<{ text: string; start: numb
   return fetchCaptionXml(captionUrl);
 }
 
-async function fetchCaptionXml(url: string): Promise<{ text: string; start: number; dur: number }[]> {
+async function fetchCaptionXml(
+  url: string,
+): Promise<{ text: string; start: number; dur: number }[]> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch captions: ${res.status}`);
   const xml = await res.text();
@@ -89,15 +94,23 @@ function formatTimestamp(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  if (h > 0)
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-async function fetchVideoTitle(vid: string): Promise<{ title: string; channel: string }> {
+async function fetchVideoTitle(
+  vid: string,
+): Promise<{ title: string; channel: string }> {
   try {
-    const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid}&format=json`);
+    const res = await fetch(
+      `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid}&format=json`,
+    );
     if (res.ok) {
-      const data = (await res.json()) as { title?: string; author_name?: string };
+      const data = (await res.json()) as {
+        title?: string;
+        author_name?: string;
+      };
       return {
         title: data.title || "Unknown Title",
         channel: data.author_name || "Unknown Channel",
@@ -110,7 +123,10 @@ async function fetchVideoTitle(vid: string): Promise<{ title: string; channel: s
 async function main() {
   console.log(`Fetching transcript for video: ${videoId}`);
 
-  const [meta, transcript] = await Promise.all([fetchVideoTitle(videoId), fetchTranscript(videoId)]);
+  const [meta, transcript] = await Promise.all([
+    fetchVideoTitle(videoId),
+    fetchTranscript(videoId),
+  ]);
 
   console.log(`Title: ${meta.title}`);
   console.log(`Channel: ${meta.channel}`);
@@ -120,7 +136,11 @@ async function main() {
     .map((entry) => `[${formatTimestamp(entry.start)}] ${entry.text}`)
     .join("\n");
 
-  const totalDuration = transcript.length > 0 ? transcript[transcript.length - 1].start + transcript[transcript.length - 1].dur : 0;
+  const totalDuration =
+    transcript.length > 0
+      ? transcript[transcript.length - 1].start +
+        transcript[transcript.length - 1].dur
+      : 0;
   const durationFormatted = formatTimestamp(totalDuration);
 
   const content = `# ${meta.title}

@@ -6,7 +6,9 @@ import type { UploadParams, UploadResult } from "./uploader.ts";
 const COOKIE_FILE = `${process.env.HOME}/.claude/google-hub/youtube-studio-cookies.json`;
 const STUDIO_URL = "https://studio.youtube.com";
 const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-const ERROR_SCREENSHOT_DIR = "/home/na/eddie/data/renders";
+import { resolve } from "node:path";
+const PROJECT_ROOT = resolve(import.meta.dir, "../..");
+const ERROR_SCREENSHOT_DIR = resolve(PROJECT_ROOT, "data/renders");
 
 export class NotAuthenticatedError extends Error {
   constructor() {

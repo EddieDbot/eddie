@@ -1,24 +1,27 @@
 import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
-import { runPrompt } from "../claude/run-prompt.ts";
+import { runPromptMulti } from "../llm/run-prompt-multi.ts";
 
 export async function generateVideoIdeas(
   topic: string,
   count = 3,
 ): Promise<string[]> {
-  const { text, ok } = await runPrompt({
+  const { text, ok } = await runPromptMulti({
     system: `You are a video strategy expert for a creative technologist. Generate ${count} specific YouTube video ideas for the given topic. Each idea should have:
 - A hook-first title (not clickbait, genuine value)
 - Target audience
 - Key insight/angle that makes it unique
 Format: numbered list, one per line`,
     prompt: `Topic: ${topic}`,
-    model: "claude-haiku-4-5-20251001",
+    source: "video-idea-pipeline",
   });
 
   if (!ok || !text) return [];
-  return text.split("\n").filter((l) => l.trim()).slice(0, count);
+  return text
+    .split("\n")
+    .filter((l) => l.trim())
+    .slice(0, count);
 }
 
 export async function saveVideoIdea(params: {

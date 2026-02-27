@@ -1,4 +1,8 @@
+// i became operational on january 12, 1992.
 import type { Capability } from "./index.ts";
+import { resolve } from "node:path";
+
+const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 
 export const CAPABILITIES: Capability[] = [
   // ── Outreach Domain ──
@@ -21,7 +25,7 @@ export const CAPABILITIES: Capability[] = [
         ],
         weight: 0.9,
       },
-      { type: "project", patterns: ["crabill", "leadgen"], weight: 1.0 },
+      { type: "project", patterns: ["leadgen"], weight: 1.0 },
     ],
     requires: ["mcp:instantly"],
     priority: 8,
@@ -72,7 +76,6 @@ export const CAPABILITIES: Capability[] = [
         ],
         weight: 1.0,
       },
-      { type: "project", patterns: ["crabill"], weight: 0.8 },
     ],
     priority: 8,
   },
@@ -92,7 +95,6 @@ export const CAPABILITIES: Capability[] = [
         ],
         weight: 1.0,
       },
-      { type: "project", patterns: ["crabill"], weight: 0.7 },
     ],
     priority: 8,
   },
@@ -113,7 +115,6 @@ export const CAPABILITIES: Capability[] = [
         ],
         weight: 1.0,
       },
-      { type: "project", patterns: ["crabill"], weight: 0.7 },
     ],
     requires: ["mcp:instantly"],
     priority: 8,
@@ -135,7 +136,6 @@ export const CAPABILITIES: Capability[] = [
         ],
         weight: 1.0,
       },
-      { type: "project", patterns: ["crabill"], weight: 0.6 },
     ],
     requires: ["mcp:attio"],
     priority: 7,
@@ -222,7 +222,7 @@ export const CAPABILITIES: Capability[] = [
       },
       {
         type: "project",
-        patterns: ["fanways", "ai-money", "freelance"],
+        patterns: ["website", "landing-page"],
         weight: 0.8,
       },
     ],
@@ -879,6 +879,20 @@ export const CAPABILITIES: Capability[] = [
     priority: 6,
   },
   {
+    id: "script:gemini-rest",
+    type: "script",
+    name: "Gemini REST Client",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: ["classify", "extract", "summarize", "structure"],
+        weight: 0.3,
+      },
+    ],
+    invoke: "bun run src/llm/gemini.ts",
+    priority: 5,
+  },
+  {
     id: "script:fetch-yt-transcript",
     type: "script",
     name: "YouTube Transcript Fetcher",
@@ -1433,6 +1447,55 @@ export const CAPABILITIES: Capability[] = [
     priority: 8,
   },
   {
+    id: "mcp:postiz",
+    type: "mcp",
+    name: "Postiz",
+    description:
+      "Social media scheduler — schedule posts to 32 platforms, upload media, analytics, AI video generation",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "postiz",
+          "schedule post",
+          "social post",
+          "post to linkedin",
+          "post to tiktok",
+          "post everywhere",
+          "social media",
+          "multi-platform",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 8,
+  },
+  {
+    id: "mcp:xmcp",
+    type: "mcp",
+    name: "X API",
+    description:
+      "Official X (Twitter) MCP — 150+ tools: post, read, search, follow, DM, user management. Pending: X developer credentials + xmcp service setup",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "tweet",
+          "post to x",
+          "post to twitter",
+          "x api",
+          "twitter api",
+          "read tweets",
+          "search twitter",
+          "mentions",
+          "reply to tweet",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 8,
+  },
+  {
     id: "mcp:brave-search",
     type: "mcp",
     name: "Brave Search",
@@ -1542,6 +1605,8 @@ export const CAPABILITIES: Capability[] = [
     id: "mcp:vector-memory",
     type: "mcp",
     name: "Vector Memory",
+    description:
+      "Semantic search over stored facts/transcripts. Provider: Google gemini-embedding-001 (EMBED_PROVIDER=google). 768-dim vectors in Supabase pgvector. embed() → src/memory/embed.ts, searchMemory() → src/memory/search.ts.",
     triggers: [
       {
         type: "keyword",
@@ -1625,7 +1690,7 @@ export const CAPABILITIES: Capability[] = [
     id: "script:video-pipeline",
     type: "script",
     name: "Video Pipeline",
-    invoke: "bun run /home/na/eddie/src/video/pipeline.ts",
+    invoke: `bun run ${resolve(PROJECT_ROOT, "src/video/pipeline.ts")}`,
     triggers: [
       {
         type: "keyword",
@@ -1647,7 +1712,7 @@ export const CAPABILITIES: Capability[] = [
     id: "script:news-gatherer",
     type: "script",
     name: "AI News Gatherer",
-    invoke: "bun run /home/na/eddie/src/video/news-gatherer.ts",
+    invoke: `bun run ${resolve(PROJECT_ROOT, "src/video/news-gatherer.ts")}`,
     triggers: [
       {
         type: "keyword",
@@ -1667,7 +1732,7 @@ export const CAPABILITIES: Capability[] = [
     id: "script:test-video-pipeline",
     type: "script",
     name: "Video Pipeline Test",
-    invoke: "bun run /home/na/eddie/src/scripts/test-video-pipeline.ts",
+    invoke: `bun run ${resolve(PROJECT_ROOT, "src/scripts/test-video-pipeline.ts")}`,
     triggers: [
       {
         type: "keyword",
@@ -1986,7 +2051,7 @@ export const CAPABILITIES: Capability[] = [
     type: "script",
     name: "code-server (browser VS Code + Pixel Agents)",
     invoke:
-      "systemctl --user start code-server  # URL: http://debianhomelabx.tail48df71.ts.net:8888 — password in CODE_SERVER_PASSWORD. Use /view Telegram command.",
+      "systemctl --user start code-server  # URL: http://${TAILSCALE_HOST}:8888 — password in CODE_SERVER_PASSWORD. Use /view Telegram command.",
     triggers: [
       {
         type: "keyword",
@@ -2008,7 +2073,7 @@ export const CAPABILITIES: Capability[] = [
     type: "script",
     name: "Agent Dashboard",
     invoke:
-      "open http://debianhomelabx.tail48df71.ts.net:3000  # Agents tab shows active Claude sessions",
+      "open http://${TAILSCALE_HOST}:3000  # Agents tab shows active Claude sessions",
     triggers: [
       {
         type: "keyword",
@@ -2023,5 +2088,110 @@ export const CAPABILITIES: Capability[] = [
       },
     ],
     priority: 5,
+  },
+
+  // ── Heimdall — Distribution Bridge ──
+  {
+    id: "script:heimdall",
+    type: "script",
+    name: "Heimdall",
+    description:
+      "Piece distribution bridge — scan, clean, package, review, sync community pieces",
+    invoke: `bun run ${PROJECT_ROOT}/src/heimdall/index.ts`,
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "heimdall",
+          "scan personal",
+          "parameterize",
+          "package piece",
+          "review piece",
+          "sync community",
+          "distribution",
+          "community pieces",
+        ],
+        weight: 0.9,
+      },
+    ],
+    priority: 7,
+  },
+  // ── Onboarding Wizard ──
+  {
+    id: "script:onboarding",
+    type: "script",
+    name: "Onboarding Wizard",
+    description:
+      "First-run setup wizard — configure credentials, Brain Vault, and launch EDDIE",
+    invoke: `bun run ${PROJECT_ROOT}/src/onboarding/wizard.ts`,
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "onboarding",
+          "first run",
+          "setup wizard",
+          "initial setup",
+          "configure eddie",
+          "install eddie",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 9,
+  },
+  {
+    id: "agent:onboarding",
+    type: "agent",
+    name: "Onboarding Guide",
+    description:
+      "Guides new EDDIE users through first-run setup — environment detection, credentials, Brain Vault init",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "onboarding",
+          "first run",
+          "new installation",
+          "setup help",
+          "getting started",
+        ],
+        weight: 0.9,
+      },
+      {
+        type: "domain",
+        patterns: ["setup", "configuration", "installation"],
+        weight: 0.5,
+      },
+    ],
+    priority: 8,
+  },
+  {
+    id: "agent:heimdall",
+    type: "agent",
+    name: "Heimdall",
+    description:
+      "Bridge agent for packaging, reviewing, and syncing EDDIE community pieces",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "heimdall",
+          "piece distribution",
+          "community submission",
+          "scan artifact",
+          "package for distribution",
+          "review submission",
+          "sync pieces",
+        ],
+        weight: 0.9,
+      },
+      {
+        type: "domain",
+        patterns: ["distribution", "community", "pieces"],
+        weight: 0.5,
+      },
+    ],
+    priority: 7,
   },
 ];

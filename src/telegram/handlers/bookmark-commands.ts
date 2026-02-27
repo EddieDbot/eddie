@@ -1,6 +1,6 @@
 import type { MessageContext } from "./shared.ts";
 import { getSupabase, memoryEnabled } from "../../memory/client.ts";
-import { runPrompt } from "../../claude/run-prompt.ts";
+import { runPromptMulti } from "../../llm/run-prompt-multi.ts";
 import { storeFact } from "../../memory/store.ts";
 import { INBOX_DIR } from "../../memory/brain-vault-paths.ts";
 import { resolve } from "node:path";
@@ -33,10 +33,10 @@ async function handleUrlBookmark(
     const html = await res.text();
     const title = extractTitle(html);
 
-    const { text: summary, ok } = await runPrompt({
+    const { text: summary, ok } = await runPromptMulti({
       system: "Summarize this web page in exactly 2 sentences.",
       prompt: `Title: ${title}\nURL: ${url}\nContent (first 2000 chars): ${html.replace(/<[^>]+>/g, " ").slice(0, 2000)}`,
-      model: "claude-haiku-4-5-20251001",
+      source: "bookmark",
     });
 
     const finalSummary = ok && summary ? summary : "Summary unavailable.";

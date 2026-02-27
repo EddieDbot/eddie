@@ -70,7 +70,7 @@ export function registerCallbackQueryHandlers(bot: Bot): void {
         return;
       }
 
-      const result = await sendGmail("eddie@nac70x7.com", {
+      const result = await sendGmail(config.EDDIE_OWNER_EMAIL, {
         to: draft.leadEmail,
         subject: `Re: Contra Inquiry`,
         body: draft.responseBody,
@@ -84,10 +84,16 @@ export function registerCallbackQueryHandlers(bot: Bot): void {
           chat_id: config.OWNER_TELEGRAM_ID,
           text: `✅ Reply sent to ${draft.leadEmail}`,
         });
-        logger.info("contra-intake:sent", { threadId, leadEmail: draft.leadEmail });
+        logger.info("contra-intake:sent", {
+          threadId,
+          leadEmail: draft.leadEmail,
+        });
       } else {
         await ctx.answerCallbackQuery({ text: "Send failed — check logs." });
-        logger.error("contra-intake:send-failed", { threadId, error: result.error });
+        logger.error("contra-intake:send-failed", {
+          threadId,
+          error: result.error,
+        });
       }
     } else if (action === "skip") {
       await markReplySkipped(threadId);

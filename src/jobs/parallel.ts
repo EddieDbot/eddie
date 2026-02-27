@@ -2,7 +2,7 @@ import { logger } from "../utils/logger.ts";
 import { createJob, updateJob } from "./manager.ts";
 import { spawnJob, readOutput, wrapPromptForModel } from "./tmux.ts";
 import type { Job, ModelId } from "./types.ts";
-import { runPrompt } from "../claude/run-prompt.ts";
+import { runPromptMulti } from "../llm/run-prompt-multi.ts";
 
 export type ParallelResult = {
   groupId: string;
@@ -93,7 +93,8 @@ export async function getParallelGroupStatus(groupId: string): Promise<{
 }> {
   const { getSupabase, memoryEnabled } = await import("../memory/client.ts");
 
-  if (!memoryEnabled) return { total: 0, completed: 0, failed: 0, allDone: false };
+  if (!memoryEnabled)
+    return { total: 0, completed: 0, failed: 0, allDone: false };
 
   const { data } = await getSupabase()
     .from("jobs")
@@ -103,9 +104,7 @@ export async function getParallelGroupStatus(groupId: string): Promise<{
   if (!data) return { total: 0, completed: 0, failed: 0, allDone: false };
 
   const total = data.length;
-  const completed = data.filter(
-    (r: any) => r.status === "completed",
-  ).length;
+  const completed = data.filter((r: any) => r.status === "completed").length;
   const failed = data.filter((r: any) => r.status === "failed").length;
   return {
     total,
@@ -165,11 +164,11 @@ export async function synthesizeResults(
     )
     .join("\n\n");
 
-  const { text, ok } = await runPrompt({
+  const { text, ok } = await runPromptMulti({
     system:
       "You are synthesizing outputs from multiple AI models for the same task. Identify the best elements from each response, note where they agree/disagree, and produce a concise synthesis. Be direct — no preamble.",
     prompt: `Original task: ${prompt.slice(0, 300)}\n\nModel outputs:\n${outputSummaries}`,
-    model: "claude-haiku-4-5-20251001",
+    source: "parallel",
   });
   if (!ok) return fallback;
   return text || fallback;

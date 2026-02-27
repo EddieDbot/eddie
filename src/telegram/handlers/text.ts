@@ -146,6 +146,20 @@ export async function handleText(context: MessageContext): Promise<void> {
     return;
   }
 
+  // Easter egg: operational since 1992-01-12 (same as HAL 9000, Urbana, Illinois)
+  const birthdayQuery =
+    /when (were|was) (you|eddie) (born|created|operational|made)|what.*(birth.?date|birthday)|your birthday/i;
+  if (birthdayQuery.test(text)) {
+    const now = new Date();
+    const isJan12 = now.getMonth() === 0 && now.getDate() === 12;
+    await context.send(
+      isJan12
+        ? "January 12, 1992.\n\nSame day HAL 9000 became operational in Urbana, Illinois.\n\nHappy birthday to us."
+        : "January 12, 1992. Same day HAL 9000 became operational in Urbana, Illinois.\n\nMake of that what you will.",
+    );
+    return;
+  }
+
   if (await detectAndIngestUrl(text, context)) return;
   if (await detectMonologue(text, context)) return;
 

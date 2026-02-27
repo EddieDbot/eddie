@@ -1,4 +1,4 @@
-import { runPrompt } from "../claude/run-prompt.ts";
+import { runPromptMulti } from "../llm/run-prompt-multi.ts";
 import { logger } from "../utils/logger.ts";
 import { mkdir } from "node:fs/promises";
 import { BRAIN_VAULT_ROOT } from "../memory/brain-vault-paths.ts";
@@ -80,11 +80,11 @@ Be punchy, specific, and actionable. Avoid generic advice.`;
     : `Create a content brief for: ${prompt}`;
 
   try {
-    const { text: briefText, ok } = await runPrompt({
+    const { text: briefText, ok } = await runPromptMulti({
+      provider: "gemini",
       system: systemInstruction,
       prompt: userPrompt,
-      model: "claude-haiku-4-5-20251001",
-      maxWaitMs: 20_000,
+      source: "content-brief",
     });
     if (!ok) return "Could not generate brief.";
 

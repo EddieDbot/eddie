@@ -8,7 +8,11 @@ import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 import { emitEvent } from "../dashboard/server.ts";
 import { CAPABILITIES } from "../routing/capabilities.ts";
-import { STATE_DIR, LEARNINGS_DIR, EDDIE_STATE_FILE } from "../memory/brain-vault-paths.ts";
+import {
+  STATE_DIR,
+  LEARNINGS_DIR,
+  EDDIE_STATE_FILE,
+} from "../memory/brain-vault-paths.ts";
 
 type ProjectSnapshot = {
   slug: string;
@@ -108,10 +112,7 @@ async function readDailyConsolidations(): Promise<string> {
     new Date().toLocaleString("en-US", { timeZone: tz }),
   );
   const today = localNow.toISOString().slice(0, 10);
-  const activityPath = resolve(
-    LEARNINGS_DIR,
-    `${today}-eddie-activity.md`,
-  );
+  const activityPath = resolve(LEARNINGS_DIR, `${today}-eddie-activity.md`);
   try {
     return await Bun.file(activityPath).text();
   } catch {
@@ -428,7 +429,7 @@ function identifyProactiveActions(
       type: "message",
       priority: "medium",
       description:
-        "Google OAuth expired — Gmail/Calendar 401. Re-auth via SSH tunnel: ssh -L 3000:localhost:3000 na@100.73.11.127 then http://localhost:3000/oauth/google/start",
+        "Google OAuth expired — Gmail/Calendar 401. Re-auth via SSH tunnel: ssh -L 3000:localhost:3000 user@${SERVER_HOST} then http://localhost:3000/oauth/google/start",
     });
   }
 

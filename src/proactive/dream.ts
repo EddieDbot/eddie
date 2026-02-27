@@ -1,5 +1,5 @@
 import { config } from "../config.ts";
-import { runPrompt, parseJsonFromOutput } from "../claude/run-prompt.ts";
+import { runPromptMulti, parseJsonFromLLM } from "../llm/run-prompt-multi.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
 import { storeFact } from "../memory/store.ts";
 import { searchMemory } from "../memory/search.ts";
@@ -57,14 +57,14 @@ Extract 3-7 atomic insights as a JSON array of strings. Each insight should be:
 Respond with ONLY a JSON array: ["insight 1", "insight 2", ...]
 If there are no valuable insights, return [].`;
 
-  const { text, ok } = await runPrompt({
+  const { text, ok } = await runPromptMulti({
+    provider: "gemini",
     system,
     prompt: `Today's conversations:\n${conversations}`,
-    model: "claude-haiku-4-5-20251001",
-    maxWaitMs: 30_000,
+    source: "dream-extract",
   });
   if (!ok) return [];
-  return parseJsonFromOutput<string[]>(text, []);
+  return parseJsonFromLLM<string[]>(text, []);
 }
 
 async function deduplicateInsights(insights: string[]): Promise<string[]> {

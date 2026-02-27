@@ -1,7 +1,7 @@
 import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
-import { runPrompt } from "../claude/run-prompt.ts";
+import { runPromptMulti } from "../llm/run-prompt-multi.ts";
 
 type ObservationInput = {
   source: string;
@@ -26,11 +26,11 @@ export async function logObservation(input: ObservationInput): Promise<void> {
   let patterns: string[] = [];
 
   if (input.mediaType === "text" && input.textContent) {
-    const { text, ok } = await runPrompt({
+    const { text, ok } = await runPromptMulti({
       system:
         "Classify this observation. Return JSON: {classification: string, labels: string[], description: string, patterns: string[]}",
       prompt: input.textContent.slice(0, 1000),
-      model: "claude-haiku-4-5-20251001",
+      source: "observation-log",
     });
 
     if (ok && text) {
@@ -45,17 +45,15 @@ export async function logObservation(input: ObservationInput): Promise<void> {
     }
   }
 
-  const { error } = await getSupabase()
-    .from("observations")
-    .insert({
-      source: input.source,
-      media_type: input.mediaType,
-      classification,
-      labels,
-      description,
-      patterns,
-      file_path: input.filePath,
-    });
+  const { error } = await getSupabase().from("observations").insert({
+    source: input.source,
+    media_type: input.mediaType,
+    classification,
+    labels,
+    description,
+    patterns,
+    file_path: input.filePath,
+  });
 
   if (error) {
     logger.warn("observation-log:save-error", { error: error.message });
@@ -70,9 +68,7 @@ export async function logObservation(input: ObservationInput): Promise<void> {
 export async function getRecentPatterns(days = 7): Promise<string[]> {
   if (!memoryEnabled) return [];
 
-  const since = new Date(
-    Date.now() - days * 24 * 3600 * 1000,
-  ).toISOString();
+  const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
 
   const { data } = await getSupabase()
     .from("observations")

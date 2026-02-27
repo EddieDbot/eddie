@@ -1,10 +1,13 @@
 import { resolve } from "node:path";
-import { homedir } from "node:os";
 
-const HOME = homedir();
+// Use BRAIN_VAULT_PATH from env if set, otherwise default to ~/brain-vault
+const BRAIN_VAULT_PATH_ENV = process.env.BRAIN_VAULT_PATH;
+const HOME = process.env.EDDIE_HOME || require("node:os").homedir();
 
 // ── Root constants ────────────────────────────────────────────────
-export const BRAIN_VAULT_ROOT = resolve(HOME, "brain-vault");
+export const BRAIN_VAULT_ROOT = BRAIN_VAULT_PATH_ENV
+  ? resolve(BRAIN_VAULT_PATH_ENV)
+  : resolve(HOME, "brain-vault");
 export const INBOX_DIR = resolve(BRAIN_VAULT_ROOT, "00 - Inbox");
 export const PROJECTS_DIR = resolve(BRAIN_VAULT_ROOT, "10 - Projects");
 export const AREAS_DIR = resolve(BRAIN_VAULT_ROOT, "20 - Areas");
@@ -42,99 +45,29 @@ export type SlugEntry = {
 };
 
 // ── Slug registry ─────────────────────────────────────────────────
-const SLUG_MAP: Record<string, SlugEntry> = {
-  // Active Projects — stay in 10 - Projects/
-  "crabill-leadgen": {
-    tier: "active",
-    path: resolve(BRAIN_VAULT_ROOT, "10 - Projects/crabill-leadgen"),
-  },
-  fanways: {
-    tier: "active",
-    path: resolve(BRAIN_VAULT_ROOT, "10 - Projects/fanways"),
-  },
-  "motion-recreation": {
-    tier: "active",
-    path: resolve(BRAIN_VAULT_ROOT, "10 - Projects/motion-recreation"),
-  },
-  shur: {
-    tier: "active",
-    path: resolve(BRAIN_VAULT_ROOT, "10 - Projects/shur"),
-  },
-  freelance: {
-    tier: "active",
-    path: resolve(BRAIN_VAULT_ROOT, "10 - Projects/freelance"),
-  },
-  contra: {
-    tier: "active",
-    path: resolve(BRAIN_VAULT_ROOT, "10 - Projects/contra"),
-  },
+// Load user-configured slugs from brain-vault-slugs.json if it exists.
+// Format: { "slug-name": { "tier": "active|domain|identity|bucket", "subpath": "10 - Projects/slug-name" } }
+type SlugFileEntry = { tier: ProjectTier; subpath: string };
 
-  // Capability Domains — 20 - Areas/
-  eddie: {
-    tier: "domain",
-    path: resolve(BRAIN_VAULT_ROOT, "20 - Areas/EDDIE"),
-  },
-  "eddie-upgrades": {
-    tier: "domain",
-    path: resolve(BRAIN_VAULT_ROOT, "20 - Areas/EDDIE/EDDIE-Upgrades"),
-  },
-  "EDDIE-Upgrades": {
-    tier: "domain",
-    path: resolve(BRAIN_VAULT_ROOT, "20 - Areas/EDDIE/EDDIE-Upgrades"),
-  },
-  "agent-forge": {
-    tier: "domain",
-    path: resolve(BRAIN_VAULT_ROOT, "20 - Areas/AI Research/agent-forge"),
-  },
-  "claude-mastery": {
-    tier: "domain",
-    path: resolve(BRAIN_VAULT_ROOT, "20 - Areas/AI Research/claude-mastery"),
-  },
-  "home-lab-x": {
-    tier: "domain",
-    path: resolve(BRAIN_VAULT_ROOT, "20 - Areas/Homelab"),
-  },
-  "command-center": {
-    tier: "domain",
-    path: resolve(BRAIN_VAULT_ROOT, "20 - Areas/EDDIE/command-center"),
-  },
-  "treasure-map": {
-    tier: "domain",
-    path: resolve(BRAIN_VAULT_ROOT, "20 - Areas/EDDIE/treasure-map"),
-  },
+function loadSlugMap(): Record<string, SlugEntry> {
+  const slugFile = resolve(BRAIN_VAULT_ROOT, "brain-vault-slugs.json");
+  try {
+    const raw = require("node:fs").readFileSync(slugFile, "utf-8");
+    const entries: Record<string, SlugFileEntry> = JSON.parse(raw);
+    const result: Record<string, SlugEntry> = {};
+    for (const [key, val] of Object.entries(entries)) {
+      result[key] = {
+        tier: val.tier,
+        path: resolve(BRAIN_VAULT_ROOT, val.subpath),
+      };
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
 
-  // Identity Contexts — 20 - Areas/
-  "creative-technologist": {
-    tier: "identity",
-    path: resolve(BRAIN_VAULT_ROOT, "20 - Areas/creative-technologist"),
-  },
-
-  // Idea Buckets — 30 - Resources/
-  "ai-money": {
-    tier: "bucket",
-    path: resolve(BRAIN_VAULT_ROOT, "30 - Resources/ai-money"),
-  },
-  "session-nuggets": {
-    tier: "bucket",
-    path: resolve(BRAIN_VAULT_ROOT, "30 - Resources/session-nuggets"),
-  },
-  "vimeo-heygen-dub": {
-    tier: "bucket",
-    path: resolve(BRAIN_VAULT_ROOT, "30 - Resources/vimeo-heygen-dub"),
-  },
-  "health-optimization": {
-    tier: "bucket",
-    path: resolve(BRAIN_VAULT_ROOT, "30 - Resources/health-optimization"),
-  },
-  "puerto-rico-relocation": {
-    tier: "bucket",
-    path: resolve(BRAIN_VAULT_ROOT, "30 - Resources/puerto-rico-relocation"),
-  },
-  "peculiar-people": {
-    tier: "bucket",
-    path: resolve(BRAIN_VAULT_ROOT, "30 - Resources/peculiar-people"),
-  },
-};
+const SLUG_MAP: Record<string, SlugEntry> = loadSlugMap();
 
 // Case-insensitive lookup
 function lookupSlug(slug: string): SlugEntry | undefined {

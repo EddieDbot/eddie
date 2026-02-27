@@ -8,7 +8,7 @@ import { spawnJob } from "../jobs/tmux.ts";
 import { logProvenance } from "../memory/provenance.ts";
 import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
-import { runPrompt } from "../claude/run-prompt.ts";
+import { runPromptMulti } from "../llm/run-prompt-multi.ts";
 
 const HOME = homedir();
 const BRAIN_VAULT = `${HOME}/brain-vault`;
@@ -172,11 +172,11 @@ async function extractExercises(
     return;
   }
 
-  const { text, ok } = await runPrompt({
+  const { text, ok } = await runPromptMulti({
     system:
       "Extract all exercises, action items, and practice prompts from this book excerpt. Format as a numbered list with the chapter/section if available. Be concrete and actionable.",
     prompt: `Book: ${bookTitle}\n\nExcerpt:\n${sample}`,
-    model: "claude-haiku-4-5-20251001",
+    source: "book-ingest",
   });
 
   if (!ok || !text) return;

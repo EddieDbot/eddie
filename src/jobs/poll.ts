@@ -29,7 +29,10 @@ import {
   tickTool,
   parseToolInvocationsFromOutput,
 } from "../memory/tool-ticker.ts";
-import { runPrompt, parseJsonFromOutput } from "../claude/run-prompt.ts";
+import {
+  runPromptMulti,
+  parseJsonFromLLM as parseJsonFromOutput,
+} from "../llm/run-prompt-multi.ts";
 import { redactSecrets } from "../security/output-scan.ts";
 
 const ZOMBIE_THRESHOLD_MS = 5 * 60_000; // 5 minutes with 0 bytes output = dead
@@ -73,7 +76,7 @@ async function runQAGate(
   const jobType = detectJobType(job.prompt, job.tmuxSession);
   if (jobType === "code") {
     const tscProc = Bun.spawn(["bun", "run", "tsc", "--noEmit"], {
-      cwd: process.env.HOME ? `${process.env.HOME}/eddie` : "/home/na/eddie",
+      cwd: resolve(import.meta.dir, "../.."),
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -117,11 +120,11 @@ async function assessOutcome(
     return { outcome: "failed", summary: "No output produced" };
   try {
     const snippet = actualOutput.slice(-3000);
-    const { text, ok } = await runPrompt({
+    const { text, ok } = await runPromptMulti({
       system:
         'Assess this agentic job output. Reply with a JSON object: {"outcome":"success"|"partial"|"failed","summary":"one sentence what was accomplished or why it failed"}. Nothing else.',
       prompt: `Task: ${prompt.slice(0, 300)}\n\nOutput tail:\n${snippet}`,
-      model: "claude-haiku-4-5-20251001",
+      source: "poll",
     });
     if (!ok) return { outcome: "unknown", summary: "" };
     const parsed = parseJsonFromOutput<{ outcome?: string; summary?: string }>(
@@ -451,8 +454,10 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
 
   // Assess outcome via haiku
   const { outcome, summary } = await assessOutcome(job?.prompt ?? "", output);
-  // Tick model usage on completion
   const succeeded = outcome === "success" || outcome === "partial";
+  // Two-phase video tracking: mark processed only on success (not at spawn)
+  const { finalizeVideoJob } = await import("../proactive/video-tracker.ts");
+  finalizeVideoJob(jobId, succeeded).catch(() => {});
   tickTool({
     tool_type: "model",
     tool_name: job?.model ?? "claude",

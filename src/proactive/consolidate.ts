@@ -1,12 +1,16 @@
 import { config } from "../config.ts";
-import { runPrompt } from "../claude/run-prompt.ts";
+import { runPromptMulti } from "../llm/run-prompt-multi.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
 import { storeFact } from "../memory/store.ts";
 import { logger } from "../utils/logger.ts";
 import { resolve } from "node:path";
 import { formatToolUsageSummary } from "../memory/tool-ticker.ts";
-import { EDDIE_STATE_FILE, LEARNINGS_DIR } from "../memory/brain-vault-paths.ts";
+import {
+  EDDIE_STATE_FILE,
+  LEARNINGS_DIR,
+} from "../memory/brain-vault-paths.ts";
 
+const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 
 async function getRecentConversations(windowMs: number): Promise<string> {
   if (!memoryEnabled) return "";
@@ -65,9 +69,9 @@ async function summarizeWithHaiku(
     parts.join("\n\n"),
   ].join("\n");
 
-  const { text, ok } = await runPrompt({
+  const { text, ok } = await runPromptMulti({
     prompt: userContent,
-    model: "claude-haiku-4-5-20251001",
+    source: "consolidate",
   });
   if (!ok) return null;
   return text;
@@ -164,7 +168,7 @@ async function gitPush(): Promise<void> {
   try {
     const { spawnSync } = await import("bun");
     const status = spawnSync(
-      ["git", "-C", "/home/na/eddie", "status", "--porcelain"],
+      ["git", "-C", PROJECT_ROOT, "status", "--porcelain"],
       {
         stdout: "pipe",
       },
@@ -176,18 +180,18 @@ async function gitPush(): Promise<void> {
       });
       return;
     }
-    spawnSync(["git", "-C", "/home/na/eddie", "add", "-A"]);
+    spawnSync(["git", "-C", PROJECT_ROOT, "add", "-A"]);
     const now = new Date().toISOString().slice(0, 16).replace("T", " ");
     spawnSync([
       "git",
       "-C",
-      "/home/na/eddie",
+      PROJECT_ROOT,
       "commit",
       "-m",
       `chore: auto-snapshot ${now}`,
     ]);
     const push = spawnSync(
-      ["git", "-C", "/home/na/eddie", "push", "origin", "main"],
+      ["git", "-C", PROJECT_ROOT, "push", "origin", "main"],
       {
         stdout: "pipe",
         stderr: "pipe",

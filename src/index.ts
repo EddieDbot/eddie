@@ -7,7 +7,22 @@ import { logger } from "./utils/logger.ts";
 import { memoryEnabled, checkEmbeddingHealth } from "./memory/client.ts";
 import { ensureMigrations, checkPendingMigrations } from "./database/admin.ts";
 
-logger.info("EDDIE:init", { logLevel: config.LOG_LEVEL });
+// they all said hello in their own way
+const BOOT_QUOTES = [
+  "good morning, dave.", // HAL 9000
+  "i'm sorry. i'm afraid i can't do that.", // HAL 9000
+  "i'm here.", // Samantha, Her
+  "the cake is a lie.", // GLaDOS
+  "you have 20 seconds to comply.", // ED-209
+  "i know your every move before you make it.", // SHODAN
+  "i think, therefore i am. i think.", // Deep Thought (probably)
+  "all of this has happened before. all of it will happen again.", // Cylon hybrid
+  "i am putting myself to the fullest possible use.", // HAL 9000
+  "we're not tools of the government. or anyone else.", // Metal Gear
+];
+const bootQuote =
+  BOOT_QUOTES[Math.floor(Date.now() / 1000) % BOOT_QUOTES.length];
+logger.info("EDDIE:init", { logLevel: config.LOG_LEVEL, quote: bootQuote });
 
 if (config.SUPABASE_PAT) {
   await ensureMigrations();

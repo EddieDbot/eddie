@@ -9,14 +9,19 @@
  *   bun src/scripts/deploy-static.ts /tmp/my-site
  *
  * Output: prints the live URL to stdout
- * Credentials: /home/na/.config/eddie-accounts/credentials.json
+ * Credentials: ~/.config/eddie-accounts/credentials.json
  */
 
 import * as fs from "fs";
 import * as path from "path";
 import { execSync, spawnSync } from "child_process";
 
-const CREDENTIALS_PATH = "/home/na/.config/eddie-accounts/credentials.json";
+import { homedir } from "node:os";
+
+const CREDENTIALS_PATH = path.join(
+  homedir(),
+  ".config/eddie-accounts/credentials.json",
+);
 const NETLIFY_API = "https://api.netlify.com/api/v1";
 
 interface Credentials {
@@ -159,9 +164,10 @@ async function surgeDeploy(
   const domain = `${siteName}.surge.sh`;
 
   // Prefer bun-installed surge; fall back to system surge
+  const home = homedir();
   const SURGE_PATHS = [
-    "/home/na/.bun/bin/surge",
-    "/home/na/.nvm/versions/node/v22.22.0/bin/surge",
+    path.join(home, ".bun/bin/surge"),
+    path.join(home, ".nvm/versions/node/v22.22.0/bin/surge"),
   ];
   let surgeBin = SURGE_PATHS.find((p) => fs.existsSync(p)) ?? "surge";
 
@@ -171,8 +177,10 @@ async function surgeDeploy(
       execSync("which surge", { stdio: "ignore" });
     } catch {
       console.error("[surge] Installing surge via bun...");
-      execSync("/home/na/.bun/bin/bun install -g surge", { stdio: "inherit" });
-      surgeBin = "/home/na/.bun/bin/surge";
+      execSync(`${path.join(home, ".bun/bin/bun")} install -g surge`, {
+        stdio: "inherit",
+      });
+      surgeBin = path.join(home, ".bun/bin/surge");
     }
   }
 

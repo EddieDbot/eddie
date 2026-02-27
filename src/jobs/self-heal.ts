@@ -50,21 +50,25 @@ const TRANSIENT_PATTERNS = [
   /socket hang up/i,
 ];
 
+import { resolve } from "node:path";
+
+const PROJECT_ROOT = resolve(import.meta.dir, "../..");
+
 const SOURCE_FILES: Record<FailureSource, string[]> = {
   job: [
-    "/home/na/eddie/src/jobs/manager.ts",
-    "/home/na/eddie/src/jobs/tmux.ts",
-    "/home/na/eddie/src/jobs/poll.ts",
+    resolve(PROJECT_ROOT, "src/jobs/manager.ts"),
+    resolve(PROJECT_ROOT, "src/jobs/tmux.ts"),
+    resolve(PROJECT_ROOT, "src/jobs/poll.ts"),
   ],
-  cron: ["/home/na/eddie/src/proactive/cron.ts"],
-  heartbeat: ["/home/na/eddie/src/proactive/heartbeat.ts"],
-  playlist: ["/home/na/eddie/src/proactive/playlist.ts"],
-  dream: ["/home/na/eddie/src/proactive/dream.ts"],
-  "morning-brief": ["/home/na/eddie/src/proactive/morning-brief.ts"],
+  cron: [resolve(PROJECT_ROOT, "src/proactive/cron.ts")],
+  heartbeat: [resolve(PROJECT_ROOT, "src/proactive/heartbeat.ts")],
+  playlist: [resolve(PROJECT_ROOT, "src/proactive/playlist.ts")],
+  dream: [resolve(PROJECT_ROOT, "src/proactive/dream.ts")],
+  "morning-brief": [resolve(PROJECT_ROOT, "src/proactive/morning-brief.ts")],
   "nightly-orchestrate": [
-    "/home/na/eddie/src/proactive/nightly-orchestrate.ts",
+    resolve(PROJECT_ROOT, "src/proactive/nightly-orchestrate.ts"),
   ],
-  "claude-health": ["/home/na/eddie/src/proactive/claude-health.ts"],
+  "claude-health": [resolve(PROJECT_ROOT, "src/proactive/claude-health.ts")],
 };
 
 type HealDecision =
@@ -140,7 +144,7 @@ Diagnose and fix this failure. Steps:
 1. Read the relevant source files listed above
 2. Identify the root cause (code bug, config issue, external dependency failure, or state corruption)
 3. Apply a minimal patch (max 3 files, never modify self-heal.ts itself, never touch credential env vars, never rewrite modules from scratch)
-4. Run \`bun check\` in /home/na/eddie to verify types pass
+4. Run \`bun check\` in ${PROJECT_ROOT} to verify types pass
 5. Report results
 
 End your response with exactly this line:

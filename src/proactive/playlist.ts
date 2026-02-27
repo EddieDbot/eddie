@@ -12,6 +12,7 @@ import { logProvenance } from "../memory/provenance.ts";
 import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
+import { getInFlightVideoIds, trackVideoSpawn } from "./video-tracker.ts";
 
 const HOME = homedir();
 const PLAYLISTS_CONFIG = `${INBOX_DIR}/transcripts/playlists.json`;
@@ -81,6 +82,9 @@ async function loadProcessed(): Promise<Set<string>> {
   } catch {
     // Supabase unavailable — flat file results are enough
   }
+  // Include in-flight jobs so we don't double-spawn while a job is running
+  const inFlight = await getInFlightVideoIds().catch(() => new Set<string>());
+  for (const id of inFlight) ids.add(id);
   return ids;
 }
 
@@ -420,7 +424,7 @@ export async function checkPlaylists(): Promise<{
           );
           const job = await createJob("claude", prompt);
           await spawnJob(job);
-          await markProcessed(item.videoId, item.title);
+          await trackVideoSpawn(job.id, item.videoId, item.title);
           logProvenance({
             feature_name: item.title,
             source_type: "video",

@@ -1,3 +1,4 @@
+// good morning, dave
 import { config } from "../config.ts";
 import { resolve } from "node:path";
 import { mkdir, readdir } from "node:fs/promises";
@@ -29,7 +30,7 @@ import {
 } from "../memory/brain-vault-paths.ts";
 
 const PROJECT_ROOT = resolve(import.meta.dir, "../..");
-const HOME = process.env.HOME ?? "/home/na";
+const HOME = process.env.HOME ?? require("node:os").homedir();
 export const JOBS_DIR = resolve(PROJECT_ROOT, "data/jobs");
 
 const DEFAULT_TIMEOUT_MS = 7_200_000; // 2 hours

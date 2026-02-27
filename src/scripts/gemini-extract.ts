@@ -11,8 +11,7 @@
  * the JSON — never needing to read the raw transcript itself.
  */
 
-const GEMINI_EXTRACT_MODEL = process.env.GEMINI_EXTRACT_MODEL ?? "gemini-2.5-flash";
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+import { callGemini } from "../llm/gemini.ts";
 
 const EXTRACTION_PROMPT = `You are a transcript extraction engine. Your job is to extract structured insights from the transcript below according to a precise schema.
 
@@ -58,48 +57,6 @@ Extract EVERYTHING. Do not summarize prematurely. The validation agent will prun
 TRANSCRIPT:
 `;
 
-interface GeminiResponse {
-  candidates?: Array<{
-    content?: { parts?: Array<{ text?: string }> };
-    finishReason?: string;
-  }>;
-  error?: { message: string };
-}
-
-async function callGemini(transcript: string): Promise<string> {
-  if (!GOOGLE_API_KEY) throw new Error("GOOGLE_API_KEY not set");
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_EXTRACT_MODEL}:generateContent?key=${GOOGLE_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: EXTRACTION_PROMPT + transcript }] }],
-        generationConfig: {
-          maxOutputTokens: 8192,
-          temperature: 0.1,
-        },
-      }),
-      signal: AbortSignal.timeout(120_000),
-    },
-  );
-
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Gemini API error ${response.status}: ${err}`);
-  }
-
-  const data = (await response.json()) as GeminiResponse;
-
-  if (data.error) throw new Error(`Gemini error: ${data.error.message}`);
-
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Gemini returned no content");
-
-  return text;
-}
-
 async function main() {
   const inputPath = process.argv[2];
   if (!inputPath) {
@@ -113,7 +70,7 @@ async function main() {
     process.exit(1);
   }
 
-  const raw = await callGemini(transcript);
+  const raw = await callGemini({ prompt: EXTRACTION_PROMPT + transcript, source: "gemini-extract" });
 
   // Strip markdown code fences if Gemini wrapped the JSON
   const cleaned = raw.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();

@@ -5,6 +5,8 @@ import {
   PLANS_DIR,
 } from "../memory/brain-vault-paths.ts";
 
+const PROJECT_ROOT = resolve(import.meta.dir, "../..");
+
 export type ArtifactSpec = {
   description: string;
   check: () => Promise<boolean>;
@@ -74,10 +76,11 @@ export function getExpectedArtifacts(
       {
         description: "TypeScript compiles after heal",
         check: async () => {
-          const proc = Bun.spawn(
-            ["/home/na/.bun/bin/bun", "x", "tsc", "--noEmit"],
-            { cwd: "/home/na/eddie", stdout: "ignore", stderr: "ignore" },
-          );
+          const proc = Bun.spawn(["bun", "x", "tsc", "--noEmit"], {
+            cwd: PROJECT_ROOT,
+            stdout: "ignore",
+            stderr: "ignore",
+          });
           const code = await proc.exited;
           return code === 0;
         },
@@ -121,7 +124,7 @@ export async function verifyPhaseArtifacts(
 async function verifyPhase1(): Promise<PhaseResult> {
   // Phase 1: source files written — check that recent git changes exist
   const proc = Bun.spawn(["git", "status", "--porcelain"], {
-    cwd: "/home/na/eddie",
+    cwd: PROJECT_ROOT,
     stdout: "pipe",
     stderr: "ignore",
   });
@@ -137,8 +140,8 @@ async function verifyPhase1(): Promise<PhaseResult> {
 
 async function verifyPhase2(): Promise<PhaseResult> {
   // Phase 2: TypeScript compiles (proxy for tests passing)
-  const proc = Bun.spawn(["/home/na/.bun/bin/bun", "x", "tsc", "--noEmit"], {
-    cwd: "/home/na/eddie",
+  const proc = Bun.spawn(["bun", "x", "tsc", "--noEmit"], {
+    cwd: PROJECT_ROOT,
     stdout: "ignore",
     stderr: "pipe",
   });
@@ -155,10 +158,11 @@ async function verifyPhase2(): Promise<PhaseResult> {
 
 async function verifyPhase3(): Promise<PhaseResult> {
   // Phase 3: build succeeds (bun check equivalent)
-  const proc = Bun.spawn(
-    ["/home/na/.bun/bin/bun", "run", "build"].filter(Boolean),
-    { cwd: "/home/na/eddie", stdout: "ignore", stderr: "pipe" },
-  );
+  const proc = Bun.spawn(["bun", "run", "build"].filter(Boolean), {
+    cwd: PROJECT_ROOT,
+    stdout: "ignore",
+    stderr: "pipe",
+  });
   const code = await proc.exited;
   const passed = code === 0;
   return {
@@ -193,10 +197,11 @@ function getCodePhaseArtifacts(prompt: string): ArtifactSpec[] {
     specs.push({
       description: "TypeScript compiles without errors",
       check: async () => {
-        const proc = Bun.spawn(
-          ["/home/na/.bun/bin/bun", "x", "tsc", "--noEmit"],
-          { cwd: "/home/na/eddie", stdout: "ignore", stderr: "ignore" },
-        );
+        const proc = Bun.spawn(["bun", "x", "tsc", "--noEmit"], {
+          cwd: PROJECT_ROOT,
+          stdout: "ignore",
+          stderr: "ignore",
+        });
         return (await proc.exited) === 0;
       },
     });

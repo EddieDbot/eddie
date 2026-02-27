@@ -41,7 +41,11 @@ async function markProcessed(meetingId: string, title: string): Promise<void> {
     await getSupabase()
       .from("comms_sync_state")
       .upsert(
-        { channel: "meet-transcripts", external_id: meetingId, metadata: { title } },
+        {
+          channel: "meet-transcripts",
+          external_id: meetingId,
+          metadata: { title },
+        },
         { onConflict: "channel,external_id" },
       );
   } catch {}
@@ -50,7 +54,7 @@ async function markProcessed(meetingId: string, title: string): Promise<void> {
 export async function getNewTranscripts(): Promise<unknown[]> {
   try {
     const { fetchMeetTranscripts } = await import("../comms/google/meet.ts");
-    return await fetchMeetTranscripts("nicholas@nac70x7.com");
+    return await fetchMeetTranscripts(config.EDDIE_OWNER_EMAIL);
   } catch {
     return [];
   }
@@ -85,12 +89,16 @@ export async function runMeetIngestion(): Promise<number> {
       if (already) continue;
 
       const title = transcript.subject ?? `Meeting ${id}`;
-      const date = (transcript.receivedAt ?? new Date().toISOString()).slice(0, 10);
+      const date = (transcript.receivedAt ?? new Date().toISOString()).slice(
+        0,
+        10,
+      );
 
       let content = transcript.preview ?? "";
       if (!content && transcript.metadata?.driveId) {
         try {
-          const { getDriveFileContent } = await import("../comms/google/drive.ts");
+          const { getDriveFileContent } =
+            await import("../comms/google/drive.ts");
           content = await getDriveFileContent(transcript.metadata.driveId);
         } catch {}
       }

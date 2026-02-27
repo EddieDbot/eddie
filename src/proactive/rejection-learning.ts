@@ -1,7 +1,7 @@
 import type { Bot } from "gramio";
 import { config } from "../config.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
-import { runPrompt } from "../claude/run-prompt.ts";
+import { runPromptMulti } from "../llm/run-prompt-multi.ts";
 import { logger } from "../utils/logger.ts";
 
 const MIN_OFF_RATINGS = 5;
@@ -12,7 +12,9 @@ type JobRow = { id: string; model: string; prompt: string };
 
 export async function runRejectionLearning(bot: Bot): Promise<void> {
   if (!memoryEnabled) {
-    logger.info("rejection-learning:skipped", { reason: "supabase not configured" });
+    logger.info("rejection-learning:skipped", {
+      reason: "supabase not configured",
+    });
     return;
   }
 
@@ -26,7 +28,9 @@ export async function runRejectionLearning(bot: Bot): Promise<void> {
     .gte("created_at", weekAgo);
 
   if (fbErr) {
-    logger.warn("rejection-learning:feedback-query-failed", { error: fbErr.message });
+    logger.warn("rejection-learning:feedback-query-failed", {
+      error: fbErr.message,
+    });
     return;
   }
   if (!allFeedback || allFeedback.length === 0) {
@@ -53,7 +57,9 @@ export async function runRejectionLearning(bot: Bot): Promise<void> {
     .in("id", offJobIds);
 
   if (jobErr) {
-    logger.warn("rejection-learning:jobs-query-failed", { error: jobErr.message });
+    logger.warn("rejection-learning:jobs-query-failed", {
+      error: jobErr.message,
+    });
     return;
   }
 
@@ -75,7 +81,9 @@ export async function runRejectionLearning(bot: Bot): Promise<void> {
   const flagged: string[] = [];
   for (const [model, stats] of modelStats) {
     if (stats.total > 0 && stats.off / stats.total > HIGH_OFF_RATE_THRESHOLD) {
-      flagged.push(`- ${model}: ${stats.off}/${stats.total} (${Math.round((stats.off / stats.total) * 100)}%)`);
+      flagged.push(
+        `- ${model}: ${stats.off}/${stats.total} (${Math.round((stats.off / stats.total) * 100)}%)`,
+      );
     }
   }
 
@@ -84,14 +92,16 @@ export async function runRejectionLearning(bot: Bot): Promise<void> {
     .map((f) => f.reason)
     .filter((r): r is string => !!r && r.trim().length > 0);
 
-  let patternsText = "No rejection reasons recorded — encourage feedback with reasons.";
+  let patternsText =
+    "No rejection reasons recorded — encourage feedback with reasons.";
 
   if (reasons.length >= 2) {
-    const { text, ok } = await runPrompt({
-      system: "You analyze job rejection feedback to find patterns. Be concise.",
+    const { text, ok } = await runPromptMulti({
+      system:
+        "You analyze job rejection feedback to find patterns. Be concise.",
       prompt: `These are reasons users gave for rating jobs as "off" (bad):\n\n${reasons.map((r, i) => `${i + 1}. ${r}`).join("\n")}\n\nWhat common patterns explain why these jobs were rated off? Give exactly 3 bullet points, each starting with "•".`,
-      model: "claude-haiku-4-5-20251001",
       maxWaitMs: 25_000,
+      source: "rejection-learning",
     });
 
     if (ok && text.trim()) {

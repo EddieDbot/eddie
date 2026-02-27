@@ -17,7 +17,10 @@ import { appendVideoEntry } from "./working-doc.ts";
 import { scheduleAnalyticsPull } from "./analytics-tracker.ts";
 import { createPipelineTracker } from "./pipeline-tracker.ts";
 
-const RENDERS_DIR = "/home/na/eddie/data/renders";
+import { resolve } from "node:path";
+
+const PROJECT_ROOT = resolve(import.meta.dir, "../..");
+const RENDERS_DIR = resolve(PROJECT_ROOT, "data/renders");
 
 async function createRenderRecord(
   storyId: string,

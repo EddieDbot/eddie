@@ -10,6 +10,7 @@ export type Capability = {
   id: string;
   type: CapabilityType;
   name: string;
+  description?: string;
   triggers: TriggerRule[];
   requires?: string[];
   priority: number;

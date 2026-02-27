@@ -1,13 +1,22 @@
 import { z } from "zod";
+import { homedir } from "node:os";
 
 const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string(),
   OWNER_TELEGRAM_ID: z.coerce.number(),
   CLAUDE_PATH: z.string().default("claude"),
+  // Owner configuration
+  EDDIE_OWNER_NAME: z.string().default("User"),
+  EDDIE_OWNER_EMAIL: z.string().default(""),
+  EDDIE_HOME: z.string().default(homedir()),
+  BRAIN_VAULT_PATH: z.string().default(`${homedir()}/brain-vault`),
+  PERSONAL_GIT_REPO: z.string().default(""),
+  TAILSCALE_HOST: z.string().default(""),
+  SERVER_HOST: z.string().default("localhost"),
   // When set, all claude subprocess invocations use this as HOME so they read
   // credentials from ~/.eddie-home/.claude/ instead of ~/.claude/.
-  // Set this after subscribing under eddie@nac70x7.com and running:
-  //   HOME=/home/na/.eddie-home claude auth
+  // Set this after subscribing and running:
+  //   HOME=$EDDIE_CLAUDE_HOME claude auth
   EDDIE_CLAUDE_HOME: z.string().optional(),
   SESSION_DIR: z.string().default("./sessions"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
@@ -48,12 +57,8 @@ const envSchema = z.object({
     .string()
     .default("~/brain-vault/90 - Agent Memory/Jobs"),
   KIMI_PATH: z.string().default("kimi"),
-  GEMINI_PATH: z
-    .string()
-    .default("/home/na/.nvm/versions/node/v22.22.0/bin/gemini"),
-  CODEX_PATH: z
-    .string()
-    .default("/home/na/.nvm/versions/node/v22.22.0/bin/codex"),
+  GEMINI_PATH: z.string().default("gemini"),
+  CODEX_PATH: z.string().default("codex"),
   TMUX_PATH: z.string().default("tmux"),
   JOB_POLL_INTERVAL_MS: z.coerce.number().default(30_000),
   CONSOLIDATE_INTERVAL_MS: z.coerce.number().default(3_600_000),
@@ -200,7 +205,7 @@ const envSchema = z.object({
   ACCOUNTING_PIPELINE_ENABLED: z.coerce.boolean().default(false),
   OBSERVATION_LOG_ENABLED: z.coerce.boolean().default(false),
   // Wave 8 — Final Polish
-  CROSS_PROVIDER_ROUTING_ENABLED: z.coerce.boolean().default(false),
+  CROSS_PROVIDER_ROUTING_ENABLED: z.coerce.boolean().default(true),
   MONOLOGUE_BRIEF_ENABLED: z.coerce.boolean().default(false),
   ANTHROPIC_MONITOR_ENABLED: z.coerce.boolean().default(false),
   // Video Pipeline

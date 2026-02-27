@@ -2,8 +2,9 @@ import { logger } from "../utils/logger.ts";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const REMOTION_DIR = "/home/na/eddie/remotion";
-const RENDERS_DIR = "/home/na/eddie/data/renders";
+const PROJECT_ROOT = resolve(import.meta.dir, "../..");
+const REMOTION_DIR = resolve(PROJECT_ROOT, "remotion");
+const RENDERS_DIR = resolve(PROJECT_ROOT, "data/renders");
 const RENDER_TIMEOUT_MS = 10 * 60 * 1000;
 
 export type RenderParams = {

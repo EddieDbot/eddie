@@ -79,7 +79,8 @@ export async function handleBrainstorm(context: MessageContext): Promise<void> {
       return;
     }
     await context.send(`Brainstorm batch started for "${text}"...`);
-    const { runPrompt } = await import("../../claude/run-prompt.ts");
+    const { runPromptMulti: runPrompt } =
+      await import("../../llm/run-prompt-multi.ts");
     const { mkdir, writeFile } = await import("node:fs/promises");
     const { BRAIN_VAULT_ROOT } =
       await import("../../memory/brain-vault-paths.ts");
@@ -100,8 +101,8 @@ export async function handleBrainstorm(context: MessageContext): Promise<void> {
               : "mix practical and creative"
       }.`,
       prompt,
-      model: "claude-haiku-4-5-20251001",
       maxWaitMs: 30_000,
+      source: "brainstorm",
     });
     if (!ok) {
       await context.send("Brainstorm batch failed.");

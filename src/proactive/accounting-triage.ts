@@ -1,6 +1,6 @@
 import { config } from "../config.ts";
 import { logger } from "../utils/logger.ts";
-import { runPrompt } from "../claude/run-prompt.ts";
+import { runPromptMulti } from "../llm/run-prompt-multi.ts";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
 
@@ -119,7 +119,8 @@ export async function runAccountingTriage(): Promise<void> {
     .join("\n\n---\n\n")
     .slice(0, 4000);
 
-  const { text, ok } = await runPrompt({
+  const { text, ok } = await runPromptMulti({
+    provider: "gemini",
     system: `You are an accounting assistant. Analyze these financial emails and extract:
 - Date
 - Description (what it's for)
@@ -133,7 +134,7 @@ Format as a markdown table:
 
 Only include actual financial transactions, ignore marketing emails.`,
     prompt: emailSummary,
-    model: "claude-haiku-4-5-20251001",
+    source: "accounting-triage",
   });
 
   if (!ok || !text) return;

@@ -1,5 +1,5 @@
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
-import { runPrompt } from "../claude/run-prompt.ts";
+import { runPromptMulti } from "../llm/run-prompt-multi.ts";
 import { logger } from "../utils/logger.ts";
 import type { ModelId } from "../jobs/types.ts";
 
@@ -16,21 +16,24 @@ export async function storeComparison(result: ComparisonResult): Promise<void> {
   if (!memoryEnabled) return;
 
   try {
-    const { error } = await getSupabase().from("model_comparisons").insert({
-      task_type: result.taskType,
-      prompt_preview: result.promptPreview.slice(0, 200),
-      claude_score: result.scores.claude ?? null,
-      codex_score: result.scores.codex ?? null,
-      gemini_score: result.scores.gemini ?? null,
-      kimi_score: result.scores.kimi ?? null,
-      winner: result.winner,
-      synthesis_added_value: result.synthesisAddedValue,
-      claude_duration_ms: result.durations.claude ?? null,
-      codex_duration_ms: result.durations.codex ?? null,
-      gemini_duration_ms: result.durations.gemini ?? null,
-      kimi_duration_ms: result.durations.kimi ?? null,
-    });
-    if (error) logger.warn("comparisons:insert-error", { error: error.message });
+    const { error } = await getSupabase()
+      .from("model_comparisons")
+      .insert({
+        task_type: result.taskType,
+        prompt_preview: result.promptPreview.slice(0, 200),
+        claude_score: result.scores.claude ?? null,
+        codex_score: result.scores.codex ?? null,
+        gemini_score: result.scores.gemini ?? null,
+        kimi_score: result.scores.kimi ?? null,
+        winner: result.winner,
+        synthesis_added_value: result.synthesisAddedValue,
+        claude_duration_ms: result.durations.claude ?? null,
+        codex_duration_ms: result.durations.codex ?? null,
+        gemini_duration_ms: result.durations.gemini ?? null,
+        kimi_duration_ms: result.durations.kimi ?? null,
+      });
+    if (error)
+      logger.warn("comparisons:insert-error", { error: error.message });
   } catch (err) {
     logger.warn("comparisons:store-failed", {
       error: err instanceof Error ? err.message : String(err),
@@ -38,7 +41,9 @@ export async function storeComparison(result: ComparisonResult): Promise<void> {
   }
 }
 
-export async function getWinRates(days = 30): Promise<Partial<Record<ModelId, number>>> {
+export async function getWinRates(
+  days = 30,
+): Promise<Partial<Record<ModelId, number>>> {
   if (!memoryEnabled) return {};
 
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
@@ -64,7 +69,9 @@ export async function getWinRates(days = 30): Promise<Partial<Record<ModelId, nu
   return counts;
 }
 
-export async function getTaskTypeWinners(days = 30): Promise<Array<{ taskType: string; winner: ModelId; count: number }>> {
+export async function getTaskTypeWinners(
+  days = 30,
+): Promise<Array<{ taskType: string; winner: ModelId; count: number }>> {
   if (!memoryEnabled) return [];
 
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
@@ -83,9 +90,12 @@ export async function getTaskTypeWinners(days = 30): Promise<Array<{ taskType: s
     map.get(tt)!.set(w, (map.get(tt)!.get(w) ?? 0) + 1);
   }
 
-  const results: Array<{ taskType: string; winner: ModelId; count: number }> = [];
+  const results: Array<{ taskType: string; winner: ModelId; count: number }> =
+    [];
   for (const [taskType, winnerMap] of map) {
-    const [winner, count] = [...winnerMap.entries()].sort((a, b) => b[1] - a[1])[0]!;
+    const [winner, count] = [...winnerMap.entries()].sort(
+      (a, b) => b[1] - a[1],
+    )[0]!;
     results.push({ taskType, winner, count });
   }
 
@@ -104,15 +114,22 @@ export async function scoreOutputsAndStore(
 
   for (const o of outputs) {
     if (o.durationMs) durations[o.model] = o.durationMs;
-    if (!o.output.trim()) { scores[o.model] = 1; continue; }
+    if (!o.output.trim()) {
+      scores[o.model] = 1;
+      continue;
+    }
 
     try {
-      const { text, ok } = await runPrompt({
-        system: "Score this AI response 1-5 for quality, accuracy, and completeness. Reply with just the number.",
+      const { text, ok } = await runPromptMulti({
+        system:
+          "Score this AI response 1-5 for quality, accuracy, and completeness. Reply with just the number.",
         prompt: `Task: ${prompt.slice(0, 200)}\n\nResponse: ${o.output.slice(-1500)}`,
-        model: "claude-haiku-4-5-20251001",
+        source: "comparisons",
       });
-      if (!ok) { scores[o.model] = 3; continue; }
+      if (!ok) {
+        scores[o.model] = 3;
+        continue;
+      }
       const score = parseInt(text.trim(), 10);
       scores[o.model] = isNaN(score) ? 3 : Math.min(5, Math.max(1, score));
     } catch {
@@ -120,8 +137,10 @@ export async function scoreOutputsAndStore(
     }
   }
 
-  const winner = (Object.entries(scores) as Array<[ModelId, number]>)
-    .sort((a, b) => b[1] - a[1])[0]?.[0] ?? "claude";
+  const winner =
+    (Object.entries(scores) as Array<[ModelId, number]>).sort(
+      (a, b) => b[1] - a[1],
+    )[0]?.[0] ?? "claude";
 
   await storeComparison({
     taskType: "general",

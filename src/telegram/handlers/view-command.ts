@@ -1,6 +1,9 @@
 import type { MessageContext } from "./shared.ts";
 
-const CODE_SERVER_URL = "http://debianhomelabx.tail48df71.ts.net:8888";
+import { config } from "../../config.ts";
+const CODE_SERVER_URL = config.TAILSCALE_HOST
+  ? `http://${config.TAILSCALE_HOST}:8888`
+  : "http://localhost:8888";
 
 export async function handleView(context: MessageContext): Promise<void> {
   const alive = await isCodeServerAlive();
@@ -15,19 +18,19 @@ export async function handleView(context: MessageContext): Promise<void> {
 }
 
 async function isCodeServerAlive(): Promise<boolean> {
-  const proc = Bun.spawn(
-    ["systemctl", "--user", "is-active", "code-server"],
-    { stdout: "pipe", stderr: "ignore" },
-  );
+  const proc = Bun.spawn(["systemctl", "--user", "is-active", "code-server"], {
+    stdout: "pipe",
+    stderr: "ignore",
+  });
   await proc.exited;
   const out = await new Response(proc.stdout).text();
   return out.trim() === "active";
 }
 
 async function startCodeServer(): Promise<void> {
-  const proc = Bun.spawn(
-    ["systemctl", "--user", "start", "code-server"],
-    { stdout: "ignore", stderr: "ignore" },
-  );
+  const proc = Bun.spawn(["systemctl", "--user", "start", "code-server"], {
+    stdout: "ignore",
+    stderr: "ignore",
+  });
   await proc.exited;
 }

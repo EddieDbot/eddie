@@ -1,6 +1,6 @@
 import type { MessageContext } from "./shared.ts";
 import { STATE_DIR } from "../../memory/brain-vault-paths.ts";
-import { runPrompt } from "../../claude/run-prompt.ts";
+import { runPromptMulti } from "../../llm/run-prompt-multi.ts";
 
 export async function handleApprove(context: MessageContext): Promise<void> {
   const args =
@@ -167,12 +167,12 @@ export async function handleAlign(context: MessageContext): Promise<void> {
       vision = vision.slice(0, 2000);
     } catch {}
 
-    const { text, ok } = await runPrompt({
+    const { text, ok } = await runPromptMulti({
       system: vision
         ? `You are an alignment advisor. Score how well an idea aligns with this vision:\n\n${vision}\n\nReply with: Score: X/100\n[2-3 sentence reasoning]`
         : "You are an alignment advisor. Score how well the idea aligns with a creative technologist/director's vision. Reply with: Score: X/100\n[2-3 sentence reasoning]",
       prompt: `Idea: ${idea}`,
-      model: "claude-haiku-4-5-20251001",
+      source: "review",
     });
     await context.send(ok && text ? text : "Could not score.");
   } catch {

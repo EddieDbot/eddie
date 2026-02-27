@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EDDIE Icon Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #080808;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 60px;
+      font-family: monospace;
+      color: #444;
+    }
+    .sizes {
+      display: flex;
+      align-items: flex-end;
+      gap: 60px;
+    }
+    .size-label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .size-label span { font-size: 11px; letter-spacing: 2px; }
+    .title { font-size: 11px; letter-spacing: 4px; color: #222; }
+  </style>
+</head>
+<body>
+
+<p class="title">E · D · D · I · E</p>
+
+<div class="sizes">
+  <!-- 512px -->
+  <div class="size-label">
+    <svg width="220" height="242" viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="glow512" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="2.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="bigGlow512" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <pattern id="scanlines512" x="0" y="0" width="100" height="3" patternUnits="userSpaceOnUse">
+          <rect x="0" y="0" width="100" height="1.2" fill="rgba(0,0,0,0.3)"/>
+        </pattern>
+        <style>
+          @keyframes blink512 {
+            0%, 85%, 100% { transform: scaleY(1); }
+            91%            { transform: scaleY(0.07); }
+            94%            { transform: scaleY(1); }
+          }
+          @keyframes eyePulse512 {
+            0%, 100% { opacity: 0.9; }
+            50%       { opacity: 0.6; }
+          }
+          @keyframes antPulse512 {
+            0%, 100% { opacity: 1;   r: 2.8px; }
+            50%       { opacity: 0.4; r: 1.8px; }
+          }
+          @keyframes antHalo512 {
+            0%, 100% { opacity: 0.4; r: 5.5px; }
+            50%       { opacity: 0.08; r: 3px; }
+          }
+          @keyframes mouthWave512 {
+            0%        { d: path("M25 66 Q50 64 75 66"); }
+            25%       { d: path("M25 66 Q50 68 75 66"); }
+            50%       { d: path("M25 66 Q50 64 75 66"); }
+            75%       { d: path("M25 66 Q50 68 75 66"); }
+            100%      { d: path("M25 66 Q50 64 75 66"); }
+          }
+          .leye512 {
+            transform-origin: 33px 46px;
+            animation: blink512 5s ease-in-out infinite;
+          }
+          .reye512 {
+            transform-origin: 67px 46px;
+            animation: blink512 5s ease-in-out infinite;
+          }
+          .eyeglow512   { animation: eyePulse512 3s ease-in-out infinite; }
+          .antdot512    { animation: antPulse512 2s ease-in-out infinite; }
+          .anthalo512   { animation: antHalo512  2s ease-in-out infinite; }
+        </style>
+      </defs>
+
+      <!-- Antenna rod -->
+      <line x1="50" y1="4" x2="50" y2="18" stroke="#2a2a2e" stroke-width="2.5" stroke-linecap="round"/>
+      <!-- Antenna halo -->
+      <circle class="anthalo512" cx="50" cy="4" r="5.5" fill="#00e5ff" opacity="0.4"/>
+      <!-- Antenna tip -->
+      <circle class="antdot512" cx="50" cy="4" r="2.8" fill="#00e5ff"/>
+
+      <!-- Body drop shadow -->
+      <rect x="13" y="21" width="74" height="74" rx="10" fill="rgba(0,0,0,0.5)"/>
+
+      <!-- TV body -->
+      <rect x="10" y="18" width="80" height="72" rx="10" fill="#18181c"/>
+      <!-- Body top sheen -->
+      <rect x="11" y="19" width="78" height="5" rx="8" fill="rgba(255,255,255,0.035)"/>
+
+      <!-- Screen outer bezel -->
+      <rect x="15" y="24" width="70" height="60" rx="6" fill="#0c0c10"/>
+
+      <!-- Screen surface -->
+      <rect x="18" y="27" width="64" height="54" rx="3" fill="#000c0e"/>
+
+      <!-- Screen ambient glow -->
+      <rect x="18" y="27" width="64" height="54" rx="3" fill="rgba(0,229,255,0.04)"/>
+
+      <!-- LEFT EYE -->
+      <g class="leye512">
+        <rect x="20" y="37" width="26" height="18" rx="4" fill="#000d10"/>
+        <rect class="eyeglow512" x="20" y="37" width="26" height="18" rx="4"
+              fill="#00e5ff" opacity="0.88" filter="url(#glow512)"/>
+        <!-- hotspot -->
+        <rect x="22" y="39" width="7" height="4" rx="2" fill="rgba(255,255,255,0.55)"/>
+      </g>
+
+      <!-- RIGHT EYE -->
+      <g class="reye512">
+        <rect x="54" y="37" width="26" height="18" rx="4" fill="#000d10"/>
+        <rect class="eyeglow512" x="54" y="37" width="26" height="18" rx="4"
+              fill="#00e5ff" opacity="0.88" filter="url(#glow512)"/>
+        <!-- hotspot -->
+        <rect x="56" y="39" width="7" height="4" rx="2" fill="rgba(255,255,255,0.55)"/>
+      </g>
+
+      <!-- Mouth / speaker grill -->
+      <rect x="26" y="63" width="48" height="2.5" rx="1.25" fill="#00e5ff" opacity="0.40"/>
+      <rect x="29" y="68" width="42" height="2.5" rx="1.25" fill="#00e5ff" opacity="0.24"/>
+      <rect x="33" y="73" width="34" height="2.5" rx="1.25" fill="#00e5ff" opacity="0.13"/>
+
+      <!-- Scanlines -->
+      <rect x="18" y="27" width="64" height="54" rx="3" fill="url(#scanlines512)" opacity="0.55"/>
+
+      <!-- CRT sheen (subtle top-left reflection) -->
+      <ellipse cx="36" cy="40" rx="18" ry="12" fill="rgba(255,255,255,0.025)"/>
+
+      <!-- Side knobs left -->
+      <circle cx="11" cy="52" r="3" fill="#111115"/>
+      <circle cx="11" cy="62" r="3" fill="#111115"/>
+      <!-- Side knobs right -->
+      <circle cx="89" cy="52" r="3" fill="#111115"/>
+      <circle cx="89" cy="62" r="3" fill="#111115"/>
+
+      <!-- Body bottom -->
+      <rect x="10" y="83" width="80" height="7" rx="5" fill="#141418"/>
+
+      <!-- Legs -->
+      <rect x="26" y="90" width="18" height="16" rx="5" fill="#18181c"/>
+      <rect x="56" y="90" width="18" height="16" rx="5" fill="#18181c"/>
+      <!-- Feet -->
+      <rect x="22" y="101" width="24" height="8" rx="4" fill="#111115"/>
+      <rect x="54" y="101" width="24" height="8" rx="4" fill="#111115"/>
+      <!-- Foot sheen -->
+      <rect x="24" y="102" width="18" height="2" rx="1" fill="rgba(255,255,255,0.03)"/>
+      <rect x="56" y="102" width="18" height="2" rx="1" fill="rgba(255,255,255,0.03)"/>
+    </svg>
+    <span>512px</span>
+  </div>
+
+  <!-- 128px -->
+  <div class="size-label">
+    <svg width="64" height="70" viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg">
+      <use href="#eddie-head"/>
+      <defs>
+        <filter id="glow128" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="2.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <pattern id="scanlines128" x="0" y="0" width="100" height="3" patternUnits="userSpaceOnUse">
+          <rect x="0" y="0" width="100" height="1.2" fill="rgba(0,0,0,0.3)"/>
+        </pattern>
+        <style>
+          .leye128 {
+            transform-origin: 33px 46px;
+            animation: blink512 5s ease-in-out infinite;
+          }
+          .reye128 {
+            transform-origin: 67px 46px;
+            animation: blink512 5s ease-in-out infinite;
+          }
+          .eyeglow128 { animation: eyePulse512 3s ease-in-out infinite; }
+        </style>
+      </defs>
+      <line x1="50" y1="4" x2="50" y2="18" stroke="#2a2a2e" stroke-width="2.5" stroke-linecap="round"/>
+      <circle class="anthalo512" cx="50" cy="4" r="5.5" fill="#00e5ff" opacity="0.4"/>
+      <circle class="antdot512" cx="50" cy="4" r="2.8" fill="#00e5ff"/>
+      <rect x="13" y="21" width="74" height="74" rx="10" fill="rgba(0,0,0,0.5)"/>
+      <rect x="10" y="18" width="80" height="72" rx="10" fill="#18181c"/>
+      <rect x="15" y="24" width="70" height="60" rx="6" fill="#0c0c10"/>
+      <rect x="18" y="27" width="64" height="54" rx="3" fill="#000c0e"/>
+      <rect x="18" y="27" width="64" height="54" rx="3" fill="rgba(0,229,255,0.04)"/>
+      <g class="leye128">
+        <rect x="20" y="37" width="26" height="18" rx="4" fill="#000d10"/>
+        <rect class="eyeglow128" x="20" y="37" width="26" height="18" rx="4" fill="#00e5ff" opacity="0.88" filter="url(#glow128)"/>
+        <rect x="22" y="39" width="7" height="4" rx="2" fill="rgba(255,255,255,0.55)"/>
+      </g>
+      <g class="reye128">
+        <rect x="54" y="37" width="26" height="18" rx="4" fill="#000d10"/>
+        <rect class="eyeglow128" x="54" y="37" width="26" height="18" rx="4" fill="#00e5ff" opacity="0.88" filter="url(#glow128)"/>
+        <rect x="56" y="39" width="7" height="4" rx="2" fill="rgba(255,255,255,0.55)"/>
+      </g>
+      <rect x="26" y="63" width="48" height="2.5" rx="1.25" fill="#00e5ff" opacity="0.40"/>
+      <rect x="29" y="68" width="42" height="2.5" rx="1.25" fill="#00e5ff" opacity="0.24"/>
+      <rect x="33" y="73" width="34" height="2.5" rx="1.25" fill="#00e5ff" opacity="0.13"/>
+      <rect x="18" y="27" width="64" height="54" rx="3" fill="url(#scanlines128)" opacity="0.55"/>
+      <rect x="10" y="83" width="80" height="7" rx="5" fill="#141418"/>
+      <rect x="26" y="90" width="18" height="16" rx="5" fill="#18181c"/>
+      <rect x="56" y="90" width="18" height="16" rx="5" fill="#18181c"/>
+      <rect x="22" y="101" width="24" height="8" rx="4" fill="#111115"/>
+      <rect x="54" y="101" width="24" height="8" rx="4" fill="#111115"/>
+    </svg>
+    <span>128px</span>
+  </div>
+
+  <!-- 32px (favicon) -->
+  <div class="size-label">
+    <svg width="32" height="35" viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="glow32" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="2.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <style>
+          .leye32 { transform-origin: 33px 46px; animation: blink512 5s ease-in-out infinite; }
+          .reye32 { transform-origin: 67px 46px; animation: blink512 5s ease-in-out infinite; }
+          .eyeglow32 { animation: eyePulse512 3s ease-in-out infinite; }
+        </style>
+      </defs>
+      <line x1="50" y1="4" x2="50" y2="18" stroke="#2a2a2e" stroke-width="2.5" stroke-linecap="round"/>
+      <circle class="antdot512" cx="50" cy="4" r="2.8" fill="#00e5ff"/>
+      <rect x="10" y="18" width="80" height="72" rx="10" fill="#18181c"/>
+      <rect x="15" y="24" width="70" height="60" rx="6" fill="#0c0c10"/>
+      <rect x="18" y="27" width="64" height="54" rx="3" fill="#000c0e"/>
+      <g class="leye32">
+        <rect x="20" y="37" width="26" height="18" rx="4" fill="#000d10"/>
+        <rect class="eyeglow32" x="20" y="37" width="26" height="18" rx="4" fill="#00e5ff" opacity="0.88" filter="url(#glow32)"/>
+      </g>
+      <g class="reye32">
+        <rect x="54" y="37" width="26" height="18" rx="4" fill="#000d10"/>
+        <rect class="eyeglow32" x="54" y="37" width="26" height="18" rx="4" fill="#00e5ff" opacity="0.88" filter="url(#glow32)"/>
+      </g>
+      <rect x="26" y="63" width="48" height="2.5" rx="1.25" fill="#00e5ff" opacity="0.35"/>
+      <rect x="29" y="68" width="42" height="2.5" rx="1.25" fill="#00e5ff" opacity="0.18"/>
+      <rect x="10" y="83" width="80" height="7" rx="5" fill="#141418"/>
+      <rect x="26" y="90" width="18" height="16" rx="5" fill="#18181c"/>
+      <rect x="56" y="90" width="18" height="16" rx="5" fill="#18181c"/>
+      <rect x="22" y="101" width="24" height="8" rx="4" fill="#111115"/>
+      <rect x="54" y="101" width="24" height="8" rx="4" fill="#111115"/>
+    </svg>
+    <span>32px</span>
+  </div>
+</div>
+
+<p class="title">operational 1992-01-12</p>
+
+</body>
+</html>

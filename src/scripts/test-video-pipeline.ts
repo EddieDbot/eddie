@@ -15,8 +15,10 @@ import { renderVideo } from "../video/renderer.ts";
 import { synthesize } from "../voice/tts.ts";
 import { runDailyShortPipeline, getPipelineStatus } from "../video/pipeline.ts";
 import { mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 
-const RENDERS_DIR = "/home/na/eddie/data/renders";
+const PROJECT_ROOT = resolve(import.meta.dir, "../..");
+const RENDERS_DIR = resolve(PROJECT_ROOT, "data/renders");
 
 const arg = process.argv[2] ?? "status";
 
@@ -37,7 +39,9 @@ if (arg === "news") {
   console.log("Picking top story and generating script...");
   const story = await pickTopStory();
   if (!story) {
-    console.error("No stories available. Run: bun run test-video-pipeline.ts news");
+    console.error(
+      "No stories available. Run: bun run test-video-pipeline.ts news",
+    );
     process.exit(1);
   }
   console.log(`\nStory: ${story.headline}`);
@@ -68,9 +72,21 @@ if (arg === "news") {
     props: {
       hook: "OpenAI just changed everything with their latest model",
       sections: [
-        { text: "GPT-5 was announced today, scoring 95% on all major benchmarks.", durationSec: 10, visual: "OpenAI logo with benchmark chart" },
-        { text: "It's available to ChatGPT Plus users starting right now.", durationSec: 8, visual: "ChatGPT interface" },
-        { text: "Developers get API access next week with a $15 per million token price.", durationSec: 10, visual: "API pricing table" },
+        {
+          text: "GPT-5 was announced today, scoring 95% on all major benchmarks.",
+          durationSec: 10,
+          visual: "OpenAI logo with benchmark chart",
+        },
+        {
+          text: "It's available to ChatGPT Plus users starting right now.",
+          durationSec: 8,
+          visual: "ChatGPT interface",
+        },
+        {
+          text: "Developers get API access next week with a $15 per million token price.",
+          durationSec: 10,
+          visual: "API pricing table",
+        },
       ],
       cta: "Follow for daily AI updates",
       title: "OpenAI Drops GPT-5",
@@ -85,7 +101,8 @@ if (arg === "news") {
 } else if (arg === "voice") {
   console.log("Testing ElevenLabs voiceover...");
   await mkdir(RENDERS_DIR, { recursive: true });
-  const text = "OpenAI just changed everything with their latest model. GPT-5 was announced today, scoring 95% on all major benchmarks. It's available to ChatGPT Plus users starting right now. Follow for daily AI updates.";
+  const text =
+    "OpenAI just changed everything with their latest model. GPT-5 was announced today, scoring 95% on all major benchmarks. It's available to ChatGPT Plus users starting right now. Follow for daily AI updates.";
   const audio = await synthesize(text);
   const outPath = `${RENDERS_DIR}/test-voice.mp3`;
   await Bun.write(outPath, audio);
@@ -93,7 +110,9 @@ if (arg === "news") {
   console.log(`Size: ${(audio.byteLength / 1024).toFixed(1)} KB`);
 } else if (arg === "full") {
   console.log("Running full pipeline...");
-  console.log("NOTE: This will attempt to upload to YouTube. Make sure OAuth is authorized.\n");
+  console.log(
+    "NOTE: This will attempt to upload to YouTube. Make sure OAuth is authorized.\n",
+  );
   const result = await runDailyShortPipeline();
   if (result) {
     console.log(`\nPipeline complete!`);
@@ -109,13 +128,19 @@ if (arg === "news") {
   } else {
     console.log("Recent renders:\n");
     for (const r of rows) {
-      const ts = new Date(r.createdAt).toLocaleString("en-US", { timeZone: "America/Chicago" });
-      console.log(`[${r.status.padEnd(10)}] ${r.id} — ${r.headline.slice(0, 60)}`);
+      const ts = new Date(r.createdAt).toLocaleString("en-US", {
+        timeZone: "America/Chicago",
+      });
+      console.log(
+        `[${r.status.padEnd(10)}] ${r.id} — ${r.headline.slice(0, 60)}`,
+      );
       console.log(`             ${ts} CST`);
       if (r.youtubeUrl) console.log(`             ${r.youtubeUrl}`);
     }
   }
 } else {
   console.log("Unknown command. Usage:");
-  console.log("  bun run src/scripts/test-video-pipeline.ts [news|script|render|voice|full|status]");
+  console.log(
+    "  bun run src/scripts/test-video-pipeline.ts [news|script|render|voice|full|status]",
+  );
 }
