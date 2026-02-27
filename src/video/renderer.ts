@@ -32,6 +32,9 @@ export async function renderVideo(params: RenderParams): Promise<RenderResult> {
     composition,
     outputPath,
     `--props=${propsJson}`,
+    "--concurrency=4",
+    "--crf=22",
+    "--log=error",
   ];
 
   logger.info("renderer:start", {

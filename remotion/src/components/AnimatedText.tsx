@@ -8,6 +8,7 @@ interface Props {
   color?: string;
   fontSize?: number;
   fontWeight?: number;
+  fontFamily?: string;
 }
 
 export const AnimatedText: React.FC<Props> = ({
@@ -18,6 +19,7 @@ export const AnimatedText: React.FC<Props> = ({
   color = "#FFFFFF",
   fontSize = 48,
   fontWeight = 700,
+  fontFamily = "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
 }) => {
   const words = text.split(" ");
 
@@ -28,7 +30,7 @@ export const AnimatedText: React.FC<Props> = ({
         fontSize,
         fontWeight,
         color,
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily,
         lineHeight: 1.3,
       }}
     >

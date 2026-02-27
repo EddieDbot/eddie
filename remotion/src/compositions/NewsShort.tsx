@@ -5,11 +5,14 @@ import {
   useVideoConfig,
   spring,
   interpolate,
-  CalculateMetadataFunction,
 } from "remotion";
+import type { CalculateMetadataFunction } from "remotion";
 import { z } from "zod";
 import { AnimatedText } from "../components/AnimatedText";
 import { ProgressBar } from "../components/ProgressBar";
+import { loadFont } from "@remotion/google-fonts/Inter";
+
+const { fontFamily } = loadFont();
 
 export const NewsShortSchema = z.object({
   hook: z.string(),
@@ -216,7 +219,7 @@ const HookSection: React.FC<{
                 color: "#050510",
                 fontSize: 22,
                 fontWeight: 800,
-                fontFamily: "system-ui, -apple-system, sans-serif",
+                fontFamily,
                 letterSpacing: "0.12em",
                 textTransform: "uppercase",
               }}
@@ -241,6 +244,7 @@ const HookSection: React.FC<{
             color="#FFFFFF"
             fontSize={72}
             fontWeight={800}
+            fontFamily={fontFamily}
           />
         </div>
         <GlowDivider frame={frame} fps={fps} delay={10} />
@@ -298,7 +302,7 @@ const ForeshadowSection: React.FC<{
               color: "#00D4FF",
               fontSize: 22,
               fontWeight: 600,
-              fontFamily: "system-ui, -apple-system, sans-serif",
+              fontFamily,
               letterSpacing: "0.04em",
             }}
           >
@@ -313,6 +317,7 @@ const ForeshadowSection: React.FC<{
           color="rgba(255,255,255,0.9)"
           fontSize={58}
           fontWeight={600}
+          fontFamily={fontFamily}
         />
       </div>
     </AbsoluteFill>
@@ -386,6 +391,7 @@ const BodySection: React.FC<{
           color="#FFFFFF"
           fontSize={54}
           fontWeight={700}
+          fontFamily={fontFamily}
         />
       </div>
     </AbsoluteFill>
@@ -442,6 +448,7 @@ const PayoffSection: React.FC<{
           color="#FFFFFF"
           fontSize={80}
           fontWeight={900}
+          fontFamily={fontFamily}
         />
       </div>
     </AbsoluteFill>
@@ -496,7 +503,7 @@ const SourceBadge: React.FC<{
             color: "#00D4FF",
             fontSize: 22,
             fontWeight: 600,
-            fontFamily: "system-ui, -apple-system, sans-serif",
+            fontFamily,
           }}
         >
           {source}
@@ -507,7 +514,7 @@ const SourceBadge: React.FC<{
           color: "rgba(255,255,255,0.35)",
           fontSize: 18,
           fontWeight: 400,
-          fontFamily: "system-ui, -apple-system, sans-serif",
+          fontFamily,
           paddingRight: 4,
         }}
       >

@@ -9,6 +9,9 @@ import {
 } from "remotion";
 import type { CalculateMetadataFunction } from "remotion";
 import { z } from "zod";
+import { loadFont } from "@remotion/google-fonts/Inter";
+
+const { fontFamily } = loadFont();
 
 export const RankingShortSchema = z.object({
   title: z.string(),
@@ -106,7 +109,7 @@ const TitleCard: React.FC<{
             fontSize: 22,
             fontWeight: 800,
             letterSpacing: "0.2em",
-            fontFamily: "system-ui, -apple-system, sans-serif",
+            fontFamily,
             textTransform: "uppercase" as const,
             marginBottom: 24,
           }}
@@ -118,7 +121,7 @@ const TitleCard: React.FC<{
             color: WHITE,
             fontSize: 72,
             fontWeight: 900,
-            fontFamily: "system-ui, -apple-system, sans-serif",
+            fontFamily,
             lineHeight: 1.15,
           }}
         >
@@ -181,7 +184,7 @@ const RankItem: React.FC<{
             color: rankColor,
             fontSize: 96,
             fontWeight: 900,
-            fontFamily: "system-ui, -apple-system, sans-serif",
+            fontFamily,
             lineHeight: 1,
             minWidth: 100,
             textAlign: "center" as const,
@@ -196,7 +199,7 @@ const RankItem: React.FC<{
               color: WHITE,
               fontSize: 60,
               fontWeight: 800,
-              fontFamily: "system-ui, -apple-system, sans-serif",
+              fontFamily,
               lineHeight: 1.2,
             }}
           >
@@ -208,7 +211,7 @@ const RankItem: React.FC<{
                 color: "rgba(255,255,255,0.6)",
                 fontSize: 36,
                 fontWeight: 400,
-                fontFamily: "system-ui, -apple-system, sans-serif",
+                fontFamily,
                 marginTop: 8,
               }}
             >
@@ -244,7 +247,7 @@ const OutroCard: React.FC<{
           color: accent,
           fontSize: 48,
           fontWeight: 800,
-          fontFamily: "system-ui, -apple-system, sans-serif",
+          fontFamily,
           letterSpacing: "0.1em",
           textTransform: "uppercase" as const,
           textAlign: "center" as const,

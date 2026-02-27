@@ -8,11 +8,12 @@
     "build": "npx remotion bundle"
   },
   "dependencies": {
-    "@remotion/cli": "4.0.290",
-    "remotion": "4.0.290",
-    "@remotion/media-utils": "4.0.290",
+    "@remotion/cli": "^4.0.429",
+    "@remotion/google-fonts": "^4.0.429",
+    "@remotion/media-utils": "^4.0.429",
     "react": "18.2.0",
-    "react-dom": "18.2.0"
+    "react-dom": "18.2.0",
+    "remotion": "^4.0.429"
   },
   "devDependencies": {
     "@types/react": "18.2.0",
