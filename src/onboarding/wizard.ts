@@ -148,6 +148,32 @@ async function stepBanner(): Promise<void> {
   console.log("");
 }
 
+async function stepTosAcknowledgment(rl: Interface): Promise<void> {
+  console.log("── Terms of Service ──\n");
+  console.log("  EDDIE requires your own Claude Code subscription to operate.");
+  console.log("  By continuing, you confirm:\n");
+  console.log(
+    "    ✓  You have an active Claude Code subscription (Pro, Max 5x, or Max 20x)",
+  );
+  console.log("    ✓  EDDIE will run on YOUR subscription — no shared access");
+  console.log("    ✓  You agree to Anthropic's Consumer Terms of Service");
+  console.log("       https://www.anthropic.com/legal/consumer-terms\n");
+
+  if (DRY_RUN) {
+    console.log("  [DRY RUN] Would prompt for ToS acknowledgment\n");
+    return;
+  }
+
+  const agreed = await confirm(rl, "  Do you confirm and agree to continue?");
+  if (!agreed) {
+    console.log(
+      "\n  Setup cancelled. Subscribe at https://claude.ai/upgrade to get started.\n",
+    );
+    process.exit(0);
+  }
+  console.log("");
+}
+
 async function stepDetectEnvironment(): Promise<void> {
   console.log("── Step 1: Environment Detection ──\n");
   const env = await detectEnvironment();
@@ -619,6 +645,7 @@ async function main() {
 
   try {
     await stepBanner();
+    await stepTosAcknowledgment(rl);
     await stepDetectEnvironment();
 
     const maxConcurrentJobs = await stepSubscriptionTier(rl);

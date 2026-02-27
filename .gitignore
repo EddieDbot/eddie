@@ -43,3 +43,4 @@ src/scripts/fetch-yt-playlist.ts
 src/scripts/fetch-yt-transcript.ts
 src/scripts/ingest-missed-videos.ts
 src/dashboard/public/preview/
+src/scripts/_tmp-*.sh
