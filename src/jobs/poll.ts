@@ -576,16 +576,6 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
   logger.info("jobs:completed", { id: jobId, durationMs, outcome });
   emitEvent("job:completed", { id: jobId, durationMs, outcome });
 
-  // Notify via Telegram
-  const outcomeTag =
-    outcome === "success"
-      ? "✓"
-      : outcome === "partial"
-        ? "⚠ partial"
-        : outcome === "failed"
-          ? "✗ failed"
-          : "•";
-
   // Extract job name from prompt — strip markdown heading markers, take first 60 chars
   const prompt = job?.prompt ?? "";
   const jobName =
@@ -595,21 +585,49 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
       .trim()
       .slice(0, 60) || "unnamed";
 
-  const text = `#${jobName} done (${durationSec}s) ${outcomeTag}${summary ? `\n${summary}` : ""}`;
-  const feedbackKb = new InlineKeyboard()
-    .text("\u{1F44D} Good", `jf:good:${jobId}`)
-    .text("\u{1F527} Off", `jf:off:${jobId}`);
-  try {
-    await bot.api.sendMessage({
-      chat_id: config.OWNER_TELEGRAM_ID,
-      text,
-      reply_markup: feedbackKb,
-    });
-  } catch (err) {
-    logger.error("jobs:notify-error", {
-      id: jobId,
-      error: err instanceof Error ? err.message : String(err),
-    });
+  // Suppress "No output produced" notifications — these are environmental failures (OOM, crash),
+  // not actionable for the user. Just log them.
+  const isEnvFailure = summary === "No output produced";
+  if (!isEnvFailure) {
+    const outcomeTag =
+      outcome === "success"
+        ? "✓"
+        : outcome === "partial"
+          ? "⚠ partial"
+          : outcome === "failed"
+            ? "✗ failed"
+            : "•";
+
+    // Extract URLs from output for build jobs (deploy links, surge URLs, etc.)
+    const urlMatch =
+      output.match(/https?:\/\/[^\s"'<>]+\.surge\.sh[^\s"'<>]*/i) ??
+      output.match(/https?:\/\/[^\s"'<>]+\.netlify\.app[^\s"'<>]*/i) ??
+      output.match(/https?:\/\/[^\s"'<>]+\.pages\.dev[^\s"'<>]*/i);
+    const deployUrl = urlMatch ? `\nLive: ${urlMatch[0]}` : "";
+
+    const durationStr =
+      durationSec >= 60
+        ? `${Math.round(durationSec / 60)}m`
+        : `${durationSec}s`;
+
+    const text = `${jobName} — ${outcomeTag} (${durationStr})${summary ? `\n${summary}` : ""}${deployUrl}`;
+    const feedbackKb = new InlineKeyboard()
+      .text("\u{1F44D} Good", `jf:good:${jobId}`)
+      .text("\u{1F527} Off", `jf:off:${jobId}`);
+    try {
+      await bot.api.sendMessage({
+        chat_id: config.OWNER_TELEGRAM_ID,
+        text,
+        reply_markup: feedbackKb,
+      });
+    } catch (err) {
+      logger.error("jobs:notify-error", {
+        id: jobId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  } else {
+    logger.warn("jobs:env-failure-suppressed", { id: jobId, jobName, summary });
   }
 
   if (config.MORNING_BRIEF_ENABLED) {
