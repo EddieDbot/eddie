@@ -59,8 +59,12 @@ async function checkDuplicates(
   return { similar, uniquenessScore };
 }
 
-function validateMetadata(metadata: PieceMetadata): string[] {
+function validateMetadata(metadata: PieceMetadata): {
+  issues: string[];
+  recommendations: string[];
+} {
   const issues: string[] = [];
+  const recommendations: string[] = [];
 
   if (!metadata.id) issues.push("Missing required field: id");
   if (!metadata.name) issues.push("Missing required field: name");
@@ -81,12 +85,28 @@ function validateMetadata(metadata: PieceMetadata): string[] {
     issues.push(`ID "${metadata.id}" should be kebab-case`);
   }
 
-  return issues;
+  // Permissions transparency check — warn but don't fail (backwards compat)
+  if (!metadata.permissions) {
+    recommendations.push(
+      "No permissions declared — add a 'permissions' field to metadata.json so users know what this piece can access (brainVaultRead, bashExec, network, telegram, etc.)",
+    );
+  }
+
+  return { issues, recommendations };
 }
 
-export async function review(
-  target: string,
-): Promise<ReviewReport> {
+function checkTrustedAuthor(author: string): string | null {
+  const trustedRaw = process.env.HEIMDALL_TRUSTED_AUTHORS ?? "";
+  if (!trustedRaw.trim()) return null; // gate not configured — open
+  const trusted = trustedRaw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (trusted.includes(author.toLowerCase())) return null; // trusted
+  return `Author "${author}" is not in HEIMDALL_TRUSTED_AUTHORS — review carefully before installing`;
+}
+
+export async function review(target: string): Promise<ReviewReport> {
   const resolved = resolve(target);
 
   // Load metadata
@@ -113,17 +133,19 @@ export async function review(
   }
 
   // Validate metadata
-  const metadataIssues = validateMetadata(metadata);
-  issues.push(...metadataIssues);
+  const metadataResult = validateMetadata(metadata);
+  issues.push(...metadataResult.issues);
+  recommendations.push(...metadataResult.recommendations);
+
+  // Trusted contributor gate
+  const trustWarning = checkTrustedAuthor(metadata.author);
+  if (trustWarning) recommendations.push(trustWarning);
 
   // Run scan
   const scanResults = await scan(resolved);
   const dirty = scanResults.filter((r) => !r.clean);
   if (dirty.length > 0) {
-    const refCount = dirty.reduce(
-      (sum, r) => sum + r.personalRefs.length,
-      0,
-    );
+    const refCount = dirty.reduce((sum, r) => sum + r.personalRefs.length, 0);
     issues.push(
       `${refCount} personal reference(s) found in ${dirty.length} file(s) — run 'heimdall clean' first`,
     );
@@ -142,7 +164,9 @@ export async function review(
   const missing = [
     ...depResult.envVars.filter((e) => !e.present).map((e) => `env:${e.name}`),
     ...depResult.mcps.filter((m) => !m.present).map((m) => `mcp:${m.name}`),
-    ...depResult.scripts.filter((s) => !s.present).map((s) => `script:${s.name}`),
+    ...depResult.scripts
+      .filter((s) => !s.present)
+      .map((s) => `script:${s.name}`),
   ];
 
   if (missing.length > 0) {
@@ -166,11 +190,7 @@ export async function review(
 
 function formatReport(report: ReviewReport): string {
   const status = report.passed ? "PASSED" : "FAILED";
-  const lines = [
-    `Review Report: ${report.pieceId}`,
-    `Status: ${status}`,
-    "",
-  ];
+  const lines = [`Review Report: ${report.pieceId}`, `Status: ${status}`, ""];
 
   if (report.issues.length > 0) {
     lines.push("Issues:");
@@ -180,16 +200,13 @@ function formatReport(report: ReviewReport): string {
 
   lines.push(`Uniqueness Score: ${report.duplicateCheck.uniquenessScore}%`);
   if (report.duplicateCheck.similar.length > 0) {
-    lines.push(
-      `Similar pieces: ${report.duplicateCheck.similar.join(", ")}`,
-    );
+    lines.push(`Similar pieces: ${report.duplicateCheck.similar.join(", ")}`);
   }
   lines.push("");
 
   if (report.dependencyCheck.missing.length > 0) {
     lines.push("Missing Dependencies:");
-    for (const dep of report.dependencyCheck.missing)
-      lines.push(`  - ${dep}`);
+    for (const dep of report.dependencyCheck.missing) lines.push(`  - ${dep}`);
     lines.push("");
   }
 

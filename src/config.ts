@@ -230,6 +230,9 @@ const envSchema = z.object({
   MEMORY_MONITOR_ENABLED: z.coerce.boolean().default(true),
   MEMORY_WARN_MB: z.coerce.number().default(500),
   MEMORY_WARN_COOLDOWN_MS: z.coerce.number().default(1_800_000), // 30 min
+  // Heimdall — community piece management
+  // Comma-separated GitHub handles of trusted contributors. Empty = open (no gate).
+  HEIMDALL_TRUSTED_AUTHORS: z.string().optional(),
 });
 
 export type Config = z.infer<typeof envSchema>;

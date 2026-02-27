@@ -13,6 +13,21 @@ export interface PieceDependencies {
   claudeTier?: "pro" | "max";
 }
 
+export interface PiecePermissions {
+  /** Read files from Brain Vault */
+  brainVaultRead?: boolean;
+  /** Write/modify files in Brain Vault */
+  brainVaultWrite?: boolean;
+  /** Execute arbitrary bash commands */
+  bashExec?: boolean;
+  /** Make outbound HTTP/network requests */
+  network?: boolean;
+  /** Send Telegram messages */
+  telegram?: boolean;
+  /** Spawn background jobs */
+  spawnJobs?: boolean;
+}
+
 export interface PieceMetadata {
   id: string;
   name: string;
@@ -21,6 +36,8 @@ export interface PieceMetadata {
   author: string;
   description: string;
   tags: string[];
+  /** Capabilities this piece requires from the host EDDIE installation */
+  permissions?: PiecePermissions;
   /** Canonical dependency spec — Heimdall dispatches each type to the right installer */
   dependencies?: PieceDependencies;
   /** @deprecated use dependencies instead */

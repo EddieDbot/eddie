@@ -90,6 +90,27 @@ function generateReadme(metadata: PieceMetadata): string {
     }
   }
 
+  if (metadata.permissions) {
+    const perms = metadata.permissions;
+    const active = Object.entries(perms)
+      .filter(([, v]) => v === true)
+      .map(([k]) => k);
+    if (active.length > 0) {
+      lines.push("## Permissions", "");
+      lines.push("This piece requires the following EDDIE capabilities:", "");
+      const labels: Record<string, string> = {
+        brainVaultRead: "Brain Vault (read)",
+        brainVaultWrite: "Brain Vault (write)",
+        bashExec: "Bash execution",
+        network: "Outbound network",
+        telegram: "Telegram messaging",
+        spawnJobs: "Spawn background jobs",
+      };
+      for (const p of active) lines.push(`- ${labels[p] ?? p}`);
+      lines.push("");
+    }
+  }
+
   lines.push("## Installation", "");
   lines.push("```bash");
   lines.push("bun run src/heimdall/index.ts review <package>");
