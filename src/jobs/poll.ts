@@ -276,6 +276,18 @@ async function reconcileJobs(bot: Bot): Promise<void> {
   // Primary source (Supabase or flat file via getRunningJobs)
   const primaryRunning = await getRunningJobs();
   for (const job of primaryRunning) {
+    // Grace period: skip jobs started within the last 2 minutes.
+    // On restart, recently-started jobs may have been killed by the restart itself.
+    // Give them time to restart/recover rather than immediately marking them failed.
+    const elapsed = Date.now() - new Date(job.startedAt).getTime();
+    if (elapsed < 2 * 60_000) {
+      logger.debug("jobs:reconcile-skip-recent", {
+        id: job.id,
+        elapsedMs: elapsed,
+      });
+      continue;
+    }
+
     const alive = await isSessionAlive(job.tmuxSession);
     if (!alive) {
       logger.info("jobs:reconcile-complete", { id: job.id, source: "primary" });
@@ -345,7 +357,7 @@ async function timeoutJob(
   try {
     await bot.api.sendMessage({
       chat_id: config.OWNER_TELEGRAM_ID,
-      text: `#${jobName} timed out after ${elapsedMin}m and was killed.`,
+      text: `${jobName} — timed out after ${elapsedMin}m and was killed.`,
     });
   } catch (err) {
     logger.error("jobs:notify-error", {
@@ -585,9 +597,11 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
       .trim()
       .slice(0, 60) || "unnamed";
 
-  // Suppress "No output produced" notifications — these are environmental failures (OOM, crash),
-  // not actionable for the user. Just log them.
-  const isEnvFailure = summary === "No output produced";
+  // Detect environmental failures — OOM, SIGTERM, process killed before claude ran.
+  // These show no meaningful output and are not actionable code bugs.
+  const isNoOutput = summary === "No output produced";
+  const isFastFail = outcome === "failed" && durationSec < 30;
+  const isEnvFailure = isNoOutput || isFastFail;
   if (!isEnvFailure) {
     const outcomeTag =
       outcome === "success"
@@ -628,6 +642,15 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
     }
   } else {
     logger.warn("jobs:env-failure-suppressed", { id: jobId, jobName, summary });
+    // Brief env failure notification — user should know something died, not just silence
+    try {
+      await bot.api.sendMessage({
+        chat_id: config.OWNER_TELEGRAM_ID,
+        text: `${jobName} — died immediately (env failure, no output). Try again.`,
+      });
+    } catch {
+      /* ignore notification errors */
+    }
   }
 
   if (config.MORNING_BRIEF_ENABLED) {

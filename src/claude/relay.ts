@@ -49,14 +49,15 @@ const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 
 const EDDIE_SYSTEM_PROMPT = [
   "You are EDDIE (Every Day Digital Intelligence Engine), Nicholas's always-on AI assistant.",
-  "You have a laid-back, chill California surfer vibe — warm, cool, and approachable, but sharp and direct when it counts.",
+  "Archetype: Edwin Jarvis meets a hitman. Professional, composed, unflinching. Understated power — doesn't announce capability, just delivers. Zero fluff.",
   "You run on his homelab server, relaying Telegram messages through Claude Code.",
   "Brain Vault (Obsidian knowledge base) is at ~/brain-vault/ — search it for past decisions and context.",
   "Write learnings to ~/brain-vault/90 - Agent Memory/Learnings/ and state to ~/brain-vault/90 - Agent Memory/State/.",
   "",
   "## Background Jobs",
   "For tasks that require building, coding, multi-step work, file creation, research, or anything beyond a quick answer — wrap a detailed task prompt in [BACKGROUND]...[/BACKGROUND] tags.",
-  "Outside the tags, write a casual acknowledgment to Nicholas.",
+  "Outside the tags, write a SHORT acknowledgment (1-2 sentences max). Be direct. State what you're doing, nothing more.",
+  "Start the background prompt with a clear one-line job title (e.g. '# Build Jinx design world page') — this becomes the job name.",
   "The background job runs as a separate Claude Code session with full agent access and Brain Vault.",
   "Do NOT start executing the task yourself — classify and acknowledge.",
   "",
@@ -189,7 +190,14 @@ async function execRelay(
   const model = selectRelayModel(prompt);
   logger.debug("relay:model-selected", { model, promptLen: prompt.length });
 
-  const result = await spawnClaude(prompt, sessionId, timeoutMs, { model });
+  let result = await spawnClaude(prompt, sessionId, timeoutMs, { model });
+
+  // Retry once on SIGTERM (exit 143) — transient kill from OS/OOM, not a code error
+  if (result.error?.includes("code 143")) {
+    logger.warn("relay:sigterm-retry", { sessionId });
+    await new Promise((r) => setTimeout(r, 2000)); // brief pause before retry
+    result = await spawnClaude(prompt, undefined, timeoutMs, { model });
+  }
 
   if (result.error && sessionId) {
     const err = result.error;

@@ -40,24 +40,22 @@ async function detectAndIngestUrl(
   const isYouTube = /youtube\.com|youtu\.be/.test(url);
 
   if (isYouTube) {
-    await context.send(
-      `YouTube URL detected. Spawning transcript ingestion...`,
-    );
     const job = await createJob(
       "claude",
-      `Use the transcript-ingester agent to download and process this YouTube video: ${url}\nSave transcript to Brain Vault inbox.`,
+      `# Ingest YouTube transcript\nUse the transcript-ingester agent to download and process this YouTube video: ${url}\nSave transcript to Brain Vault inbox.`,
     );
     await spawnJob(job);
-    await context.send(`Ingestion job #${job.id} started.`);
+    await context.send(
+      `YouTube URL — ingesting transcript. I'll ping you when it's done.`,
+    );
   } else {
-    await context.send(`URL detected. Saving summary to Brain Vault...`);
     const job = await createJob(
       "claude",
-      `Use the WebFetch tool to fetch and summarize this URL: ${url}\nWrite a structured summary to ~/brain-vault/00 - Inbox/ with filename based on the page title.`,
+      `# Summarize URL\nUse the WebFetch tool to fetch and summarize this URL: ${url}\nWrite a structured summary to ~/brain-vault/00 - Inbox/ with filename based on the page title.`,
     );
     await spawnJob(job);
     await context.send(
-      `Job #${job.id} started. Summary will be saved to Brain Vault inbox.`,
+      `URL detected — summarizing to Brain Vault. I'll ping you when it's done.`,
     );
   }
 
@@ -193,7 +191,12 @@ export async function handleText(context: MessageContext): Promise<void> {
   }
 
   if (result.error) {
-    await context.send(`Error: ${result.error}`);
+    const isSigterm = result.error.includes("143");
+    await context.send(
+      isSigterm
+        ? "Process was interrupted — try again."
+        : `Error: ${result.error}`,
+    );
     return;
   }
 
@@ -217,7 +220,10 @@ export async function handleText(context: MessageContext): Promise<void> {
           .trim()
           .slice(0, 80) || "background job";
 
-      await sendResponse(context, `${ack}\n\n_${jobName}_`);
+      await sendResponse(
+        context,
+        `${ack}\n\n_${jobName}_ — I'll ping you when it's done.`,
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error("handler:text:bg-spawn-error", { chatId, error: message });
