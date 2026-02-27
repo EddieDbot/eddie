@@ -28,3 +28,18 @@ Thumbs.db
 
 # Scripts (one-off utilities, not part of the app)
 scripts/reauth-google.ts
+
+# Personal scripts — excluded from OOB distribution
+src/scripts/contra-*.ts
+src/scripts/clay-*.ts
+src/scripts/dripify-*.ts
+src/scripts/create-gpt.ts
+src/scripts/x-dev-portal-setup.ts
+src/scripts/postiz-login-trace.ts
+src/scripts/postiz-register.ts
+src/scripts/reauth-google-drive.ts
+src/scripts/login-youtube-studio.ts
+src/scripts/fetch-yt-playlist.ts
+src/scripts/fetch-yt-transcript.ts
+src/scripts/ingest-missed-videos.ts
+src/dashboard/public/preview/
