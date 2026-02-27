@@ -57,10 +57,12 @@ const envSchema = z.object({
   TMUX_PATH: z.string().default("tmux"),
   JOB_POLL_INTERVAL_MS: z.coerce.number().default(30_000),
   CONSOLIDATE_INTERVAL_MS: z.coerce.number().default(3_600_000),
-  // Embeddings (W4: Ollama)
-  EMBED_PROVIDER: z.enum(["openai", "ollama"]).default("ollama"),
+  // Embeddings — provider options: "google" (zero RAM, uses GOOGLE_API_KEY), "ollama" (local), "openai"
+  EMBED_PROVIDER: z.enum(["openai", "ollama", "google"]).default("google"),
   OLLAMA_URL: z.string().default("http://localhost:11434"),
   EMBED_MODEL: z.string().default("nomic-embed-text"),
+  GOOGLE_EMBED_MODEL: z.string().default("gemini-embedding-001"),
+  GOOGLE_EMBED_DIMENSIONS: z.coerce.number().default(768),
   // Dashboard auth (W5)
   DASHBOARD_TOKEN: z.string().optional(),
   DASHBOARD_USER: z.string().default("eddie"),
