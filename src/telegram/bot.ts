@@ -47,6 +47,9 @@ import {
   handleMilestone,
   handleRemote,
   handleStopRemote,
+  handleGinvite,
+  handleGkick,
+  handleGinvites,
 } from "./handlers/command.ts";
 import { handleBookmark, handleResume } from "./handlers/bookmark-commands.ts";
 import {
@@ -120,6 +123,9 @@ export function createBot(): Bot {
   bot.command("remote", (context) => handleRemote(context));
   bot.command("stopremote", (context) => handleStopRemote(context));
   bot.command("view", (context) => handleView(context));
+  bot.command("ginvite", (context) => handleGinvite(context));
+  bot.command("gkick", (context) => handleGkick(context));
+  bot.command("ginvites", (context) => handleGinvites(context));
 
   registerCallbackQueryHandlers(bot);
 

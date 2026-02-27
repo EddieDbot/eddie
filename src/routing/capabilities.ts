@@ -2167,6 +2167,27 @@ export const CAPABILITIES: Capability[] = [
     priority: 8,
   },
   {
+    id: "command:ginvite",
+    type: "command",
+    name: "GitHub Pro Invite",
+    description:
+      "Invite/remove GitHub users from EddieDbot/eddie-community-pro. /ginvite <user> | /gkick <user> | /ginvites",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "invite to pro repo",
+          "github invite",
+          "pro repo access",
+          "add to community pro",
+          "give github access",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 8,
+  },
+  {
     id: "agent:heimdall",
     type: "agent",
     name: "Heimdall",
