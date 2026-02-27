@@ -208,10 +208,16 @@ export async function handleText(context: MessageContext): Promise<void> {
       const job = await createJob("claude", bg.jobPrompt);
       await spawnJob(job);
       const ack = bg.userResponse || "On it.";
-      await sendResponse(
-        context,
-        `${ack}\n\n_Job #${job.id} started in background._`,
-      );
+
+      // Extract human-readable job name from first line of prompt
+      const jobName =
+        bg.jobPrompt
+          .split("\n")[0]!
+          .replace(/^#+\s*/, "")
+          .trim()
+          .slice(0, 80) || "background job";
+
+      await sendResponse(context, `${ack}\n\n_${jobName}_`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error("handler:text:bg-spawn-error", { chatId, error: message });
