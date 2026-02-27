@@ -859,6 +859,26 @@ export const CAPABILITIES: Capability[] = [
   },
   // ── Content ──
   {
+    id: "script:gemini-extract",
+    type: "script",
+    name: "Gemini Extraction Pre-Pass",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "gemini extract",
+          "pre-extract",
+          "cheap extract",
+          "offload extraction",
+        ],
+        weight: 0.9,
+      },
+    ],
+    invoke:
+      "bun run ~/eddie/src/scripts/gemini-extract.ts <inputPath>\n# Reads transcript/doc, outputs <inputPath>-gemini.json with structured extraction. Use before Sonnet validation pass.",
+    priority: 6,
+  },
+  {
     id: "script:fetch-yt-transcript",
     type: "script",
     name: "YouTube Transcript Fetcher",

@@ -213,6 +213,7 @@ const envSchema = z.object({
   VIDEO_ANALYTICS_ENABLED: z.coerce.boolean().default(false),
   VIDEO_QA_MAX_ATTEMPTS: z.coerce.number().default(3),
   VIDEO_QA_GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+  GEMINI_EXTRACT_MODEL: z.string().default("gemini-2.5-flash"),
   // When set to N, videos upload as private and auto-publish N hours later via YouTube's scheduler.
   // 0 = publish immediately (default). Useful for spacing out overnight batch runs.
   VIDEO_PUBLISH_DELAY_HOURS: z.coerce.number().default(0),
