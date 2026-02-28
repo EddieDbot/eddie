@@ -14,6 +14,7 @@ import {
   clearOverride,
   DEFENSE_PREFIX,
 } from "../../security/scan.ts";
+import { scanOutput } from "../../security/output-scan.ts";
 import { detectAndStore } from "../../memory/intent.ts";
 import { config } from "../../config.ts";
 import { pendingFeedbackReason, pendingContraEdit } from "./callback-query.ts";
@@ -217,6 +218,18 @@ export async function handleText(context: MessageContext): Promise<void> {
   if (!result.text) {
     await context.send("(Claude returned an empty response)");
     return;
+  }
+
+  // Scan relay response for leaked secrets before processing or spawning jobs
+  if (config.OUTPUT_SCAN_ENABLED) {
+    const outputScan = scanOutput(result.text);
+    if (!outputScan.clean) {
+      logger.warn("handler:text:output-scan-hit", {
+        chatId,
+        count: outputScan.count,
+      });
+      result = { ...result, text: outputScan.redacted };
+    }
   }
 
   const bg = parseBackgroundTag(result.text);

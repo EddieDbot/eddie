@@ -17,6 +17,8 @@ import {
   clearOverride,
   DEFENSE_PREFIX,
 } from "../../security/scan.ts";
+import { scanOutput } from "../../security/output-scan.ts";
+import { config } from "../../config.ts";
 
 const ATTACHMENTS_DIR = resolve(import.meta.dir, "../../../data/attachments");
 
@@ -159,6 +161,17 @@ export async function handlePhoto(context: MessageContext): Promise<void> {
     return;
   }
 
+  if (config.OUTPUT_SCAN_ENABLED) {
+    const outputScan = scanOutput(result.text);
+    if (!outputScan.clean) {
+      logger.warn("handler:photo:output-scan-hit", {
+        chatId,
+        count: outputScan.count,
+      });
+      result = { ...result, text: outputScan.redacted };
+    }
+  }
+
   let response = result.text;
   if (result.toolUses.length > 0) {
     const toolNames = result.toolUses.map((t) => t.name).join(", ");
@@ -265,6 +278,17 @@ export async function handleDocument(context: MessageContext): Promise<void> {
   if (!result.text) {
     await context.send("(Claude returned an empty response)");
     return;
+  }
+
+  if (config.OUTPUT_SCAN_ENABLED) {
+    const outputScan = scanOutput(result.text);
+    if (!outputScan.clean) {
+      logger.warn("handler:document:output-scan-hit", {
+        chatId,
+        count: outputScan.count,
+      });
+      result = { ...result, text: outputScan.redacted };
+    }
   }
 
   let response = result.text;

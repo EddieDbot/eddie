@@ -31,7 +31,8 @@ type AgentSession = {
   lastTurnDurationMs: number | null;
 };
 
-const PROJECT_DIR = `${homedir()}/.claude/projects/-home-na-eddie`;
+const EDDIE_CWD = process.cwd().replace(/\//g, "-");
+const PROJECT_DIR = `${homedir()}/.claude/projects/${EDDIE_CWD}`;
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 const IDLE_THRESHOLD_MS = 30_000;
 

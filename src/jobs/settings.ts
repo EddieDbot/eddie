@@ -1,7 +1,8 @@
 import { resolve } from "node:path";
+import { homedir } from "node:os";
 import type { ModelId } from "./types.ts";
 
-const HOME = process.env.HOME ?? "/home/na";
+const HOME = process.env.HOME ?? homedir();
 const SETTINGS_DIR = `${HOME}/.claude/settings`;
 
 export type JobType = "heal" | "code" | "research" | "general";

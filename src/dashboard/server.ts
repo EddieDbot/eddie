@@ -75,8 +75,9 @@ export function startDashboard(): void {
     async fetch(req) {
       const url = new URL(req.url);
 
-      // Public paths — no auth required (preview sites, shareable links)
+      // Public paths — no auth required (preview sites, shareable links, health check)
       const isPublic =
+        url.pathname === "/api/health" ||
         url.pathname === "/slack/command" ||
         url.pathname.startsWith("/preview/");
 

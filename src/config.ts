@@ -56,7 +56,7 @@ const envSchema = z.object({
   BRAIN_VAULT_JOBS_DIR: z
     .string()
     .default("~/brain-vault/90 - Agent Memory/Jobs"),
-  KIMI_PATH: z.string().default("kimi"),
+  KIMI_PATH: z.string().default("/home/na/.local/bin/kimi"),
   GEMINI_PATH: z.string().default("gemini"),
   CODEX_PATH: z.string().default("codex"),
   TMUX_PATH: z.string().default("tmux"),
@@ -216,6 +216,7 @@ const envSchema = z.object({
   // Contra Intake Flow
   CONTRA_INTAKE_ENABLED: z.coerce.boolean().default(false),
   CONTRA_AUTO_REPLY_ENABLED: z.coerce.boolean().default(false),
+  VIDEO_HOOK_ROTATION_ENABLED: z.coerce.boolean().default(true),
   VIDEO_QA_ENABLED: z.coerce.boolean().default(false),
   VIDEO_ANALYTICS_ENABLED: z.coerce.boolean().default(false),
   VIDEO_QA_MAX_ATTEMPTS: z.coerce.number().default(3),
@@ -230,6 +231,13 @@ const envSchema = z.object({
   MEMORY_MONITOR_ENABLED: z.coerce.boolean().default(true),
   MEMORY_WARN_MB: z.coerce.number().default(500),
   MEMORY_WARN_COOLDOWN_MS: z.coerce.number().default(1_800_000), // 30 min
+  OPTIMIZER_ENABLED: z.coerce.boolean().default(false),
+  OPTIMIZER_TIME: z.string().default("03:00"),
+  DOCKER_ENV: z.coerce.boolean().default(false),
+  EBPF_ENABLED: z.coerce.boolean().default(false),
+  EBPF_SOCKET_PATH: z.string().default("/run/eddie-ebpf/events.sock"),
+  GITHUB_PAT: z.string().optional(),
+  GITHUB_PERSONAL_PAT: z.string().optional(),
   // Heimdall — community piece management
   // Comma-separated GitHub handles of trusted contributors. Empty = open (no gate).
   HEIMDALL_TRUSTED_AUTHORS: z.string().optional(),

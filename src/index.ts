@@ -44,8 +44,14 @@ if (config.SUPABASE_PAT) {
   }
 }
 
+if (config.DASHBOARD_ENABLED) {
+  startDashboard();
+}
+
 const bot = createBot();
-await bot.start();
+await bot.start().catch((err: unknown) => {
+  logger.warn("telegram:start-failed", { error: String(err) });
+});
 
 if (memoryEnabled) {
   const { loadUserSettings } = await import("./telegram/handlers/command.ts");
@@ -56,10 +62,6 @@ if (memoryEnabled) {
 if (memoryEnabled) {
   await checkEmbeddingHealth();
   await checkPendingMigrations();
-}
-
-if (config.DASHBOARD_ENABLED) {
-  startDashboard();
 }
 
 if (config.AGENT_DASHBOARD_ENABLED) {
@@ -188,6 +190,11 @@ if (config.MEMORY_MONITOR_ENABLED) {
   startMemoryMonitor(bot);
 }
 
+if (config.EBPF_ENABLED) {
+  const { startEbpfMonitor } = await import("./proactive/ebpf-monitor.ts");
+  startEbpfMonitor();
+}
+
 if (config.ANOMALY_DETECT_ENABLED) {
   const { runAnomalyCheck } = await import("./security/anomaly-detect.ts");
   // Run on startup then every 24h (03:30 slot shared with security council)
@@ -217,6 +224,11 @@ if (config.VIDEO_PIPELINE_ENABLED) {
   const { startAnalyticsPoller } = await import("./video/analytics-tracker.ts");
   startVideoPipelineScheduler();
   startAnalyticsPoller();
+}
+
+if (config.OPTIMIZER_ENABLED) {
+  const { startOptimizer } = await import("./proactive/optimizer.ts");
+  startOptimizer(bot);
 }
 
 bot.api

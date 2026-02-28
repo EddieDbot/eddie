@@ -1,0 +1,11 @@
+node_modules
+remotion/node_modules
+data/jobs
+data/renders
+test-results
+.git
+.env
+.env.docker
+.env.docker.prod
+sessions
+*.log

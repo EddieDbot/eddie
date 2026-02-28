@@ -1,0 +1,10 @@
+tracepoint:sched:sched_process_exec {
+  printf("{\"type\":\"process_exec\",\"pid\":%d,\"ppid\":%d,\"comm\":\"%s\",\"ts\":%llu}\n",
+    pid, curtask->real_parent->pid, comm, nsecs);
+}
+
+tracepoint:sched:sched_process_exit
+/pid == tid/ {
+  printf("{\"type\":\"process_exit\",\"pid\":%d,\"comm\":\"%s\",\"ts\":%llu}\n",
+    pid, comm, nsecs);
+}

@@ -595,27 +595,43 @@ export const CAPABILITIES: Capability[] = [
     priority: 9,
   },
   {
-    id: "agent:efficiency-auditor",
+    id: "agent:optimizer",
     type: "agent",
-    name: "Efficiency Auditor",
+    name: "Optimizer",
     triggers: [
       {
         type: "keyword",
         patterns: [
+          "optimize",
+          "optimizer",
           "efficiency audit",
           "cost waste",
           "model routing",
           "context waste",
           "zombie sessions",
           "disk bloat",
-          "job briefing",
           "system audit",
-          "eddie audit",
+          "capabilities drift",
+          "agent quality",
         ],
         weight: 0.9,
       },
     ],
     priority: 6,
+  },
+  {
+    id: "script:optimizer",
+    type: "script",
+    name: "Optimizer Runner",
+    invoke: "bun run ~/eddie/src/proactive/optimizer.ts",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: ["run optimizer", "optimizer report", "system health"],
+        weight: 0.8,
+      },
+    ],
+    priority: 5,
   },
   // ── Multi-AI Specialists ──
   {
@@ -1897,6 +1913,26 @@ export const CAPABILITIES: Capability[] = [
       },
     ],
     priority: 7,
+  },
+  {
+    id: "script:ebpf-monitor",
+    type: "script",
+    name: "eBPF System Monitor",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "ebpf",
+          "system monitor",
+          "process tracing",
+          "oom",
+          "kernel",
+        ],
+        weight: 0.9,
+      },
+    ],
+    invoke: "bun run src/proactive/ebpf-monitor.ts",
+    priority: 5,
   },
   {
     id: "script:remote-control",

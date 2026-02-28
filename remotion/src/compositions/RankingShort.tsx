@@ -1,15 +1,22 @@
 import React from "react";
 import {
   AbsoluteFill,
-  Sequence,
   useCurrentFrame,
   useVideoConfig,
   spring,
   interpolate,
 } from "remotion";
 import type { CalculateMetadataFunction } from "remotion";
+import { TransitionSeries } from "@remotion/transitions";
+import { fade } from "@remotion/transitions/fade";
+import { springTiming } from "@remotion/transitions";
 import { z } from "zod";
 import { loadFont } from "@remotion/google-fonts/Inter";
+import { BackgroundLayer } from "../components/BackgroundLayer";
+import { MidgroundLayer } from "../components/MidgroundLayer";
+import { StatusBar } from "../components/StatusBar";
+import { ClosingScene } from "../components/ClosingScene";
+import type { AnimationSpec, AnimationSection } from "../types/animation-spec";
 
 const { fontFamily } = loadFont();
 
@@ -24,6 +31,7 @@ export const RankingShortSchema = z.object({
   ),
   emotionTarget: z.enum(["LOL", "WTF", "OMG", "Wow", "Finally"]).optional(),
   source: z.string().optional(),
+  spec: z.custom<AnimationSpec>().optional(),
 });
 
 type Props = z.infer<typeof RankingShortSchema>;
@@ -50,21 +58,65 @@ function emotionPalette(e?: string): [string, string] {
 const TITLE_SEC = 2.0;
 const ITEM_SEC = 1.5;
 const OUTRO_SEC = 1.5;
+const TRANSITION_FRAMES = 8;
 
 export const calculateRankingMetadata: CalculateMetadataFunction<Props> = ({
   props,
 }) => {
+  const sectionCount = 1 + props.items.length + 1;
+  const transitionFrames = (sectionCount - 1) * TRANSITION_FRAMES;
   const totalSec = TITLE_SEC + props.items.length * ITEM_SEC + OUTRO_SEC;
-  return { durationInFrames: Math.ceil(totalSec * 30) };
+  return {
+    durationInFrames: Math.max(30, Math.ceil(totalSec * 30) - transitionFrames),
+  };
 };
+
+function buildRankingSections(
+  itemCount: number,
+  fps: number,
+): AnimationSection[] {
+  const sections: AnimationSection[] = [];
+  let cursor = 0;
+
+  const titleFrames = Math.ceil(TITLE_SEC * fps);
+  sections.push({
+    name: "title",
+    startFrame: cursor,
+    durationFrames: titleFrames,
+    text: "title",
+  });
+  cursor += titleFrames - TRANSITION_FRAMES;
+
+  for (let i = 0; i < itemCount; i++) {
+    const itemFrames = Math.ceil(ITEM_SEC * fps);
+    sections.push({
+      name: `item_${i}`,
+      startFrame: cursor,
+      durationFrames: itemFrames,
+      text: `item_${i}`,
+    });
+    cursor += itemFrames - TRANSITION_FRAMES;
+  }
+
+  const outroFrames = Math.ceil(OUTRO_SEC * fps);
+  sections.push({
+    name: "outro",
+    startFrame: cursor,
+    durationFrames: outroFrames,
+    text: "outro",
+  });
+
+  return sections;
+}
 
 const TitleCard: React.FC<{
   title: string;
   accent: string;
   secondary: string;
-  frame: number;
-  fps: number;
-}> = ({ title, accent, secondary, frame, fps }) => {
+}> = ({ title, accent, secondary }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
   const reveal = spring({
     frame,
     fps,
@@ -138,10 +190,11 @@ const RankItem: React.FC<{
   detail?: string;
   accent: string;
   secondary: string;
-  frame: number;
-  fps: number;
   isTop: boolean;
-}> = ({ rank, label, detail, accent, secondary, frame, fps, isTop }) => {
+}> = ({ rank, label, detail, accent, secondary, isTop }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
   const reveal = spring({
     frame,
     fps,
@@ -226,9 +279,10 @@ const RankItem: React.FC<{
 
 const OutroCard: React.FC<{
   accent: string;
-  frame: number;
-  fps: number;
-}> = ({ accent, frame, fps }) => {
+}> = ({ accent }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
   const reveal = spring({
     frame,
     fps,
@@ -263,87 +317,75 @@ export const RankingShort: React.FC<Props> = ({
   title,
   items,
   emotionTarget,
+  source,
+  spec,
 }) => {
-  const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps } = useVideoConfig();
   const [accent, secondary] = emotionPalette(emotionTarget);
 
-  const titleFrames = Math.ceil(TITLE_SEC * fps);
-  const itemFrames = Math.ceil(ITEM_SEC * fps);
-  const outroFrames = Math.ceil(OUTRO_SEC * fps);
+  const palette = spec?.colorPalette ?? {
+    primary: accent,
+    accent: secondary,
+    background: BG,
+  };
+
+  const sections = spec?.sections ?? buildRankingSections(items.length, fps);
 
   return (
     <AbsoluteFill style={{ backgroundColor: BG, overflow: "hidden" }}>
-      {/* Subtle gradient background */}
+      <BackgroundLayer sections={sections} colorPalette={palette} />
+      <MidgroundLayer sections={sections} colorPalette={palette} />
+
       <AbsoluteFill>
-        <div
-          style={{
-            position: "absolute",
-            top: "10%",
-            left: "20%",
-            width: 600,
-            height: 600,
-            borderRadius: "50%",
-            background: `radial-gradient(circle, ${accent}10 0%, transparent 65%)`,
-            filter: "blur(80px)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "10%",
-            right: "10%",
-            width: 400,
-            height: 400,
-            borderRadius: "50%",
-            background: `radial-gradient(circle, ${secondary}10 0%, transparent 65%)`,
-            filter: "blur(60px)",
-          }}
-        />
-      </AbsoluteFill>
+        <StatusBar source={source ?? "@EddieDbot"} color={accent} />
 
-      {/* Title card */}
-      <Sequence from={0} durationInFrames={titleFrames}>
-        <TitleCard
-          title={title}
-          accent={accent}
-          secondary={secondary}
-          frame={frame}
-          fps={fps}
-        />
-      </Sequence>
-
-      {/* Items — stagger reveal */}
-      {items.map((item, i) => (
-        <Sequence
-          key={i}
-          from={titleFrames + i * itemFrames}
-          durationInFrames={itemFrames}
-        >
-          <RankItem
-            rank={item.rank}
-            label={item.label}
-            detail={item.detail}
-            accent={accent}
-            secondary={secondary}
-            frame={frame - (titleFrames + i * itemFrames)}
-            fps={fps}
-            isTop={item.rank <= 1}
+        <TransitionSeries>
+          <TransitionSeries.Sequence
+            durationInFrames={Math.ceil(TITLE_SEC * 30)}
+          >
+            <TitleCard title={title} accent={accent} secondary={secondary} />
+          </TransitionSeries.Sequence>
+          {items.map((item, i) => (
+            <React.Fragment key={i}>
+              <TransitionSeries.Transition
+                presentation={fade()}
+                timing={springTiming({
+                  config: { damping: 200 },
+                  durationInFrames: TRANSITION_FRAMES,
+                })}
+              />
+              <TransitionSeries.Sequence
+                durationInFrames={Math.ceil(ITEM_SEC * 30)}
+              >
+                <RankItem
+                  rank={item.rank}
+                  label={item.label}
+                  detail={item.detail}
+                  accent={accent}
+                  secondary={secondary}
+                  isTop={item.rank <= 1}
+                />
+              </TransitionSeries.Sequence>
+            </React.Fragment>
+          ))}
+          <TransitionSeries.Transition
+            presentation={fade()}
+            timing={springTiming({
+              config: { damping: 200 },
+              durationInFrames: TRANSITION_FRAMES,
+            })}
           />
-        </Sequence>
-      ))}
-
-      {/* Outro */}
-      <Sequence
-        from={durationInFrames - outroFrames}
-        durationInFrames={outroFrames}
-      >
-        <OutroCard
-          accent={accent}
-          frame={frame - (durationInFrames - outroFrames)}
-          fps={fps}
-        />
-      </Sequence>
+          <TransitionSeries.Sequence
+            durationInFrames={Math.ceil(OUTRO_SEC * 30)}
+          >
+            <ClosingScene
+              lines={["E.D.D.I.E."]}
+              accentLineIndex={0}
+              accentColor={accent}
+            />
+          </TransitionSeries.Sequence>
+        </TransitionSeries>
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 };

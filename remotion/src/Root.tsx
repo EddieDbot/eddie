@@ -4,6 +4,11 @@ import {
   NewsShortSchema,
   calculateMetadata,
 } from "./compositions/NewsShort";
+import {
+  RankingShort,
+  RankingShortSchema,
+  calculateRankingMetadata,
+} from "./compositions/RankingShort";
 
 export const RemotionRoot = () => {
   return (
@@ -28,6 +33,27 @@ export const RemotionRoot = () => {
           emotionTarget: "WTF" as const,
           title: "OpenAI Drops GPT-5",
           source: "OpenAI Blog",
+        }}
+      />
+      <Composition
+        id="RankingShort"
+        component={RankingShort}
+        calculateMetadata={calculateRankingMetadata}
+        durationInFrames={900}
+        fps={30}
+        width={1080}
+        height={1920}
+        schema={RankingShortSchema}
+        defaultProps={{
+          title: "Top 5 AI Models Right Now",
+          items: [
+            { rank: 5, label: "Gemini Ultra", detail: "Google's contender" },
+            { rank: 4, label: "Claude Opus", detail: "Anthropic's flagship" },
+            { rank: 3, label: "Llama 4", detail: "Meta's open weight giant" },
+            { rank: 2, label: "GPT-5", detail: "OpenAI's latest" },
+            { rank: 1, label: "EDDIE", detail: "Obviously" },
+          ],
+          emotionTarget: "Wow" as const,
         }}
       />
     </>
