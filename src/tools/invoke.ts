@@ -18,13 +18,7 @@ type SearchMemoryAction = {
   params: { query: string; limit?: number };
 };
 
-type BraveSearchAction = {
-  tool: "brave-search";
-  action: "search";
-  params: { query: string; count?: number };
-};
-
-export type ToolAction = StoreAction | SearchMemoryAction | BraveSearchAction;
+export type ToolAction = StoreAction | SearchMemoryAction;
 
 export type InvokeResult<T = unknown> =
   | { ok: true; data: T }
@@ -37,8 +31,6 @@ export async function invoke<T = unknown>(
     switch (call.tool) {
       case "vector-memory":
         return (await handleVectorMemory(call)) as InvokeResult<T>;
-      case "brave-search":
-        return (await handleBraveSearch(call)) as InvokeResult<T>;
       default:
         return { ok: false, error: `Unknown tool: ${(call as any).tool}` };
     }
@@ -72,46 +64,4 @@ async function handleVectorMemory(
     ok: false,
     error: `Unknown vector-memory action: ${(call as any).action}`,
   };
-}
-
-type BraveSearchResult = {
-  title: string;
-  url: string;
-  description: string;
-};
-
-async function handleBraveSearch(
-  call: BraveSearchAction,
-): Promise<InvokeResult<BraveSearchResult[]>> {
-  const apiKey = process.env.BRAVE_API_KEY;
-  if (!apiKey) {
-    return { ok: false, error: "BRAVE_API_KEY not configured" };
-  }
-
-  const { query, count = 5 } = call.params;
-  const url = new URL("https://api.search.brave.com/res/v1/web/search");
-  url.searchParams.set("q", query);
-  url.searchParams.set("count", String(count));
-
-  const res = await fetch(url.toString(), {
-    headers: {
-      Accept: "application/json",
-      "X-Subscription-Token": apiKey,
-    },
-  });
-
-  if (!res.ok) {
-    return { ok: false, error: `Brave API ${res.status}: ${res.statusText}` };
-  }
-
-  const body = (await res.json()) as { web?: { results?: any[] } };
-  const results: BraveSearchResult[] = (body.web?.results ?? []).map(
-    (r: any) => ({
-      title: r.title,
-      url: r.url,
-      description: r.description,
-    }),
-  );
-
-  return { ok: true, data: results };
 }

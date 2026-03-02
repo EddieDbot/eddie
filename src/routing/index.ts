@@ -20,6 +20,7 @@ export type Capability = {
 export type RoutingResult = {
   agents: string[];
   mcps: string[];
+  commands: string[];
   contextHints: string[];
   confidence?: number;
 };

@@ -1,6 +1,7 @@
 import { getSupabase } from "./client.ts";
 import { embed } from "./embed.ts";
 import { logger } from "../utils/logger.ts";
+import { searchMemory } from "./search.ts";
 
 export async function storeConversation(
   sessionId: string,
@@ -58,4 +59,21 @@ export async function logCommunication(
     embedding,
   });
   if (error) logger.error("memory:log-communication", { error: error.message });
+}
+
+export async function forgetMemory(
+  query: string,
+): Promise<{ deleted: number; matched: string[] }> {
+  const matches = await searchMemory(query, 3, 0.75);
+  if (matches.length === 0) return { deleted: 0, matched: [] };
+
+  const top = matches[0]!;
+  const { error } = await getSupabase().from("facts").delete().eq("id", top.id);
+
+  if (error) {
+    logger.error("memory:forget", { error: error.message });
+    return { deleted: 0, matched: matches.map((m) => m.content) };
+  }
+
+  return { deleted: 1, matched: [top.content] };
 }

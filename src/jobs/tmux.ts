@@ -77,6 +77,15 @@ async function readProjectClaude(slug: string): Promise<string> {
   return "";
 }
 
+async function getInboxContext(): Promise<string> {
+  const guidePath = `${process.env.BRAIN_VAULT_PATH ?? `${require("node:os").homedir()}/brain-vault`}/00 - Inbox/inbox-guide.md`;
+  try {
+    return await Bun.file(guidePath).text();
+  } catch {
+    return "";
+  }
+}
+
 // Platform doc injection: for jobs involving specific platforms (n8n, Attio, Instantly, Clay),
 // inject llms-full.txt from the platform's docs if available.
 // Pattern: detect platform name in prompt → fetch docs URL → prepend to system prompt
@@ -101,12 +110,13 @@ async function buildJobSystemPrompt(
         ? "\n[CONTEXT: automated] This is a cron/background job. Be terse, skip social niceties, focus on output."
         : ""; // private — default behavior
 
-  const [memCtx, relevantProjects, visionCtx] = await Promise.all([
+  const [memCtx, relevantProjects, visionCtx, inboxCtx] = await Promise.all([
     buildMemoryContext(prompt).catch(() => ""),
     findRelevantProjects(prompt),
     config.VISION_ENABLED
       ? getCondensedVision().catch(() => "")
       : Promise.resolve(""),
+    getInboxContext(),
   ]);
 
   // Load full state + CLAUDE.md for each matched project
@@ -245,6 +255,10 @@ async function buildJobSystemPrompt(
   }
   if (memCtx) {
     parts.push(memCtx);
+  }
+
+  if (inboxCtx) {
+    parts.push(`\n## Inbox Guide\n${inboxCtx}`);
   }
 
   parts.push(buildDelegationGuidance());
@@ -429,8 +443,21 @@ export async function spawnJob(job: Job): Promise<void> {
           ? config.CODEX_PATH
           : config.CLAUDE_PATH;
 
-  const checkProc = Bun.spawnSync(["which", modelPath]);
-  if (checkProc.exitCode !== 0) {
+  // Use realpathSync to validate binary: handles absolute paths, symlinks, and dangling refs.
+  // "which" fails for absolute paths (exits non-zero even when binary exists at that path).
+  const { existsSync: fsExists, realpathSync: fsRealpath } =
+    await import("node:fs");
+  const binaryMissing =
+    !fsExists(modelPath) ||
+    (() => {
+      try {
+        fsRealpath(modelPath);
+        return false;
+      } catch {
+        return true;
+      }
+    })();
+  if (binaryMissing) {
     const errMsg = `Model binary not found: ${modelPath} (model=${effectiveModel})`;
     logger.error("jobs:model-not-found", {
       id: job.id,

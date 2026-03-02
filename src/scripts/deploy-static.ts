@@ -305,75 +305,98 @@ async function main() {
     process.exit(1);
   }
 
-  const dir = path.resolve(dirArg.replace(/^~/, process.env.HOME!));
+  let dir = path.resolve(dirArg.replace(/^~/, process.env.HOME!));
   if (!fs.existsSync(dir)) {
-    console.error(`Directory not found: ${dir}`);
+    console.error(`Path not found: ${dir}`);
     process.exit(1);
+  }
+
+  // Auto-wrap single HTML files in a temp dir as index.html
+  let tempDir: string | null = null;
+  if (fs.statSync(dir).isFile()) {
+    if (!dir.endsWith(".html")) {
+      console.error(`Single-file deploy only supports .html files: ${dir}`);
+      process.exit(1);
+    }
+    tempDir = `/tmp/deploy-wrap-${Date.now()}`;
+    fs.mkdirSync(tempDir, { recursive: true });
+    fs.copyFileSync(dir, path.join(tempDir, "index.html"));
+    console.error(
+      `[deploy] Single file detected — wrapping as index.html in ${tempDir}`,
+    );
+    dir = tempDir;
   }
 
   const siteName =
     siteNameArg ?? `eddie-${path.basename(dir)}-${Date.now().toString(36)}`;
 
   const creds = loadCredentials();
+  const cleanup = () => {
+    if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true });
+  };
 
-  // Try Netlify first
-  if (creds.netlify?.api_token) {
-    try {
-      console.error(`[deploy] Netlify → ${siteName}`);
-      const url = await netlifyDeploy(
-        dir,
-        siteName,
-        creds.netlify.api_token,
-        creds,
-      );
-      console.log(url);
-      return;
-    } catch (e) {
-      console.error(`[deploy] Netlify failed: ${e}`);
-    }
-  } else {
-    console.error("[deploy] No Netlify token — skipping");
-  }
-
-  // Try Surge
-  if (creds.surge?.token) {
-    try {
-      console.error(`[deploy] Surge → ${siteName}.surge.sh`);
-      const url = await surgeDeploy(dir, siteName, creds.surge.token);
-      console.log(url);
-      return;
-    } catch (e) {
-      console.error(`[deploy] Surge failed: ${e}`);
-    }
-  } else {
-    console.error("[deploy] No Surge token — skipping");
-  }
-
-  // Try GitHub Pages (via nac70x7 gh CLI)
   try {
-    execSync("gh auth status", { stdio: "ignore" });
+    // Try Netlify first
+    if (creds.netlify?.api_token) {
+      try {
+        console.error(`[deploy] Netlify → ${siteName}`);
+        const url = await netlifyDeploy(
+          dir,
+          siteName,
+          creds.netlify.api_token,
+          creds,
+        );
+        console.log(url);
+        return;
+      } catch (e) {
+        console.error(`[deploy] Netlify failed: ${e}`);
+      }
+    } else {
+      console.error("[deploy] No Netlify token — skipping");
+    }
+
+    // Try Surge
+    if (creds.surge?.token) {
+      try {
+        console.error(`[deploy] Surge → ${siteName}.surge.sh`);
+        const url = await surgeDeploy(dir, siteName, creds.surge.token);
+        console.log(url);
+        return;
+      } catch (e) {
+        console.error(`[deploy] Surge failed: ${e}`);
+      }
+    } else {
+      console.error("[deploy] No Surge token — skipping");
+    }
+
+    // Try GitHub Pages (via nac70x7 gh CLI)
+    try {
+      execSync("gh auth status", { stdio: "ignore" });
+      console.error(
+        `[deploy] GitHub Pages → nac70x7.github.io/eddie-sites/${siteName}/`,
+      );
+      const url = await githubPagesDeploy(dir, siteName);
+      console.log(url);
+      return;
+    } catch (e) {
+      console.error(`[deploy] GitHub Pages failed: ${e}`);
+    }
+
+    // Fallback: Internet Archive
+    if (creds.internet_archive?.s3_access_key) {
+      console.error(`[deploy] Falling back to Internet Archive`);
+      const url = await iaDeploy(dir, siteName, creds);
+      console.log(url);
+      return;
+    }
+
     console.error(
-      `[deploy] GitHub Pages → nac70x7.github.io/eddie-sites/${siteName}/`,
+      "[deploy] No hosting provider available. Add Netlify or Surge token to credentials.",
     );
-    const url = await githubPagesDeploy(dir, siteName);
-    console.log(url);
-    return;
-  } catch (e) {
-    console.error(`[deploy] GitHub Pages failed: ${e}`);
+    process.exit(1);
+  } finally {
+    cleanup();
   }
-
-  // Fallback: Internet Archive
-  if (creds.internet_archive?.s3_access_key) {
-    console.error(`[deploy] Falling back to Internet Archive`);
-    const url = await iaDeploy(dir, siteName, creds);
-    console.log(url);
-    return;
-  }
-
-  console.error(
-    "[deploy] No hosting provider available. Add Netlify or Surge token to credentials.",
-  );
-  process.exit(1);
 }
 
 main();

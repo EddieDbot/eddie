@@ -430,6 +430,56 @@ export async function ensureMigrations(): Promise<void> {
     });
   }
 
+  // Migration 027 — hook_type column on video_renders
+  try {
+    await runSQL(
+      `ALTER TABLE video_renders ADD COLUMN IF NOT EXISTS hook_type text;`,
+    );
+    logger.info("db:migrate:video-renders-hook-type");
+  } catch (err) {
+    logger.warn("db:migrate:video-renders-hook-type-skip", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Migration 027b — hybrid search (fulltext function + GIN index on facts)
+  try {
+    await runSQL(`
+      CREATE OR REPLACE FUNCTION search_memory_fulltext(
+        query_text text,
+        match_count int DEFAULT 10
+      )
+      RETURNS TABLE(
+        id uuid,
+        content text,
+        category text,
+        source text,
+        similarity float,
+        created_at timestamptz
+      )
+      LANGUAGE sql STABLE
+      AS $$
+        SELECT
+          id,
+          content,
+          category,
+          source,
+          ts_rank(to_tsvector('english', content), plainto_tsquery('english', query_text))::float AS similarity,
+          created_at
+        FROM facts
+        WHERE to_tsvector('english', content) @@ plainto_tsquery('english', query_text)
+        ORDER BY similarity DESC
+        LIMIT match_count;
+      $$;
+      CREATE INDEX IF NOT EXISTS facts_content_fts ON facts USING gin(to_tsvector('english', content));
+    `);
+    logger.info("db:migrate:hybrid-search");
+  } catch (err) {
+    logger.warn("db:migrate:hybrid-search-skip", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   logger.info("db:migrate:done");
 }
 

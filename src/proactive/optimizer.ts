@@ -21,7 +21,10 @@ export interface AuditResult {
 }
 
 const AGENTS_DIR = resolve(homedir(), ".claude/agents");
-const CAPABILITIES_PATH = resolve(homedir(), "eddie/src/routing/capabilities.ts");
+const CAPABILITIES_PATH = resolve(
+  homedir(),
+  "eddie/src/routing/capabilities.ts",
+);
 
 function spawnSync(cmd: string): string {
   const proc = Bun.spawnSync(["bash", "-c", cmd], {
@@ -38,7 +41,9 @@ function parseTime(timeStr: string): { hour: number; minute: number } {
 
 function msUntilTime(hour: number, minute: number, timezone: string): number {
   const now = new Date();
-  const nowLocal = new Date(now.toLocaleString("en-US", { timeZone: timezone }));
+  const nowLocal = new Date(
+    now.toLocaleString("en-US", { timeZone: timezone }),
+  );
   const target = new Date(nowLocal);
   target.setHours(hour, minute, 0, 0);
   if (target <= nowLocal) target.setDate(target.getDate() + 1);
@@ -57,7 +62,12 @@ function auditZombieSessions(): Finding {
       `tmux list-sessions -F "#{session_name} #{session_created}" 2>/dev/null | awk '{print $0, systime()-$2}' | awk '$3 > 3600'`,
     );
     if (!out) {
-      return { category: "Zombie Sessions", status: "OK", detail: "No stale sessions", severity: "HIGH" };
+      return {
+        category: "Zombie Sessions",
+        status: "OK",
+        detail: "No stale sessions",
+        severity: "HIGH",
+      };
     }
     const zombies = out
       .split("\n")
@@ -65,7 +75,12 @@ function auditZombieSessions(): Finding {
       .map((line) => line.split(/\s+/)[0] ?? "")
       .filter((name) => !allowlist.has(name));
     if (zombies.length === 0) {
-      return { category: "Zombie Sessions", status: "OK", detail: "No stale non-allowlisted sessions", severity: "HIGH" };
+      return {
+        category: "Zombie Sessions",
+        status: "OK",
+        detail: "No stale non-allowlisted sessions",
+        severity: "HIGH",
+      };
     }
     return {
       category: "Zombie Sessions",
@@ -74,19 +89,31 @@ function auditZombieSessions(): Finding {
       severity: "HIGH",
     };
   } catch (err) {
-    return { category: "Zombie Sessions", status: "OK", detail: `Audit error: ${String(err)}`, severity: "HIGH" };
+    return {
+      category: "Zombie Sessions",
+      status: "OK",
+      detail: `Audit error: ${String(err)}`,
+      severity: "HIGH",
+    };
   }
 }
 
 async function auditCapabilitiesDrift(): Promise<Finding> {
   try {
     const allFiles = await readdir(AGENTS_DIR).catch(() => [] as string[]);
-    const excluded = new Set(["CHANGELOG.md", "README.md", "_template.md", "CLAUDE.md"]);
+    const excluded = new Set([
+      "CHANGELOG.md",
+      "README.md",
+      "_template.md",
+      "CLAUDE.md",
+    ]);
     const agentFiles = allFiles
       .filter((f) => f.endsWith(".md") && !excluded.has(f))
       .map((f) => f.replace(/\.md$/, ""));
 
-    const capContent = await Bun.file(CAPABILITIES_PATH).text().catch(() => "");
+    const capContent = await Bun.file(CAPABILITIES_PATH)
+      .text()
+      .catch(() => "");
     const capAgentIds = new Set<string>();
     const matches = capContent.matchAll(/["'`]agent:([^"'`\s]+)["'`]/g);
     for (const m of matches) {
@@ -97,11 +124,18 @@ async function auditCapabilitiesDrift(): Promise<Finding> {
     const extra = [...capAgentIds].filter((a) => !agentFiles.includes(a));
 
     if (missing.length === 0 && extra.length === 0) {
-      return { category: "Capabilities Drift", status: "OK", detail: `${agentFiles.length} agents in sync`, severity: "HIGH" };
+      return {
+        category: "Capabilities Drift",
+        status: "OK",
+        detail: `${agentFiles.length} agents in sync`,
+        severity: "HIGH",
+      };
     }
     const parts: string[] = [];
-    if (missing.length > 0) parts.push(`agents missing from capabilities.ts: ${missing.join(", ")}`);
-    if (extra.length > 0) parts.push(`stale entries in capabilities.ts: ${extra.join(", ")}`);
+    if (missing.length > 0)
+      parts.push(`agents missing from capabilities.ts: ${missing.join(", ")}`);
+    if (extra.length > 0)
+      parts.push(`stale entries in capabilities.ts: ${extra.join(", ")}`);
     return {
       category: "Capabilities Drift",
       status: "FLAG",
@@ -109,31 +143,47 @@ async function auditCapabilitiesDrift(): Promise<Finding> {
       severity: "HIGH",
     };
   } catch (err) {
-    return { category: "Capabilities Drift", status: "OK", detail: `Audit error: ${String(err)}`, severity: "HIGH" };
+    return {
+      category: "Capabilities Drift",
+      status: "OK",
+      detail: `Audit error: ${String(err)}`,
+      severity: "HIGH",
+    };
   }
 }
 
 function auditDiskBloat(): Finding {
   try {
-    const jobCount = parseInt(spawnSync("ls ~/eddie/data/jobs/ 2>/dev/null | wc -l") || "0", 10);
+    const jobCount = parseInt(
+      spawnSync("ls ~/eddie/data/jobs/ 2>/dev/null | wc -l") || "0",
+      10,
+    );
     const staleStateCount = parseInt(
-      spawnSync(`ls ~/brain-vault/90\\ -\\ Agent\\ Memory/State/ 2>/dev/null | grep -E "daily-brief|handoff|cli-comparison" | wc -l`) || "0",
+      spawnSync(
+        `ls ~/brain-vault/90\\ -\\ Agent\\ Memory/State/ 2>/dev/null | grep -E "daily-brief|handoff|cli-comparison" | wc -l`,
+      ) || "0",
       10,
     );
     const tempCount = parseInt(
-      spawnSync("ls /tmp/eddie-* /tmp/job-* /tmp/out.log 2>/dev/null 2>&1 | wc -l") || "0",
+      spawnSync(
+        "ls /tmp/eddie-* /tmp/job-* /tmp/out.log 2>/dev/null 2>&1 | wc -l",
+      ) || "0",
       10,
     );
-    const logSizeRaw = spawnSync("du -sh ~/eddie/logs/ 2>/dev/null || echo '0'");
+    const logSizeRaw = spawnSync(
+      "du -sh ~/eddie/logs/ 2>/dev/null || echo '0'",
+    );
 
     const issues: string[] = [];
     if (jobCount > 200) issues.push(`${jobCount} job files (>200)`);
-    if (staleStateCount > 5) issues.push(`${staleStateCount} stale state files`);
+    if (staleStateCount > 5)
+      issues.push(`${staleStateCount} stale state files`);
     if (tempCount > 10) issues.push(`${tempCount} temp files`);
 
-    const detail = issues.length > 0
-      ? issues.join("; ") + ` | logs: ${logSizeRaw}`
-      : `jobs:${jobCount} stale-state:${staleStateCount} tmp:${tempCount} logs:${logSizeRaw}`;
+    const detail =
+      issues.length > 0
+        ? issues.join("; ") + ` | logs: ${logSizeRaw}`
+        : `jobs:${jobCount} stale-state:${staleStateCount} tmp:${tempCount} logs:${logSizeRaw}`;
 
     return {
       category: "Disk Bloat",
@@ -142,20 +192,34 @@ function auditDiskBloat(): Finding {
       severity: "MEDIUM",
     };
   } catch (err) {
-    return { category: "Disk Bloat", status: "OK", detail: `Audit error: ${String(err)}`, severity: "MEDIUM" };
+    return {
+      category: "Disk Bloat",
+      status: "OK",
+      detail: `Audit error: ${String(err)}`,
+      severity: "MEDIUM",
+    };
   }
 }
 
 function auditModelRouting(): Finding {
   try {
-    const files = spawnSync("ls ~/eddie/data/jobs/*.json 2>/dev/null | head -50");
+    const files = spawnSync(
+      "ls ~/eddie/data/jobs/*.json 2>/dev/null | head -50",
+    );
     if (!files) {
-      return { category: "Model Routing", status: "OK", detail: "No job files found", severity: "MEDIUM" };
+      return {
+        category: "Model Routing",
+        status: "OK",
+        detail: "No job files found",
+        severity: "MEDIUM",
+      };
     }
     const modelCounts: Record<string, number> = {};
     let total = 0;
     for (const f of files.split("\n").filter(Boolean)) {
-      const modelLine = spawnSync(`grep '"model"' "${f}" 2>/dev/null | head -1`);
+      const modelLine = spawnSync(
+        `grep '"model"' "${f}" 2>/dev/null | head -1`,
+      );
       const match = modelLine.match(/"model"\s*:\s*"([^"]+)"/);
       if (match?.[1]) {
         const m = match[1];
@@ -164,7 +228,12 @@ function auditModelRouting(): Finding {
       }
     }
     if (total === 0) {
-      return { category: "Model Routing", status: "OK", detail: "No model data in job files", severity: "MEDIUM" };
+      return {
+        category: "Model Routing",
+        status: "OK",
+        detail: "No model data in job files",
+        severity: "MEDIUM",
+      };
     }
     const topModel = Object.entries(modelCounts).sort((a, b) => b[1] - a[1])[0];
     const topPct = topModel ? Math.round((topModel[1] / total) * 100) : 0;
@@ -176,18 +245,32 @@ function auditModelRouting(): Finding {
       severity: "MEDIUM",
     };
   } catch (err) {
-    return { category: "Model Routing", status: "OK", detail: `Audit error: ${String(err)}`, severity: "MEDIUM" };
+    return {
+      category: "Model Routing",
+      status: "OK",
+      detail: `Audit error: ${String(err)}`,
+      severity: "MEDIUM",
+    };
   }
 }
 
 function auditRunPromptMigration(): Finding {
   try {
-    const holdouts = new Set(["relay.ts", "script-generator.ts", "contra-intake.ts"]);
+    const holdouts = new Set([
+      "relay.ts",
+      "script-generator.ts",
+      "contra-intake.ts",
+    ]);
     const raw = spawnSync(
       `grep -r "runPrompt(" ~/eddie/src/ --include="*.ts" -l 2>/dev/null | grep -v "run-prompt" | grep -v "run-prompt-multi"`,
     );
     if (!raw) {
-      return { category: "runPrompt Migration", status: "OK", detail: "All call sites migrated", severity: "MEDIUM" };
+      return {
+        category: "runPrompt Migration",
+        status: "OK",
+        detail: "All call sites migrated",
+        severity: "MEDIUM",
+      };
     }
     const remaining = raw
       .split("\n")
@@ -196,7 +279,12 @@ function auditRunPromptMigration(): Finding {
       .filter((f) => !holdouts.has(f));
 
     if (remaining.length === 0) {
-      return { category: "runPrompt Migration", status: "OK", detail: "Only known holdouts remain", severity: "MEDIUM" };
+      return {
+        category: "runPrompt Migration",
+        status: "OK",
+        detail: "Only known holdouts remain",
+        severity: "MEDIUM",
+      };
     }
     return {
       category: "runPrompt Migration",
@@ -205,15 +293,27 @@ function auditRunPromptMigration(): Finding {
       severity: "MEDIUM",
     };
   } catch (err) {
-    return { category: "runPrompt Migration", status: "OK", detail: `Audit error: ${String(err)}`, severity: "MEDIUM" };
+    return {
+      category: "runPrompt Migration",
+      status: "OK",
+      detail: `Audit error: ${String(err)}`,
+      severity: "MEDIUM",
+    };
   }
 }
 
 function auditJobBriefingSizes(): Finding {
   try {
-    const raw = spawnSync("ls -la ~/eddie/data/jobs/*system* 2>/dev/null | sort -k5 -rn | head -5");
+    const raw = spawnSync(
+      "ls -la ~/eddie/data/jobs/*system* 2>/dev/null | sort -k5 -rn | head -5",
+    );
     if (!raw) {
-      return { category: "Job Briefing Sizes", status: "OK", detail: "No system job files found", severity: "MEDIUM" };
+      return {
+        category: "Job Briefing Sizes",
+        status: "OK",
+        detail: "No system job files found",
+        severity: "MEDIUM",
+      };
     }
     const oversized: string[] = [];
     for (const line of raw.split("\n").filter(Boolean)) {
@@ -225,7 +325,12 @@ function auditJobBriefingSizes(): Finding {
       }
     }
     if (oversized.length === 0) {
-      return { category: "Job Briefing Sizes", status: "OK", detail: "All system files under 50KB", severity: "MEDIUM" };
+      return {
+        category: "Job Briefing Sizes",
+        status: "OK",
+        detail: "All system files under 50KB",
+        severity: "MEDIUM",
+      };
     }
     return {
       category: "Job Briefing Sizes",
@@ -234,68 +339,112 @@ function auditJobBriefingSizes(): Finding {
       severity: "MEDIUM",
     };
   } catch (err) {
-    return { category: "Job Briefing Sizes", status: "OK", detail: `Audit error: ${String(err)}`, severity: "MEDIUM" };
+    return {
+      category: "Job Briefing Sizes",
+      status: "OK",
+      detail: `Audit error: ${String(err)}`,
+      severity: "MEDIUM",
+    };
   }
 }
 
 function auditContextWaste(): Finding {
   try {
     const briefCount = parseInt(
-      spawnSync(`ls ~/brain-vault/90\\ -\\ Agent\\ Memory/State/daily-brief-* 2>/dev/null | wc -l`) || "0",
+      spawnSync(
+        `ls ~/brain-vault/90\\ -\\ Agent\\ Memory/State/daily-brief-* 2>/dev/null | wc -l`,
+      ) || "0",
       10,
     );
     const oldJobCount = parseInt(
-      spawnSync("find ~/eddie/data/jobs/ -name '*.json' -mtime +7 2>/dev/null | wc -l") || "0",
+      spawnSync(
+        "find ~/eddie/data/jobs/ -name '*.json' -mtime +7 2>/dev/null | wc -l",
+      ) || "0",
       10,
     );
     const issues: string[] = [];
-    if (briefCount > 3) issues.push(`${briefCount} daily-brief files in State (>3)`);
+    if (briefCount > 3)
+      issues.push(`${briefCount} daily-brief files in State (>3)`);
     if (oldJobCount > 50) issues.push(`${oldJobCount} job files >7d old`);
 
     return {
       category: "Context Waste",
       status: issues.length > 0 ? "WARN" : "OK",
-      detail: issues.length > 0 ? issues.join("; ") : `briefs:${briefCount} old-jobs:${oldJobCount}`,
+      detail:
+        issues.length > 0
+          ? issues.join("; ")
+          : `briefs:${briefCount} old-jobs:${oldJobCount}`,
       severity: "MEDIUM",
     };
   } catch (err) {
-    return { category: "Context Waste", status: "OK", detail: `Audit error: ${String(err)}`, severity: "MEDIUM" };
+    return {
+      category: "Context Waste",
+      status: "OK",
+      detail: `Audit error: ${String(err)}`,
+      severity: "MEDIUM",
+    };
   }
 }
 
 async function auditAgentQuality(): Promise<Finding> {
   try {
-    const excluded = new Set(["CHANGELOG.md", "README.md", "_template.md", "CLAUDE.md"]);
+    const excluded = new Set([
+      "CHANGELOG.md",
+      "README.md",
+      "_template.md",
+      "CLAUDE.md",
+    ]);
     const allFiles = await readdir(AGENTS_DIR).catch(() => [] as string[]);
-    const agentFiles = allFiles.filter((f) => f.endsWith(".md") && !excluded.has(f));
+    const agentFiles = allFiles.filter(
+      (f) => f.endsWith(".md") && !excluded.has(f),
+    );
 
     const issues: string[] = [];
     for (const file of agentFiles) {
       const path = resolve(AGENTS_DIR, file);
-      const lineCount = parseInt(spawnSync(`wc -l < "${path}" 2>/dev/null`) || "0", 10);
+      const lineCount = parseInt(
+        spawnSync(`wc -l < "${path}" 2>/dev/null`) || "0",
+        10,
+      );
       const firstLine = spawnSync(`head -1 "${path}" 2>/dev/null`);
-      if (lineCount > 200) issues.push(`${file} (${lineCount} lines, too long)`);
-      if (!firstLine.startsWith("---")) issues.push(`${file} (missing YAML frontmatter)`);
+      if (lineCount > 200)
+        issues.push(`${file} (${lineCount} lines, too long)`);
+      if (!firstLine.startsWith("---"))
+        issues.push(`${file} (missing YAML frontmatter)`);
     }
 
     if (issues.length === 0) {
-      return { category: "Agent Quality", status: "OK", detail: `${agentFiles.length} agents checked`, severity: "MEDIUM" };
+      return {
+        category: "Agent Quality",
+        status: "OK",
+        detail: `${agentFiles.length} agents checked`,
+        severity: "MEDIUM",
+      };
     }
     return {
       category: "Agent Quality",
       status: "WARN",
-      detail: issues.slice(0, 5).join("; ") + (issues.length > 5 ? ` +${issues.length - 5} more` : ""),
+      detail:
+        issues.slice(0, 5).join("; ") +
+        (issues.length > 5 ? ` +${issues.length - 5} more` : ""),
       severity: "MEDIUM",
     };
   } catch (err) {
-    return { category: "Agent Quality", status: "OK", detail: `Audit error: ${String(err)}`, severity: "MEDIUM" };
+    return {
+      category: "Agent Quality",
+      status: "OK",
+      detail: `Audit error: ${String(err)}`,
+      severity: "MEDIUM",
+    };
   }
 }
 
 function auditStateFiles(): Finding {
   try {
     const count = parseInt(
-      spawnSync(`ls ~/brain-vault/90\\ -\\ Agent\\ Memory/State/ 2>/dev/null | wc -l`) || "0",
+      spawnSync(
+        `ls ~/brain-vault/90\\ -\\ Agent\\ Memory/State/ 2>/dev/null | wc -l`,
+      ) || "0",
       10,
     );
     return {
@@ -305,7 +454,83 @@ function auditStateFiles(): Finding {
       severity: "LOW",
     };
   } catch (err) {
-    return { category: "State Files", status: "OK", detail: `Audit error: ${String(err)}`, severity: "LOW" };
+    return {
+      category: "State Files",
+      status: "OK",
+      detail: `Audit error: ${String(err)}`,
+      severity: "LOW",
+    };
+  }
+}
+
+async function auditMemoryFiles(): Promise<Finding> {
+  try {
+    const issues: string[] = [];
+
+    const globalClaudeMd = resolve(homedir(), ".claude/CLAUDE.md");
+    try {
+      const size = (
+        await import("node:fs/promises").then((m) => m.stat(globalClaudeMd))
+      ).size;
+      if (size > 15 * 1024)
+        issues.push(
+          `~/.claude/CLAUDE.md is ${Math.round(size / 1024)}KB (>15KB)`,
+        );
+    } catch {
+      /* missing is fine */
+    }
+
+    const projectClaudeMd = resolve(homedir(), "eddie/CLAUDE.md");
+    try {
+      const size = (
+        await import("node:fs/promises").then((m) => m.stat(projectClaudeMd))
+      ).size;
+      if (size > 20 * 1024)
+        issues.push(
+          `~/eddie/CLAUDE.md is ${Math.round(size / 1024)}KB (>20KB)`,
+        );
+    } catch {
+      /* missing is fine */
+    }
+
+    const dataDir = resolve(homedir(), "eddie/data");
+    const dataSizeRaw = spawnSync(`du -sb "${dataDir}" 2>/dev/null | cut -f1`);
+    const dataBytes = parseInt(dataSizeRaw || "0", 10);
+    if (dataBytes > 500 * 1024 * 1024)
+      issues.push(
+        `~/eddie/data/ is ${Math.round(dataBytes / 1024 / 1024)}MB (>500MB)`,
+      );
+
+    const inboxDir = resolve(homedir(), "brain-vault/00 - Inbox");
+    try {
+      const files = await readdir(inboxDir);
+      if (files.length > 50)
+        issues.push(`Inbox has ${files.length} files (>50)`);
+    } catch {
+      /* missing is fine */
+    }
+
+    if (issues.length === 0) {
+      return {
+        category: "Memory Files",
+        status: "OK",
+        detail: "All files within size thresholds",
+        severity: "MEDIUM",
+      };
+    }
+    return {
+      category: "Memory Files",
+      status: "FLAG",
+      detail: issues.join("; "),
+      severity: "MEDIUM",
+    };
+  } catch (err) {
+    return {
+      category: "Memory Files",
+      status: "OK",
+      detail: `Audit error: ${String(err)}`,
+      severity: "MEDIUM",
+    };
   }
 }
 
@@ -322,7 +547,76 @@ function auditParallelOpportunities(): Finding {
       severity: "LOW",
     };
   } catch (err) {
-    return { category: "Parallel Opportunities", status: "OK", detail: `Audit error: ${String(err)}`, severity: "LOW" };
+    return {
+      category: "Parallel Opportunities",
+      status: "OK",
+      detail: `Audit error: ${String(err)}`,
+      severity: "LOW",
+    };
+  }
+}
+
+async function auditN8nWorkflows(): Promise<Finding> {
+  try {
+    const apiKey = process.env.N8N_API_KEY;
+    const baseUrl = process.env.N8N_BASE_URL ?? "http://localhost:5678";
+    if (!apiKey) {
+      return {
+        category: "n8n Workflows",
+        status: "OK",
+        detail: "N8N_API_KEY not configured — skipping",
+        severity: "LOW",
+      };
+    }
+
+    const res = await fetch(`${baseUrl}/api/v1/workflows`, {
+      headers: { "X-N8N-API-KEY": apiKey },
+    });
+    if (!res.ok) {
+      return {
+        category: "n8n Workflows",
+        status: "WARN",
+        detail: `n8n API error: ${res.status}`,
+        severity: "LOW",
+      };
+    }
+
+    const body = (await res.json()) as {
+      data?: Array<{
+        id: string;
+        name: string;
+        active: boolean;
+        updatedAt: string;
+      }>;
+    };
+    const workflows = body.data ?? [];
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const stale = workflows.filter(
+      (w) => !w.active && new Date(w.updatedAt).getTime() < cutoff,
+    );
+
+    if (stale.length === 0) {
+      return {
+        category: "n8n Workflows",
+        status: "OK",
+        detail: `${workflows.length} workflows (${workflows.filter((w) => w.active).length} active)`,
+        severity: "LOW",
+      };
+    }
+
+    return {
+      category: "n8n Workflows",
+      status: "FLAG",
+      detail: `${stale.length} inactive workflow(s) stale >30 days: ${stale.map((w) => w.name).join(", ")}`,
+      severity: "LOW",
+    };
+  } catch (err) {
+    return {
+      category: "n8n Workflows",
+      status: "OK",
+      detail: `Audit error: ${String(err)}`,
+      severity: "LOW",
+    };
   }
 }
 
@@ -356,9 +650,10 @@ async function writeReport(result: AuditResult): Promise<void> {
     .map((f) => `| ${f.category} | ${f.status} | ${f.detail} |`)
     .join("\n");
 
-  const fixes = result.topFixes.length > 0
-    ? result.topFixes.map((f, i) => `${i + 1}. ${f}`).join("\n")
-    : "_No actionable issues found._";
+  const fixes =
+    result.topFixes.length > 0
+      ? result.topFixes.map((f, i) => `${i + 1}. ${f}`).join("\n")
+      : "_No actionable issues found._";
 
   const content = `## OPTIMIZER AUDIT — ${result.date}
 
@@ -380,7 +675,9 @@ ${fixes}
   }
 }
 
-export async function runOptimizer(bot?: import("gramio").Bot): Promise<AuditResult> {
+export async function runOptimizer(
+  bot?: import("gramio").Bot,
+): Promise<AuditResult> {
   logger.info("optimizer:start");
 
   const [
@@ -394,6 +691,8 @@ export async function runOptimizer(bot?: import("gramio").Bot): Promise<AuditRes
     agentQuality,
     stateFiles,
     parallelOps,
+    memoryFiles,
+    n8nWorkflows,
   ] = await Promise.all([
     Promise.resolve(auditZombieSessions()),
     auditCapabilitiesDrift(),
@@ -405,6 +704,8 @@ export async function runOptimizer(bot?: import("gramio").Bot): Promise<AuditRes
     auditAgentQuality(),
     Promise.resolve(auditStateFiles()),
     Promise.resolve(auditParallelOpportunities()),
+    auditMemoryFiles(),
+    auditN8nWorkflows(),
   ]);
 
   const findings = [
@@ -418,6 +719,8 @@ export async function runOptimizer(bot?: import("gramio").Bot): Promise<AuditRes
     agentQuality,
     stateFiles,
     parallelOps,
+    memoryFiles,
+    n8nWorkflows,
   ];
 
   const healthScore = calculateHealthScore(findings);
@@ -428,7 +731,9 @@ export async function runOptimizer(bot?: import("gramio").Bot): Promise<AuditRes
 
   await writeReport(result);
 
-  const hasHighFlag = findings.some((f) => f.severity === "HIGH" && f.status === "FLAG");
+  const hasHighFlag = findings.some(
+    (f) => f.severity === "HIGH" && f.status === "FLAG",
+  );
   if (bot && (hasHighFlag || healthScore < 7)) {
     const lines = [
       `OPTIMIZER AUDIT — ${date}`,
@@ -438,7 +743,9 @@ export async function runOptimizer(bot?: import("gramio").Bot): Promise<AuditRes
     ].join("\n");
     await bot.api
       .sendMessage({ chat_id: config.OWNER_TELEGRAM_ID, text: lines })
-      .catch((err) => logger.error("optimizer:telegram-failed", { error: String(err) }));
+      .catch((err) =>
+        logger.error("optimizer:telegram-failed", { error: String(err) }),
+      );
   }
 
   logger.info("optimizer:done", { healthScore, issues: topFixes.length });
@@ -446,7 +753,10 @@ export async function runOptimizer(bot?: import("gramio").Bot): Promise<AuditRes
 }
 
 export function startOptimizer(bot: import("gramio").Bot): void {
-  const time = "OPTIMIZER_TIME" in config ? (config as Record<string, unknown>).OPTIMIZER_TIME as string : "03:00";
+  const time =
+    "OPTIMIZER_TIME" in config
+      ? ((config as Record<string, unknown>).OPTIMIZER_TIME as string)
+      : "03:00";
   const { hour, minute } = parseTime(time ?? "03:00");
   const delay = msUntilTime(hour, minute, config.TIMEZONE);
   logger.info("optimizer:scheduled", { time, delayMs: delay });

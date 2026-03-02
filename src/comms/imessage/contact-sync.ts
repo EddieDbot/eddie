@@ -175,7 +175,7 @@ export function startContactSync(): void {
 
   // Daily sync at configured time
   const schedule = () => {
-    const delay = msUntil(config.CONTACT_SYNC_TIME);
+    const delay = msUntil(config.CONTACT_SYNC_TIME ?? "03:00");
     setTimeout(async () => {
       await syncContacts().catch((err) =>
         logger.warn("contact-sync:scheduled-error", { error: String(err) }),
@@ -185,5 +185,7 @@ export function startContactSync(): void {
   };
   schedule();
 
-  logger.info("contact-sync:scheduled", { time: config.CONTACT_SYNC_TIME });
+  logger.info("contact-sync:scheduled", {
+    time: config.CONTACT_SYNC_TIME ?? "03:00",
+  });
 }

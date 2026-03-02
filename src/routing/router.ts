@@ -4,6 +4,7 @@ import type { Capability, TriggerRule, RoutingResult } from "./index.ts";
 const ACTIVATION_THRESHOLD = 1.0;
 const MAX_AGENTS = 5;
 const MAX_MCPS = 3;
+const MAX_COMMANDS = 3;
 
 export function routeCapabilities(
   prompt: string,
@@ -26,6 +27,7 @@ export function routeCapabilities(
 
   const agents: string[] = [];
   const mcps: string[] = [];
+  const commands: string[] = [];
   const seen = new Set<string>();
 
   for (const { cap } of scored) {
@@ -40,6 +42,9 @@ export function routeCapabilities(
     }
     if (cap.type === "mcp" && mcps.length < MAX_MCPS) {
       mcps.push(cap.id.replace("mcp:", ""));
+    }
+    if (cap.type === "command" && commands.length < MAX_COMMANDS) {
+      commands.push(cap.id.replace("command:", ""));
     }
 
     for (const req of cap.requires ?? []) {
@@ -71,10 +76,16 @@ export function routeCapabilities(
     }
   }
 
+  if (commands.length > 0) {
+    contextHints.push(
+      `Commands for this task: ${commands.map((c) => `/${c}`).join(", ")}`,
+    );
+  }
+
   const topScore = scored[0]?.score ?? 0;
   const confidence = Math.min(100, Math.round((topScore / 3.0) * 100));
 
-  return { agents, mcps, contextHints, confidence };
+  return { agents, mcps, commands, contextHints, confidence };
 }
 
 function scoreTrigger(

@@ -24,18 +24,10 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
-  ELEVENLABS_API_KEY: z.string().optional(),
-  ELEVENLABS_VOICE_ID: z.string().default("21m00Tcm4TlvDq8ikWAM"),
   DASHBOARD_PORT: z.coerce.number().default(3000),
   DASHBOARD_ENABLED: z
     .preprocess((v) => String(v ?? "true") !== "false", z.boolean())
     .default(true),
-  TWILIO_ACCOUNT_SID: z.string().optional(),
-  TWILIO_AUTH_TOKEN: z.string().optional(),
-  TWILIO_PHONE_NUMBER: z.string().optional(),
-  TWILIO_WEBHOOK_PORT: z.coerce.number().default(8443),
-  OWNER_PHONE: z.string().optional(),
-  TWILIO_WEBHOOK_URL: z.string().optional(),
   PROACTIVE_QUIET_START: z.coerce.number().default(22),
   PROACTIVE_QUIET_END: z.coerce.number().default(8),
   HEARTBEAT_ENABLED: z
@@ -120,14 +112,9 @@ const envSchema = z.object({
   COMMS_WHATSAPP_TOKEN: z.string().optional(),
   ICLOUD_EMAIL: z.string().optional(),
   ICLOUD_APP_PASSWORD: z.string().optional(),
-  YOUTUBE_API_KEY: z.string().optional(),
-  YOUTUBE_CHANNEL_ID: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_API_KEY: z.string().optional(),
-  PLAYLIST_ENABLED: z
-    .preprocess((v) => String(v ?? "true") !== "false", z.boolean())
-    .default(true),
   SELF_HEAL_ENABLED: z
     .preprocess((v) => String(v ?? "false") === "true", z.boolean())
     .default(false),
@@ -135,20 +122,6 @@ const envSchema = z.object({
     .preprocess((v) => String(v ?? "false") === "true", z.boolean())
     .default(false),
   DAILY_BRIEF_INTERVAL_MS: z.coerce.number().default(10_800_000),
-  MEET_INGEST_ENABLED: z
-    .preprocess((v) => String(v ?? "false") === "true", z.boolean())
-    .default(false),
-  MEET_INGEST_TIME: z.string().default("21:00"),
-  BOOK_INGEST_ENABLED: z
-    .preprocess((v) => String(v ?? "false") === "true", z.boolean())
-    .default(false),
-  BOOK_INBOX_POLL_INTERVAL_MS: z.coerce.number().default(300_000),
-  IA_S3_ACCESS_KEY: z.string().optional(),
-  IA_S3_SECRET_KEY: z.string().optional(),
-  CONTACT_SYNC_ENABLED: z
-    .preprocess((v) => String(v ?? "false") === "true", z.boolean())
-    .default(false),
-  CONTACT_SYNC_TIME: z.string().default("03:00"),
   CLAUDE_HEALTH_ENABLED: z
     .preprocess((v) => String(v ?? "false") === "true", z.boolean())
     .default(false),
@@ -173,8 +146,6 @@ const envSchema = z.object({
   SELF_IMPROVE_ENABLED: z.coerce.boolean().default(false),
   SELF_IMPROVE_WEEKLY_DAY: z.coerce.number().default(0),
   KANBAN_ENABLED: z.coerce.boolean().default(false),
-  WEEKLY_CONTENT_ENABLED: z.coerce.boolean().default(false),
-  TRANSCRIPT_WATCHER_ENABLED: z.coerce.boolean().default(false),
   GATHER_BEFORE_BRIEF: z.coerce.boolean().default(false),
   // Wave 0B — Persistent Jobs Session
   PERSISTENT_JOBS_SESSION: z.coerce.boolean().default(false),
@@ -185,12 +156,7 @@ const envSchema = z.object({
   ANOMALY_DETECT_ENABLED: z.coerce.boolean().default(false),
   // Wave 4 — Morning Brief + Commands
   MORNING_BRIEF_NEWS_ENABLED: z.coerce.boolean().default(false),
-  BOOK_EXERCISE_EXTRACTION: z.coerce.boolean().default(false),
-  // Wave 5 — Tracking + Ingestion
-  EXPENSE_TRACKING_ENABLED: z.coerce.boolean().default(false),
   COMMITMENT_TRACKING_ENABLED: z.coerce.boolean().default(false),
-  SOCIAL_SNAPSHOT_ENABLED: z.coerce.boolean().default(false),
-  YOUTUBE_COMPETITOR_ENABLED: z.coerce.boolean().default(false),
   URL_INGESTION_ENABLED: z.coerce.boolean().default(false),
   // Wave 6 — Dashboard + Job Execution
   WEB_CHAT_ENABLED: z.coerce.boolean().default(false),
@@ -202,29 +168,12 @@ const envSchema = z.object({
   SECURITY_COUNCIL_TIME: z.string().default("03:30"),
   DISCOVERABILITY_ENABLED: z.coerce.boolean().default(false),
   MONTHLY_REVIEW_ENABLED: z.coerce.boolean().default(false),
-  ACCOUNTING_PIPELINE_ENABLED: z.coerce.boolean().default(false),
   OBSERVATION_LOG_ENABLED: z.coerce.boolean().default(false),
   // Wave 8 — Final Polish
   CROSS_PROVIDER_ROUTING_ENABLED: z.coerce.boolean().default(true),
   MONOLOGUE_BRIEF_ENABLED: z.coerce.boolean().default(false),
   ANTHROPIC_MONITOR_ENABLED: z.coerce.boolean().default(false),
-  // Video Pipeline
-  VIDEO_PIPELINE_ENABLED: z.coerce.boolean().default(false),
-  VIDEO_PIPELINE_TIME: z.string().default("13:00"), // 13:00 UTC = 7am CST
-  VIDEO_PIPELINE_TIMES: z.string().default(""), // comma-separated times e.g. "07:00,13:00,19:00" — overrides VIDEO_PIPELINE_TIME when set
-  VIDEO_PIPELINE_INTERVAL_MIN: z.coerce.number().default(0), // when >0, runs on fixed interval (minutes) — overrides time-based scheduling. Use for rapid iteration/training.
-  // Contra Intake Flow
-  CONTRA_INTAKE_ENABLED: z.coerce.boolean().default(false),
-  CONTRA_AUTO_REPLY_ENABLED: z.coerce.boolean().default(false),
-  VIDEO_HOOK_ROTATION_ENABLED: z.coerce.boolean().default(true),
-  VIDEO_QA_ENABLED: z.coerce.boolean().default(false),
-  VIDEO_ANALYTICS_ENABLED: z.coerce.boolean().default(false),
-  VIDEO_QA_MAX_ATTEMPTS: z.coerce.number().default(3),
-  VIDEO_QA_GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
   GEMINI_EXTRACT_MODEL: z.string().default("gemini-2.5-flash"),
-  // When set to N, videos upload as private and auto-publish N hours later via YouTube's scheduler.
-  // 0 = publish immediately (default). Useful for spacing out overnight batch runs.
-  VIDEO_PUBLISH_DELAY_HOURS: z.coerce.number().default(0),
   AGENT_DASHBOARD_ENABLED: z.coerce.boolean().default(false),
   AGENT_DASHBOARD_POLL_MS: z.coerce.number().default(5_000),
   // Memory monitor
@@ -234,13 +183,21 @@ const envSchema = z.object({
   OPTIMIZER_ENABLED: z.coerce.boolean().default(false),
   OPTIMIZER_TIME: z.string().default("03:00"),
   DOCKER_ENV: z.coerce.boolean().default(false),
-  EBPF_ENABLED: z.coerce.boolean().default(false),
-  EBPF_SOCKET_PATH: z.string().default("/run/eddie-ebpf/events.sock"),
   GITHUB_PAT: z.string().optional(),
   GITHUB_PERSONAL_PAT: z.string().optional(),
   // Heimdall — community piece management
   // Comma-separated GitHub handles of trusted contributors. Empty = open (no gate).
   HEIMDALL_TRUSTED_AUTHORS: z.string().optional(),
+  // n8n workflow audit
+  N8N_API_KEY: z.string().optional(),
+  N8N_BASE_URL: z.string().optional(),
+  // YouTube (optional)
+  YOUTUBE_CHANNEL_ID: z.string().optional(),
+  // iMessage contact sync
+  CONTACT_SYNC_TIME: z.string().optional(),
+  // Internet Archive (optional)
+  IA_S3_ACCESS_KEY: z.string().optional(),
+  IA_S3_SECRET_KEY: z.string().optional(),
 });
 
 export type Config = z.infer<typeof envSchema>;

@@ -2,7 +2,6 @@ import type { MessageContext } from "./shared.ts";
 import { checkClaude } from "../../claude/health.ts";
 import { resetSession } from "../../claude/session.ts";
 import { config } from "../../config.ts";
-import { initiateCall } from "../../voice/call.ts";
 import {
   startBrainstorm,
   endBrainstorm,
@@ -128,28 +127,7 @@ export async function handleBrainstorm(context: MessageContext): Promise<void> {
 }
 
 export async function handleCall(context: MessageContext): Promise<void> {
-  const sid = config.TWILIO_ACCOUNT_SID;
-  const phone = config.OWNER_PHONE;
-  const webhookPort = config.TWILIO_WEBHOOK_PORT;
-
-  if (!sid || !phone) {
-    await context.send(
-      "Twilio not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, and OWNER_PHONE.",
-    );
-    return;
-  }
-
-  const webhookUrl = config.TWILIO_WEBHOOK_URL;
-  const webhookBaseUrl = webhookUrl || `https://localhost:${webhookPort}`;
-  try {
-    const result = await initiateCall(phone, webhookBaseUrl);
-    await context.send(
-      `Call initiated. SID: ${result.sid}, Status: ${result.status}`,
-    );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await context.send(`Call failed: ${msg}`);
-  }
+  await context.send("Voice calling is not available in this build.");
 }
 
 export async function handleAgents(context: MessageContext): Promise<void> {
@@ -259,117 +237,7 @@ export async function handleRevenue(context: MessageContext): Promise<void> {
 }
 
 export async function handleBook(context: MessageContext): Promise<void> {
-  const text = context.text?.replace(/^\/book\s*/, "").trim() ?? "";
-  const parts = text.split(/\s+/);
-  const sub = parts[0]?.toLowerCase();
-
-  if (!sub || sub === "help") {
-    await context.send(
-      "/book commands:\n" +
-        '  /book find "Title" "Author" — search + download + ingest\n' +
-        "  /book ingest <path> — ingest a local file\n" +
-        "  /book inbox — list unprocessed books in inbox\n",
-    );
-    return;
-  }
-
-  if (sub === "inbox") {
-    const { readdir } = await import("node:fs/promises");
-    const { homedir } = await import("node:os");
-    const rawDir = `${homedir()}/brain-vault/00 - Inbox/books/_raw`;
-    try {
-      const files = await readdir(rawDir);
-      const books = files.filter((f) => /\.(pdf|epub|txt)$/i.test(f));
-      if (books.length === 0) {
-        await context.send("No books in inbox.");
-      } else {
-        await context.send(
-          `Books in inbox (${books.length}):\n` +
-            books.map((f) => `  • ${f}`).join("\n"),
-        );
-      }
-    } catch {
-      await context.send("Inbox not found or empty.");
-    }
-    return;
-  }
-
-  if (sub === "ingest") {
-    const bookPath = parts
-      .slice(1)
-      .join(" ")
-      .replace(/^["']|["']$/g, "");
-    if (!bookPath) {
-      await context.send("Usage: /book ingest <path>");
-      return;
-    }
-    const { ingestBook } = await import("../../proactive/book-ingest.ts");
-    try {
-      const { jobId, session } = await ingestBook(bookPath);
-      await context.send(
-        `Book ingestion started.\nJob: ${jobId.slice(0, 8)}\nSession: ${session}`,
-      );
-    } catch (err) {
-      await context.send(`Error: ${String(err)}`);
-    }
-    return;
-  }
-
-  if (sub === "find") {
-    const remaining = parts.slice(1).join(" ");
-    const quoted = [...remaining.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
-    let title: string;
-    let author: string | undefined;
-    if (quoted.length >= 1) {
-      title = quoted[0]!;
-      author = quoted[1];
-    } else {
-      title = parts[1] ?? "";
-      author = parts.slice(2).join(" ") || undefined;
-    }
-    if (!title) {
-      await context.send('Usage: /book find "Title" "Author"');
-      return;
-    }
-    await context.send(
-      `Searching for: ${title}${author ? ` by ${author}` : ""}...`,
-    );
-    const { findBook, ingestBook } =
-      await import("../../proactive/book-ingest.ts");
-    try {
-      const result = await findBook(title, author);
-      if (result.found && result.download_path) {
-        await context.send(
-          `Found! Source: ${result.source}\nFormat: ${result.format}\nStarting ingestion...`,
-        );
-        const { jobId, session } = await ingestBook(result.download_path, {
-          title,
-        });
-        await context.send(
-          `Ingestion started.\nJob: ${jobId.slice(0, 8)}\nSession: ${session}`,
-        );
-      } else if (result.alternatives.length > 0) {
-        const alts = result.alternatives
-          .map(
-            (a) =>
-              `  • ${String(a["source"])}: ${String(a["title"])} — ${String(a["note"] ?? "")}`,
-          )
-          .join("\n");
-        await context.send(
-          `Not found for direct download.\nAlternatives:\n${alts}`,
-        );
-      } else {
-        await context.send(`Book not found: "${title}"`);
-      }
-    } catch (err) {
-      await context.send(`Error: ${String(err)}`);
-    }
-    return;
-  }
-
-  await context.send(
-    'Unknown subcommand. Try: /book help\nUsage: /book find "Title" "Author"',
-  );
+  await context.send("Book ingestion is not available in this build.");
 }
 
 export async function handleGptCustom(context: MessageContext): Promise<void> {

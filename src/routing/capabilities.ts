@@ -144,18 +144,27 @@ export const CAPABILITIES: Capability[] = [
     id: "agent:n8n",
     type: "agent",
     name: "n8n",
+    description:
+      "Scope: orchestration only (HTTP triggers, webhooks, scheduled tasks, app-to-app connections). NOT for: Telegram bot logic, Claude calls, Supabase queries, file processing — handle those directly in EDDIE TypeScript.",
     triggers: [
       {
         type: "keyword",
         patterns: [
           "n8n",
-          "workflow",
           "automation",
-          "webhook",
-          "trigger",
-          "node",
+          "webhook handler",
+          "schedule job",
+          "http trigger",
+          "app integration",
+          "automate between",
+          "pipe data",
         ],
         weight: 1.0,
+      },
+      {
+        type: "keyword",
+        patterns: ["connect .* to", "when .* happens"],
+        weight: 0.8,
       },
       { type: "domain", patterns: ["automate", "integrate"], weight: 0.4 },
     ],
@@ -870,7 +879,7 @@ export const CAPABILITIES: Capability[] = [
       },
       { type: "domain", patterns: ["find out", "look into"], weight: 0.3 },
     ],
-    requires: ["mcp:brave-search", "mcp:context7"],
+    requires: ["mcp:context7"],
     priority: 7,
   },
   // ── Content ──
@@ -1512,19 +1521,6 @@ export const CAPABILITIES: Capability[] = [
     priority: 8,
   },
   {
-    id: "mcp:brave-search",
-    type: "mcp",
-    name: "Brave Search",
-    triggers: [
-      {
-        type: "keyword",
-        patterns: ["search the web", "look up", "find information", "research"],
-        weight: 0.7,
-      },
-    ],
-    priority: 6,
-  },
-  {
     id: "mcp:context7",
     type: "mcp",
     name: "Context7 (Library Docs)",
@@ -1536,11 +1532,15 @@ export const CAPABILITIES: Capability[] = [
           "library docs",
           "api reference",
           "how to use",
+          "import from",
+          "package docs",
+          "sdk reference",
+          "getting started with",
         ],
-        weight: 0.8,
+        weight: 0.9,
       },
     ],
-    priority: 6,
+    priority: 7,
   },
   {
     id: "mcp:playwright",
@@ -1701,89 +1701,6 @@ export const CAPABILITIES: Capability[] = [
     ],
     priority: 9,
   },
-  // ── Video Production Pipeline ──
-  {
-    id: "script:video-pipeline",
-    type: "script",
-    name: "Video Pipeline",
-    invoke: `bun run ${resolve(PROJECT_ROOT, "src/video/pipeline.ts")}`,
-    triggers: [
-      {
-        type: "keyword",
-        patterns: [
-          "run video pipeline",
-          "make video",
-          "generate youtube video",
-          "daily short",
-          "ai news video",
-          "produce video",
-          "render short",
-        ],
-        weight: 1.0,
-      },
-    ],
-    priority: 8,
-  },
-  {
-    id: "script:news-gatherer",
-    type: "script",
-    name: "AI News Gatherer",
-    invoke: `bun run ${resolve(PROJECT_ROOT, "src/video/news-gatherer.ts")}`,
-    triggers: [
-      {
-        type: "keyword",
-        patterns: [
-          "gather ai news",
-          "refresh news",
-          "poll news feeds",
-          "fetch ai stories",
-          "news refresh",
-        ],
-        weight: 1.0,
-      },
-    ],
-    priority: 7,
-  },
-  {
-    id: "script:test-video-pipeline",
-    type: "script",
-    name: "Video Pipeline Test",
-    invoke: `bun run ${resolve(PROJECT_ROOT, "src/scripts/test-video-pipeline.ts")}`,
-    triggers: [
-      {
-        type: "keyword",
-        patterns: [
-          "test video pipeline",
-          "test render",
-          "video pipeline status",
-          "check video pipeline",
-          "video status",
-        ],
-        weight: 1.0,
-      },
-    ],
-    priority: 6,
-  },
-  // ── Wave 4 Content Scripts ──
-  {
-    id: "script:video-idea-pipeline",
-    type: "script",
-    name: "Video Idea Pipeline",
-    invoke: "bun run ~/eddie/src/proactive/video-idea-pipeline.ts",
-    triggers: [
-      {
-        type: "keyword",
-        patterns: [
-          "video idea",
-          "youtube idea",
-          "content idea",
-          "video pipeline",
-        ],
-        weight: 1.0,
-      },
-    ],
-    priority: 7,
-  },
   // ── Wave 6 Dashboard Scripts ──
   {
     id: "script:dashboard-gen",
@@ -1819,25 +1736,6 @@ export const CAPABILITIES: Capability[] = [
     priority: 5,
   },
   // ── Wave 7 Autonomous Cron Scripts ──
-  {
-    id: "script:accounting-triage",
-    type: "script",
-    name: "Accounting Triage",
-    invoke: "bun run ~/eddie/src/proactive/accounting-triage.ts",
-    triggers: [
-      {
-        type: "keyword",
-        patterns: [
-          "accounting",
-          "invoice triage",
-          "financial emails",
-          "expense triage",
-        ],
-        weight: 1.0,
-      },
-    ],
-    priority: 7,
-  },
   {
     id: "script:discoverability",
     type: "script",
@@ -1915,26 +1813,6 @@ export const CAPABILITIES: Capability[] = [
     priority: 7,
   },
   {
-    id: "script:ebpf-monitor",
-    type: "script",
-    name: "eBPF System Monitor",
-    triggers: [
-      {
-        type: "keyword",
-        patterns: [
-          "ebpf",
-          "system monitor",
-          "process tracing",
-          "oom",
-          "kernel",
-        ],
-        weight: 0.9,
-      },
-    ],
-    invoke: "bun run src/proactive/ebpf-monitor.ts",
-    priority: 5,
-  },
-  {
     id: "script:remote-control",
     type: "script",
     name: "Remote Control",
@@ -1966,26 +1844,6 @@ export const CAPABILITIES: Capability[] = [
       },
     ],
     priority: 6,
-  },
-  {
-    id: "script:contra-list-services",
-    type: "script",
-    name: "Contra List Services",
-    invoke:
-      "bun run ~/eddie/src/scripts/contra-list-services.ts\n# Discovery mode: bun run ~/eddie/src/scripts/contra-list-services.ts --discover",
-    triggers: [
-      {
-        type: "keyword",
-        patterns: [
-          "contra services",
-          "list services",
-          "post services",
-          "contra listing",
-        ],
-        weight: 1.0,
-      },
-    ],
-    priority: 7,
   },
   {
     id: "script:send-email",
@@ -2048,39 +1906,6 @@ export const CAPABILITIES: Capability[] = [
       },
     ],
     priority: 6,
-  },
-  {
-    id: "script:weekly-content",
-    type: "script",
-    name: "Weekly Content Batch",
-    invoke: "bun run ~/eddie/src/proactive/weekly-content.ts",
-    triggers: [
-      {
-        type: "keyword",
-        patterns: ["weekly content", "content batch", "process bookmarks"],
-        weight: 0.9,
-      },
-    ],
-    priority: 6,
-  },
-  {
-    id: "script:transcript-watcher",
-    type: "script",
-    name: "Transcript Watcher",
-    invoke:
-      "# In-process: startTranscriptWatcher(bot) — polls ~/brain-vault/00 - Inbox/ every 5min for .vtt/.srt files",
-    triggers: [
-      {
-        type: "keyword",
-        patterns: [
-          "transcript watcher",
-          "watch transcripts",
-          "inbox transcripts",
-        ],
-        weight: 0.9,
-      },
-    ],
-    priority: 5,
   },
   {
     id: "script:code-server",
@@ -2177,6 +2002,28 @@ export const CAPABILITIES: Capability[] = [
     priority: 9,
   },
   {
+    id: "script:search-capabilities",
+    type: "script",
+    name: "Search Capabilities",
+    description:
+      "CLI: find the right tool/agent/command for any natural language intent",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "what tool",
+          "which agent",
+          "how do i",
+          "capabilities",
+          "search capabilities",
+        ],
+        weight: 0.8,
+      },
+    ],
+    invoke: "bun ~/eddie/src/routing/search-capabilities.ts",
+    priority: 5,
+  },
+  {
     id: "agent:onboarding",
     type: "agent",
     name: "Onboarding Guide",
@@ -2203,6 +2050,144 @@ export const CAPABILITIES: Capability[] = [
     priority: 8,
   },
   {
+    id: "command:recall",
+    type: "command",
+    name: "Recall",
+    description:
+      "Search memory for past decisions, context, and learnings. /recall",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "what did we decide",
+          "do you remember",
+          "recall",
+          "past decision",
+          "what was the reason",
+          "what did we choose",
+          "look up memory",
+          "search memory",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 9,
+  },
+  {
+    id: "command:state",
+    type: "command",
+    name: "State",
+    description:
+      "View current session status, active tasks, and project state. /state",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "current state",
+          "what are we working on",
+          "session status",
+          "active tasks",
+          "what's in progress",
+          "project status",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 8,
+  },
+  {
+    id: "command:research",
+    type: "command",
+    name: "Research",
+    description:
+      "Multi-AI research across Gemini, ChatGPT, and Kimi with web search. /research",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "research",
+          "look up",
+          "find information about",
+          "what is",
+          "how does",
+          "compare options",
+          "investigate",
+          "deep dive",
+        ],
+        weight: 0.8,
+      },
+    ],
+    priority: 7,
+  },
+  {
+    id: "command:hub",
+    type: "command",
+    name: "Hub",
+    description:
+      "Access Google Hub (email, calendar, Meet). /hub email | /hub calendar | /hub meet | /hub status",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "check my email",
+          "check email",
+          "what's on my calendar",
+          "calendar events",
+          "meet transcript",
+          "google hub",
+          "hub status",
+          "new emails",
+          "upcoming meetings",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 9,
+  },
+  {
+    id: "command:sync",
+    type: "command",
+    name: "Sync",
+    description: "Session start — initialize context for this project. /sync",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "start session",
+          "sync context",
+          "initialize session",
+          "load context",
+          "session start",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 8,
+  },
+  {
+    id: "command:consolidate",
+    type: "command",
+    name: "Consolidate",
+    description:
+      "Session end — push learnings to Obsidian brain vault. /consolidate",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "end session",
+          "consolidate",
+          "save learnings",
+          "wrap up",
+          "push to brain vault",
+          "session end",
+          "save notes",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 8,
+  },
+  {
     id: "command:ginvite",
     type: "command",
     name: "GitHub Pro Invite",
@@ -2222,6 +2207,28 @@ export const CAPABILITIES: Capability[] = [
       },
     ],
     priority: 8,
+  },
+  {
+    id: "command:connect",
+    type: "command",
+    name: "Connect Service",
+    description:
+      "One-tap OAuth connection for Google (Gmail, Calendar, Drive, YouTube). /connect google",
+    triggers: [
+      {
+        type: "keyword",
+        patterns: [
+          "connect google",
+          "reconnect google",
+          "reauth google",
+          "google auth expired",
+          "google drive access",
+          "link google account",
+        ],
+        weight: 1.0,
+      },
+    ],
+    priority: 9,
   },
   {
     id: "agent:heimdall",

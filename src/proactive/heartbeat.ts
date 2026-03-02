@@ -4,7 +4,6 @@ import { relayHeartbeat } from "../claude/relay.ts";
 import { canSendProactive, logProactiveSend } from "./anti-spam.ts";
 import { getSupabase, memoryEnabled } from "../memory/client.ts";
 import { logCommunication } from "../memory/store.ts";
-import { initiateCall } from "../voice/call.ts";
 import { logger } from "../utils/logger.ts";
 import { emitEvent } from "../dashboard/server.ts";
 import {
@@ -554,46 +553,6 @@ async function tick(bot: Bot): Promise<void> {
       durationMs,
       usageSnapshot,
     );
-  }
-
-  if (decision.action === "call" && decision.callReason) {
-    const phone = config.OWNER_PHONE;
-    const webhookUrl = config.TWILIO_WEBHOOK_URL;
-    const webhookPort = config.TWILIO_WEBHOOK_PORT;
-    if (phone) {
-      const webhookBaseUrl = webhookUrl || `https://localhost:${webhookPort}`;
-      try {
-        await initiateCall(phone, webhookBaseUrl);
-        await logProactiveSend(`[heartbeat:call] ${decision.callReason}`);
-        await logHeartbeat(
-          "call",
-          decision.callReason,
-          null,
-          durationMs,
-          usageSnapshot,
-        );
-      } catch (err) {
-        logger.error("heartbeat:call-error", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        await logHeartbeat(
-          "call",
-          `call failed: ${err instanceof Error ? err.message : String(err)}`,
-          null,
-          durationMs,
-          usageSnapshot,
-        );
-      }
-    } else {
-      logger.warn("heartbeat:call-no-phone", { reason: decision.callReason });
-      await logHeartbeat(
-        "call",
-        "no phone configured",
-        null,
-        durationMs,
-        usageSnapshot,
-      );
-    }
   }
 
   if (

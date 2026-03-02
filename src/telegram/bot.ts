@@ -50,6 +50,7 @@ import {
   handleGinvite,
   handleGkick,
   handleGinvites,
+  handleConnect,
 } from "./handlers/command.ts";
 import { handleBookmark, handleResume } from "./handlers/bookmark-commands.ts";
 import {
@@ -126,6 +127,7 @@ export function createBot(): Bot {
   bot.command("ginvite", (context) => handleGinvite(context));
   bot.command("gkick", (context) => handleGkick(context));
   bot.command("ginvites", (context) => handleGinvites(context));
+  bot.command("connect", (context) => handleConnect(context));
 
   registerCallbackQueryHandlers(bot);
 

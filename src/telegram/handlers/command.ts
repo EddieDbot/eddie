@@ -74,6 +74,8 @@ export {
 
 export { handleRemote, handleStopRemote } from "./remote-control-commands.ts";
 
+export { handleConnect } from "./connect-commands.ts";
+
 export {
   handleGinvite,
   handleGkick,

@@ -2,9 +2,7 @@ import { memoryEnabled, getSupabase } from "../memory/client.ts";
 import { getAgentSessions } from "./agent-watcher.ts";
 import { getRecentJobs, getJob } from "../jobs/manager.ts";
 import { readOutput, isSessionAlive } from "../jobs/tmux.ts";
-import { listReportsMeta, getReportContent } from "../proactive/playlist.ts";
 import { parseRoadmapItems } from "../proactive/report-synthesis.ts";
-import { getChannelStats, getRecentVideos } from "../comms/youtube.ts";
 import { listGoals } from "../proactive/goals.ts";
 import { getRevenueSummary } from "../proactive/revenue.ts";
 import { config } from "../config.ts";
@@ -50,14 +48,10 @@ export function handleApi(path: string): Response {
       return handleAsync(getHealthIndicators);
     case "/api/roadmap":
       return handleAsync(getRoadmap);
-    case "/api/youtube":
-      return handleAsync(getYoutubeStats);
     case "/api/goals":
       return handleAsync(getGoals);
     case "/api/revenue":
       return handleAsync(getRevenueSummary);
-    case "/api/books":
-      return handleAsync(getBooks);
     case "/api/job-performance":
       return handleAsync(getJobPerformance);
     case "/api/context-budget":
@@ -65,18 +59,6 @@ export function handleApi(path: string): Response {
     case "/api/agents":
       return handleAsync(async () => getAgentSessions());
     default: {
-      if (path === "/api/reports") {
-        return handleAsync(listReportsMeta);
-      }
-      const reportPrefix = "/api/report/";
-      if (path.startsWith(reportPrefix)) {
-        const filename = decodeURIComponent(path.slice(reportPrefix.length));
-        return handleAsync(async () => {
-          const content = await getReportContent(filename);
-          if (content === null) return { error: "not found" };
-          return { filename, content };
-        });
-      }
       // Agent session detail: GET /api/agents/:uuid
       const agentMatch = path.match(/^\/api\/agents\/([^/]+)$/);
       if (agentMatch) {
@@ -472,16 +454,6 @@ async function getRoadmap() {
   }
 }
 
-async function getYoutubeStats() {
-  const channelId = config.YOUTUBE_CHANNEL_ID;
-  if (!channelId) return { error: "YOUTUBE_CHANNEL_ID not configured" };
-  const [stats, videos] = await Promise.all([
-    getChannelStats(channelId),
-    getRecentVideos(channelId, 5),
-  ]);
-  return { stats, videos };
-}
-
 async function getGoals() {
   try {
     const goals = await listGoals("active");
@@ -638,36 +610,4 @@ async function getContextBudget() {
       generatedAt: new Date().toISOString(),
     };
   }
-}
-
-async function getBooks() {
-  const { readdir } = await import("node:fs/promises");
-  const { homedir } = await import("node:os");
-  const HOME = homedir();
-  const rawDir = `${HOME}/brain-vault/00 - Inbox/books/_raw`;
-  const processedLog = `${HOME}/brain-vault/00 - Inbox/books/processed-books.txt`;
-
-  let inbox: string[] = [];
-  let processed: Array<{ hash: string; title: string; date: string }> = [];
-
-  try {
-    const files = await readdir(rawDir);
-    inbox = files.filter((f) => /\.(pdf|epub|txt)$/i.test(f));
-  } catch {
-    // dir doesn't exist yet
-  }
-
-  try {
-    const text = await Bun.file(processedLog).text();
-    for (const line of text.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const [hash, title, date] = trimmed.split("|");
-      if (hash && title) processed.push({ hash, title, date: date ?? "" });
-    }
-  } catch {
-    // file doesn't exist yet
-  }
-
-  return { inbox_count: inbox.length, inbox, processed };
 }

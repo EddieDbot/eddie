@@ -1,5 +1,0 @@
-tracepoint:sock:inet_sock_set_state
-/args->newstate == 1/ {
-  printf("{\"type\":\"tcp_connect\",\"pid\":%d,\"comm\":\"%s\",\"dport\":%d,\"ts\":%llu}\n",
-    pid, comm, args->dport, nsecs);
-}

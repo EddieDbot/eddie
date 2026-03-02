@@ -3,33 +3,6 @@ import { logger } from "../utils/logger.ts";
 import { mkdir } from "node:fs/promises";
 import { BRAIN_VAULT_ROOT } from "../memory/brain-vault-paths.ts";
 
-async function searchWeb(query: string): Promise<string> {
-  // Brave Search MCP is available in agent context; in direct calls, do a basic fetch
-  try {
-    const res = await fetch(
-      `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5`,
-      {
-        headers: {
-          Accept: "application/json",
-          "Accept-Encoding": "gzip",
-          "X-Subscription-Token": process.env.BRAVE_API_KEY ?? "",
-        },
-        signal: AbortSignal.timeout(8_000),
-      },
-    );
-    if (!res.ok) return "";
-    const data = (await res.json()) as {
-      web?: {
-        results?: Array<{ title: string; description: string; url: string }>;
-      };
-    };
-    const results = data.web?.results?.slice(0, 5) ?? [];
-    return results.map((r) => `- ${r.title}: ${r.description}`).join("\n");
-  } catch {
-    return "";
-  }
-}
-
 export async function generateContentBrief(
   topic: string,
   voiceNote?: string,
@@ -41,17 +14,11 @@ export async function generateContentBrief(
     ? (topic.split(/[.!?\n]/)[0]?.slice(0, 80) ?? topic.slice(0, 80))
     : topic;
 
-  const searchResults = await searchWeb(
-    `${searchQuery} content ideas 2026`,
-  ).catch(() => "");
-
   const contextParts = isBrainDump
     ? [`Brain dump / voice note:\n${topic}`]
     : [`Topic: ${topic}`];
   if (voiceNote && !isBrainDump)
     contextParts.push(`Voice note context: ${voiceNote}`);
-  if (searchResults)
-    contextParts.push(`Top content on this topic:\n${searchResults}`);
   const prompt = contextParts.join("\n\n");
 
   const systemInstruction = isBrainDump

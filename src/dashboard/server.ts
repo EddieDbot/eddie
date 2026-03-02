@@ -5,10 +5,6 @@ import {
   handleOAuthStart,
   handleOAuthCallback,
 } from "../comms/google/oauth-flow.ts";
-import {
-  handleYouTubeOAuthStart,
-  handleYouTubeOAuthCallback,
-} from "../video/youtube-oauth-flow.ts";
 import { createJob } from "../jobs/manager.ts";
 import { spawnJob } from "../jobs/tmux.ts";
 
@@ -79,7 +75,8 @@ export function startDashboard(): void {
       const isPublic =
         url.pathname === "/api/health" ||
         url.pathname === "/slack/command" ||
-        url.pathname.startsWith("/preview/");
+        url.pathname.startsWith("/preview/") ||
+        url.pathname === "/oauth/google/callback";
 
       if (!isPublic && config.DASHBOARD_TOKEN) {
         // Basic Auth gate on everything else
@@ -99,11 +96,6 @@ export function startDashboard(): void {
       if (url.pathname === "/oauth/google/start") return handleOAuthStart(req);
       if (url.pathname === "/oauth/google/callback")
         return handleOAuthCallback(req);
-      if (url.pathname === "/oauth/youtube/start")
-        return handleYouTubeOAuthStart(req);
-      if (url.pathname === "/oauth/youtube/callback")
-        return handleYouTubeOAuthCallback(req);
-
       // SSE feed
       if (url.pathname === "/api/feed") return handleSSE();
 

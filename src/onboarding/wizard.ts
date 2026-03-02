@@ -25,37 +25,35 @@ Options:
 The wizard will:
   1. Detect your system environment (OS, RAM, CPU, disk)
   2. Ask about your Claude subscription tier
-  3. Walk through optional module selection
-  4. Collect required and optional credentials
-  5. Initialize your Brain Vault directory structure
-  6. Generate a .env configuration file
-  7. Run a smoke test to verify EDDIE starts correctly
+  3. Walk through module selection
+  4. Collect Telegram credentials
+  5. Configure Supabase (semantic memory)
+  6. Configure Google API key (embeddings)
+  7. Configure Slack (optional)
+  8. Set owner info and Brain Vault path
+  9. Initialize Brain Vault directory structure
+  10. Generate a .env configuration file
+  11. Run a smoke test to verify EDDIE starts correctly
 `.trim();
 
 type ModuleSelection = {
-  videoPipeline: boolean;
   vectorMemory: boolean;
   heimdallSync: boolean;
-  socialPosting: boolean;
 };
 
 type CollectedConfig = {
-  // Owner
   ownerName: string;
   brainVaultPath: string;
   personalGitRepo: string;
-  // Telegram
   telegramBotToken: string;
   telegramUserId: string;
-  // Subscription
   maxConcurrentJobs: number;
-  // Modules
   modules: ModuleSelection;
-  // Optional credentials
-  elevenLabsApiKey: string;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
   googleApiKey: string;
-  postizUrl: string;
-  postizApiKey: string;
+  slackBotToken: string;
+  slackChannelId: string;
 };
 
 const DRY_RUN = process.argv.includes("--dry-run");
@@ -210,45 +208,13 @@ async function stepSubscriptionTier(rl: Interface): Promise<number> {
 async function stepModuleSelection(rl: Interface): Promise<ModuleSelection> {
   console.log("── Step 3: Module Selection ──\n");
 
-  const env = await detectEnvironment();
-
-  let videoPipeline = false;
-  if (env.ramGB < 4) {
-    console.log(
-      "  Video pipeline: SKIPPED (requires 4GB+ RAM, detected ${env.ramGB}GB)\n",
-    );
-  } else {
-    console.log(
-      "  Video pipeline — AI-generated YouTube Shorts (requires ElevenLabs API key, ~4GB disk)",
-    );
-    videoPipeline = await confirm(rl, "  Enable video pipeline?");
-    console.log("");
-  }
-
-  console.log(
-    "  Vector memory — Semantic search over stored knowledge (requires Google API key, free tier)",
-  );
-  const vectorMemory = await confirm(rl, "  Enable vector memory?");
-  console.log("");
-
   console.log(
     "  Heimdall sync — Check for community piece updates automatically",
   );
-  if (env.ramGB > 8) {
-    console.log("  (Recommended: daemon mode — your system has enough RAM)");
-  } else {
-    console.log("  (Recommended: on-demand mode — conserves memory)");
-  }
   const heimdallSync = await confirm(rl, "  Enable Heimdall sync?");
   console.log("");
 
-  console.log(
-    "  Social posting — Post to social platforms via Postiz (requires Postiz instance URL + API key)",
-  );
-  const socialPosting = await confirm(rl, "  Enable social posting?");
-  console.log("");
-
-  return { videoPipeline, vectorMemory, heimdallSync, socialPosting };
+  return { vectorMemory: true, heimdallSync };
 }
 
 async function stepRequiredCredentials(rl: Interface): Promise<{
@@ -313,64 +279,70 @@ async function stepRequiredCredentials(rl: Interface): Promise<{
   return { telegramBotToken, telegramUserId };
 }
 
-async function stepOptionalCredentials(
-  rl: Interface,
-  modules: ModuleSelection,
-): Promise<{
-  elevenLabsApiKey: string;
-  googleApiKey: string;
-  postizUrl: string;
-  postizApiKey: string;
+async function stepSupabaseCredentials(rl: Interface): Promise<{
+  supabaseUrl: string;
+  supabaseAnonKey: string;
 }> {
-  console.log("── Step 5: Optional Credentials ──\n");
+  console.log("── Step 5: Supabase (Semantic Memory) ──\n");
+  console.log(
+    "  Supabase powers EDDIE's semantic memory — required for EDDIE to remember and learn.",
+  );
+  console.log("  Free tier available at supabase.com\n");
 
-  let elevenLabsApiKey = "";
-  if (modules.videoPipeline) {
-    elevenLabsApiKey = await ask(
-      rl,
-      "  ElevenLabs API key (for video voice): ",
-    );
-    console.log("");
-  }
+  const supabaseUrl = await ask(
+    rl,
+    "  Supabase project URL (https://xxx.supabase.co): ",
+  );
+  const supabaseAnonKey = await ask(rl, "  Supabase anon key: ");
+  console.log("");
+  return { supabaseUrl, supabaseAnonKey };
+}
 
-  let googleApiKey = "";
-  if (modules.vectorMemory) {
-    googleApiKey = await ask(
-      rl,
-      "  Google API key (for embeddings — free tier): ",
-    );
-    console.log("");
-  }
+async function stepGoogleCredentials(rl: Interface): Promise<string> {
+  console.log("── Step 6: Google API Key (Embeddings) ──\n");
+  console.log(
+    "  Google API key enables semantic search via gemini-embedding-001 (free tier).",
+  );
+  console.log(
+    "  Get one at console.cloud.google.com — enable the Generative Language API.\n",
+  );
 
-  let postizUrl = "";
-  let postizApiKey = "";
-  if (modules.socialPosting) {
-    postizUrl = await ask(
-      rl,
-      "  Postiz instance URL (e.g. https://postiz.example.com): ",
-    );
-    postizApiKey = await ask(rl, "  Postiz API key: ");
-    console.log("");
-  }
+  const googleApiKey = await ask(
+    rl,
+    "  Google API key (or press Enter to skip): ",
+  );
+  console.log("");
+  return googleApiKey;
+}
 
-  if (
-    !modules.videoPipeline &&
-    !modules.vectorMemory &&
-    !modules.socialPosting
-  ) {
-    console.log(
-      "  No optional credentials needed based on module selection.\n",
-    );
-  }
+async function stepSlackCredentials(rl: Interface): Promise<{
+  slackBotToken: string;
+  slackChannelId: string;
+}> {
+  console.log("── Step 7: Slack (optional) ──\n");
+  console.log(
+    "  EDDIE can monitor Slack channels and notify you of important messages.",
+  );
 
-  return { elevenLabsApiKey, googleApiKey, postizUrl, postizApiKey };
+  const enableSlack = await confirm(rl, "  Enable Slack integration?");
+  console.log("");
+
+  if (!enableSlack) return { slackBotToken: "", slackChannelId: "" };
+
+  const slackBotToken = await ask(rl, "  Slack bot token (xoxb-...): ");
+  const slackChannelId = await ask(
+    rl,
+    "  Channel IDs to monitor (comma-separated): ",
+  );
+  console.log("");
+  return { slackBotToken, slackChannelId };
 }
 
 async function stepOwnerInfo(rl: Interface): Promise<{
   ownerName: string;
   brainVaultPath: string;
 }> {
-  console.log("── Step 6: Owner Info ──\n");
+  console.log("── Step 8: Owner Info ──\n");
 
   const ownerName = await ask(rl, "  Your name (for briefs and greetings): ");
   const defaultBV = resolve(homedir(), "brain-vault");
@@ -385,7 +357,7 @@ async function stepOwnerInfo(rl: Interface): Promise<{
 }
 
 async function stepBrainVaultInit(brainVaultPath: string): Promise<void> {
-  console.log("── Step 7: Brain Vault Initialization ──\n");
+  console.log("── Step 9: Brain Vault Initialization ──\n");
 
   const dirs = [
     "00 - Inbox",
@@ -434,7 +406,7 @@ ${new Date().toISOString().split("T")[0]}
 }
 
 async function stepClaudeAuth(rl: Interface): Promise<void> {
-  console.log("── Step 8: Claude CLI Authentication ──\n");
+  console.log("── Step 10: Claude CLI Authentication ──\n");
   console.log("  Run this command in a new terminal to authenticate Claude:\n");
   console.log("    claude auth\n");
   await ask(rl, "  Press Enter when done...");
@@ -442,7 +414,7 @@ async function stepClaudeAuth(rl: Interface): Promise<void> {
 }
 
 async function stepPersonalRepo(rl: Interface): Promise<string> {
-  console.log("── Step 9: Personal Git Repo (optional) ──\n");
+  console.log("── Step 11: Personal Git Repo (optional) ──\n");
   console.log(
     "  A private GitHub repo stores your personal EDDIE config (recommended).",
   );
@@ -452,7 +424,7 @@ async function stepPersonalRepo(rl: Interface): Promise<string> {
 }
 
 async function stepGenerateEnv(config: CollectedConfig): Promise<void> {
-  console.log("── Step 10: Generate .env ──\n");
+  console.log("── Step 12: Generate .env ──\n");
 
   const envPath = resolve(import.meta.dir, "../../.env");
   const examplePath = resolve(import.meta.dir, "../../.env.example");
@@ -486,33 +458,28 @@ async function stepGenerateEnv(config: CollectedConfig): Promise<void> {
     "",
   ];
 
-  if (config.modules.videoPipeline) {
-    envLines.push("# Video pipeline");
-    envLines.push("VIDEO_PIPELINE_ENABLED=true");
-    if (config.elevenLabsApiKey) {
-      envLines.push(`ELEVENLABS_API_KEY=${config.elevenLabsApiKey}`);
-    }
-    envLines.push("");
-  }
+  // Supabase — always
+  envLines.push("# Supabase (semantic memory)");
+  if (config.supabaseUrl) envLines.push(`SUPABASE_URL=${config.supabaseUrl}`);
+  if (config.supabaseAnonKey)
+    envLines.push(`SUPABASE_ANON_KEY=${config.supabaseAnonKey}`);
+  envLines.push("");
 
-  if (config.modules.vectorMemory) {
-    envLines.push("# Vector memory");
+  // Google embeddings — always if provided
+  if (config.googleApiKey) {
+    envLines.push("# Google (embeddings)");
     envLines.push("EMBED_PROVIDER=google");
-    if (config.googleApiKey) {
-      envLines.push(`GOOGLE_API_KEY=${config.googleApiKey}`);
-    }
+    envLines.push(`GOOGLE_API_KEY=${config.googleApiKey}`);
     envLines.push("");
   }
 
-  if (config.modules.socialPosting) {
-    envLines.push("# Social posting");
-    envLines.push("POSTIZ_ENABLED=true");
-    if (config.postizUrl) {
-      envLines.push(`POSTIZ_URL=${config.postizUrl}`);
-    }
-    if (config.postizApiKey) {
-      envLines.push(`POSTIZ_API_KEY=${config.postizApiKey}`);
-    }
+  // Slack — optional
+  if (config.slackBotToken) {
+    envLines.push("# Slack");
+    envLines.push("COMMS_ENABLED=true");
+    envLines.push(`COMMS_SLACK_BOT_TOKEN=${config.slackBotToken}`);
+    if (config.slackChannelId)
+      envLines.push(`COMMS_SLACK_WATCH_CHANNELS=${config.slackChannelId}`);
     envLines.push("");
   }
 
@@ -560,7 +527,7 @@ async function stepGenerateEnv(config: CollectedConfig): Promise<void> {
 }
 
 async function stepSmokeTest(): Promise<void> {
-  console.log("── Step 11: Smoke Test ──\n");
+  console.log("── Step 13: Smoke Test ──\n");
 
   if (DRY_RUN) {
     console.log("  [DRY RUN] Would start EDDIE service and verify status\n");
@@ -608,16 +575,12 @@ function stepDone(config: CollectedConfig): void {
   console.log(
     `    Telegram: ${config.telegramBotToken ? "configured" : "skipped"}`,
   );
-
-  const enabledModules: string[] = [];
-  if (config.modules.videoPipeline) enabledModules.push("Video Pipeline");
-  if (config.modules.vectorMemory) enabledModules.push("Vector Memory");
-  if (config.modules.heimdallSync) enabledModules.push("Heimdall Sync");
-  if (config.modules.socialPosting) enabledModules.push("Social Posting");
+  console.log(`    Supabase: ${config.supabaseUrl ? "configured" : "skipped"}`);
   console.log(
-    `    Modules: ${enabledModules.length > 0 ? enabledModules.join(", ") : "none"}`,
+    `    Google API: ${config.googleApiKey ? "configured" : "skipped"}`,
   );
-
+  console.log(`    Slack: ${config.slackBotToken ? "configured" : "skipped"}`);
+  if (config.modules.heimdallSync) console.log("    Heimdall: enabled");
   if (config.personalGitRepo) {
     console.log(`    Personal repo: ${config.personalGitRepo}`);
   }
@@ -653,8 +616,9 @@ async function main() {
 
     const { telegramBotToken, telegramUserId } =
       await stepRequiredCredentials(rl);
-    const { elevenLabsApiKey, googleApiKey, postizUrl, postizApiKey } =
-      await stepOptionalCredentials(rl, modules);
+    const { supabaseUrl, supabaseAnonKey } = await stepSupabaseCredentials(rl);
+    const googleApiKey = await stepGoogleCredentials(rl);
+    const { slackBotToken, slackChannelId } = await stepSlackCredentials(rl);
 
     const { ownerName, brainVaultPath } = await stepOwnerInfo(rl);
 
@@ -671,10 +635,11 @@ async function main() {
       telegramUserId,
       maxConcurrentJobs,
       modules,
-      elevenLabsApiKey,
+      supabaseUrl,
+      supabaseAnonKey,
       googleApiKey,
-      postizUrl,
-      postizApiKey,
+      slackBotToken,
+      slackChannelId,
     };
 
     await stepGenerateEnv(config);

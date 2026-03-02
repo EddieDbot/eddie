@@ -59,12 +59,12 @@ export function detectJobType(prompt: string, tmuxPrefix?: string): JobType {
 
 export const JOB_MCP_MAP: Record<string, string[]> = {
   "transcript-ingestion": ["mcp:youtube-transcript"],
-  research: ["mcp:brave-search", "mcp:context7"],
-  "content-brief": ["mcp:brave-search"],
+  research: ["mcp:context7"],
+  "content-brief": [],
   "memory-sync": ["mcp:vector-memory"],
   "self-heal": [],
   "web-scrape": ["mcp:playwright"],
-  default: ["mcp:brave-search", "mcp:vector-memory"],
+  default: ["mcp:vector-memory"],
 };
 
 export function resolveJobSettings(opts?: {

@@ -37,6 +37,33 @@ import { redactSecrets } from "../security/output-scan.ts";
 
 const ZOMBIE_THRESHOLD_MS = 5 * 60_000; // 5 minutes with 0 bytes output = dead
 
+async function maybeConsolidate(): Promise<void> {
+  const flagFile = resolve(homedir(), "eddie/data/last-consolidation");
+  try {
+    const stat = await import("node:fs/promises").then((m) => m.stat(flagFile));
+    const ageMs = Date.now() - stat.mtimeMs;
+    if (ageMs < 4 * 60 * 60 * 1000) return; // < 4 hours, skip
+  } catch {
+    // file doesn't exist, proceed
+  }
+
+  Bun.spawn(
+    [
+      "bun",
+      "run",
+      resolve(homedir(), "eddie/src/consolidate-cli.ts"),
+      "--auto",
+    ],
+    {
+      stdout: "ignore",
+      stderr: "ignore",
+      detached: true,
+    },
+  );
+
+  await Bun.write(flagFile, Date.now().toString());
+}
+
 async function verifyPhaseArtifacts(
   jobId: string,
   step: number,
@@ -455,9 +482,6 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
   // Assess outcome via haiku
   const { outcome, summary } = await assessOutcome(job?.prompt ?? "", output);
   const succeeded = outcome === "success" || outcome === "partial";
-  // Two-phase video tracking: mark processed only on success (not at spawn)
-  const { finalizeVideoJob } = await import("../proactive/video-tracker.ts");
-  finalizeVideoJob(jobId, succeeded).catch(() => {});
   tickTool({
     tool_type: "model",
     tool_name: job?.model ?? "claude",
@@ -785,6 +809,8 @@ async function completeJob(bot: Bot, jobId: string): Promise<void> {
     const { removeWorktree } = await import("./worktree.ts");
     removeWorktree(job.id).catch(() => {});
   }
+
+  maybeConsolidate().catch(() => {});
 
   // Cleanup temp files
   const promptPath = resolve(JOBS_DIR, `job-${jobId}-prompt.txt`);
